@@ -240,7 +240,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
           <button
             type="button"
             onClick={() => setDesconectando(true)}
-            disabled={ocupado !== null || qrcode !== null || conectado === false}
+            disabled={ocupado !== null || qrcode !== null || conectado !== true}
             title="Desconecta o número da instância (usa a configuração gravada)"
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-red-600 dark:text-red-400 border border-stone-300 dark:border-stone-700 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer disabled:opacity-50"
           >
