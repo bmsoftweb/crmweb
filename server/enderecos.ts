@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { pool } from './db';
-import { TIPOS_ENDERECO } from './schema';
+import { pool } from './db.js';
+import { TIPOS_ENDERECO } from './schema.js';
 
 /**
  * Endereços da pessoa (tabela pessoas_enderecos). São editados no próprio cadastro:

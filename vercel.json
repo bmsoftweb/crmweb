@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api"
+    }
+  ],
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/whatsapp",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/contratos",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

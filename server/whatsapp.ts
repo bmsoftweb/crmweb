@@ -1,7 +1,7 @@
-import { pool } from './db';
-import { VARIAVEIS, personalizar } from './campanhas';
-import { lerConfig } from './config';
-import { cifrar, decifrar, textoConfig } from './segredo';
+import { pool } from './db.js';
+import { VARIAVEIS, personalizar } from './campanhas.js';
+import { lerConfig } from './config.js';
+import { cifrar, decifrar, textoConfig } from './segredo.js';
 
 /**
  * WhatsApp pela Z-API ou pela Evolution API.
@@ -203,8 +203,13 @@ export async function desconectarWhatsApp(empresaId: string): Promise<void> {
 
 const esperar = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 
-/** Um ciclo de envio das campanhas; devolve quantos disparos foram processados */
-export async function enviarPendentes(limite = 50): Promise<number> {
+/**
+ * Um ciclo de envio das campanhas; devolve quantos disparos foram processados.
+ * prazoMs: tempo máximo do ciclo (na Vercel a função tem limite); o que não couber fica
+ * pendente para o próximo ciclo.
+ */
+export async function enviarPendentes(limite = 50, prazoMs = Infinity): Promise<number> {
+  const fim = Date.now() + prazoMs;
   const conn = await pool.getConnection();
   try {
     // Trava no MySQL: dois servidores no mesmo banco não mandam a mesma mensagem duas vezes
@@ -234,6 +239,7 @@ export async function enviarPendentes(limite = 50): Promise<number> {
         try {
           if (!creds.has(d.empresa_id)) creds.set(d.empresa_id, await credenciais(d.empresa_id));
           const c = creds.get(d.empresa_id)!;
+          if (Date.now() + c.intervalo * 1000 + 10_000 > fim) break; // pausa + envio não cabem mais no prazo
           if (processados) await esperar(c.intervalo * 1000);
           const assunto = personalizar(d.assunto, d).trim();
           await textoPara(c, telefoneWhatsApp(d.telefone_destino), (assunto ? `*${assunto}*\n\n` : '') + personalizar(d.corpo, d));

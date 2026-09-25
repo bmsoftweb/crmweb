@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { calcularTotais } from './totais';
+import { calcularTotais } from './totais.js';
 
 // 2 × 10,00 − 1,50 = 18,50 ; 0,5 × 99,99 = 50,00 (arredondado) ; desconto adicional 3,00
 const t = calcularTotais(

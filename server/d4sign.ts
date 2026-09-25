@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import { lerConfig } from './config';
-import { pool } from './db';
-import { cifrar, decifrar, textoConfig } from './segredo';
+import { lerConfig } from './config.js';
+import { pool } from './db.js';
+import { cifrar, decifrar, textoConfig } from './segredo.js';
 
 /**
  * Assinatura eletrônica pela D4Sign (https://docapi.d4sign.com.br).

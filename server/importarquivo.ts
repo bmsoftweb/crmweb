@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { pool } from './db';
-import { texto, digitos } from './importbm';
+import { pool } from './db.js';
+import { texto, digitos } from './importbm.js';
 
 /**
  * Importação de pessoas a partir de arquivo (CSV, Excel ou PDF). O navegador lê o

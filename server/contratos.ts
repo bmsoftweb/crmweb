@@ -1,7 +1,7 @@
 import express, { Router, Request, Response } from 'express';
-import { pool } from './db';
-import { friendlyDbError } from './crud';
-import { sincronizarNegocio } from './regras';
+import { pool } from './db.js';
+import { friendlyDbError } from './crud.js';
+import { sincronizarNegocio } from './regras.js';
 import {
   baixarAssinado,
   camposWebhook,
@@ -13,11 +13,11 @@ import {
   signatariosDocumento,
   situacaoDocumento,
   usaWebhook,
-} from './d4sign';
-import { somenteAdmin } from './config';
-import { gerarPdf } from './pdf';
-import { reaisPorExtenso } from './extenso';
-import { getResource } from './schema';
+} from './d4sign.js';
+import { somenteAdmin } from './config.js';
+import { gerarPdf } from './pdf.js';
+import { reaisPorExtenso } from './extenso.js';
+import { getResource } from './schema.js';
 
 /**
  * Contratos: totais calculados, documentos (PDF no banco), assinatura pela D4Sign e a
@@ -807,8 +807,8 @@ export function createWebhookD4SignRouter() {
       console.warn(`D4Sign webhook: assinatura HMAC inválida para o documento ${uuid}.`);
       return res.status(401).json({ error: 'Content-Hmac inválido.' });
     }
-    res.json({ ok: true });
-
+    // Processa antes de responder: na Vercel a função pode ser congelada logo após a resposta.
+    // Se algo falhar, a rotina de hora em hora corrige.
     try {
       // E-mail não entregue: só registra (com HMAC conferido, o texto vem mesmo da D4Sign)
       if (campos.type_post === '2' && hmac) {
@@ -819,6 +819,7 @@ export function createWebhookD4SignRouter() {
     } catch (err: any) {
       console.error(`D4Sign webhook: documento ${uuid}: ${err.message}`);
     }
+    res.json({ ok: true });
   });
   return router;
 }

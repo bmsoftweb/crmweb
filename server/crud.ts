@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { pool } from './db';
-import { FieldDef, ResourceDef, RESOURCES, getResource, writableFields, columnNames, colunaSql } from './schema';
-import { aposGravar, antesDeExcluir, antesDeGravar } from './regras';
-import { gravarEnderecos, normalizarEnderecos } from './enderecos';
-import { gravarParticipantes, normalizarParticipantes } from './participantes';
-import { conferirTrava, contratoDoItem, recalcularContrato } from './contratos';
+import { pool } from './db.js';
+import { FieldDef, ResourceDef, RESOURCES, getResource, writableFields, columnNames, colunaSql } from './schema.js';
+import { aposGravar, antesDeExcluir, antesDeGravar } from './regras.js';
+import { gravarEnderecos, normalizarEnderecos } from './enderecos.js';
+import { gravarParticipantes, normalizarParticipantes } from './participantes.js';
+import { conferirTrava, contratoDoItem, recalcularContrato } from './contratos.js';
 
 /** Metadados enviados ao navegador: a consulta própria dos combos fica só no servidor */
 // O SQL próprio (combos, colunas calculadas) não sai do servidor

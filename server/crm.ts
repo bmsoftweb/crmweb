@@ -1,14 +1,14 @@
 import { Router, Request, Response } from 'express';
-import { pool } from './db';
-import { aposGravar, sincronizarNegocio } from './regras';
-import { friendlyDbError } from './crud';
-import { calcularTotais, num } from './totais';
-import { gerarPdf } from './pdf';
-import { enviarEmail } from './email';
-import { enviarPdfWhatsApp, telefoneWhatsApp } from './whatsapp';
-import { htmlDocumento } from '../src/utils/imprimirDocumento';
-import { lerConfig } from './config';
-import { recalcularContrato } from './contratos';
+import { pool } from './db.js';
+import { aposGravar, sincronizarNegocio } from './regras.js';
+import { friendlyDbError } from './crud.js';
+import { calcularTotais, num } from './totais.js';
+import { gerarPdf } from './pdf.js';
+import { enviarEmail } from './email.js';
+import { enviarPdfWhatsApp, telefoneWhatsApp } from './whatsapp.js';
+import { htmlDocumento } from '../src/utils/imprimirDocumento.js';
+import { lerConfig } from './config.js';
+import { recalcularContrato } from './contratos.js';
 
 /** Envolve a rota: qualquer exceção vira 400 com mensagem legível */
 const rota =

@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { telefoneWhatsApp } from './whatsapp';
+import { telefoneWhatsApp } from './whatsapp.js';
 
 assert.strictEqual(telefoneWhatsApp('(41) 99901-2223'), '5541999012223');
 assert.strictEqual(telefoneWhatsApp('(41)35238200'), '554135238200');

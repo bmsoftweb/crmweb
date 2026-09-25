@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { reaisPorExtenso } from './extenso';
+import { reaisPorExtenso } from './extenso.js';
 
 const casos: [number, string][] = [
   [0, 'zero real'],

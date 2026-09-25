@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { pool } from './db';
-import { configSmtpPublica, prepararConfigSmtp, testarSmtp } from './email';
-import { configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp } from './whatsapp';
-import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign';
+import { pool } from './db.js';
+import { configSmtpPublica, prepararConfigSmtp, testarSmtp } from './email.js';
+import { configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp } from './whatsapp.js';
+import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign.js';
 
 /**
  * Configurações da empresa (tabela config).

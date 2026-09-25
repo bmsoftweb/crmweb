@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { pool } from './db';
-import { friendlyDbError } from './crud';
+import { pool } from './db.js';
+import { friendlyDbError } from './crud.js';
 
 /**
  * Campanhas: segmentos calculados por critérios, mensagens com variáveis ({{nome}})

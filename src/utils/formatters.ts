@@ -1,4 +1,4 @@
-import { FieldDef } from '../types';
+import { FieldDef } from '../types.js';
 
 export function formatCNPJ(cnpj: string): string {
   const digits = String(cnpj || '').replace(/\D/g, '');

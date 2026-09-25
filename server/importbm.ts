@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { pool } from './db';
+import { pool } from './db.js';
 
 /**
  * Importação das pessoas do bmsoft (base DBISAM) para o CRM, pela bmAPI.

@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { normalizarCriterios, sqlCriterios, variaveisDoTexto, personalizar } from './campanhas';
+import { normalizarCriterios, sqlCriterios, variaveisDoTexto, personalizar } from './campanhas.js';
 
 // Objeto único (formato do exemplo do migration) vira lista; número e sim/não são convertidos
 const c = normalizarCriterios('{"regra":"ultima_compra","operador":">","valor":"60"}');

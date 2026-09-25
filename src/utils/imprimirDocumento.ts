@@ -1,5 +1,5 @@
-import { RegistroCrud } from '../types';
-import { STATUS_LABELS, formatCNPJ, formatDateBR, formatMoeda } from './formatters';
+import { RegistroCrud } from '../types.js';
+import { STATUS_LABELS, formatCNPJ, formatDateBR, formatMoeda } from './formatters.js';
 
 /** Escapa texto vindo do banco antes de entrar no HTML */
 const esc = (v: unknown) =>

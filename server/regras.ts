@@ -1,7 +1,7 @@
-import { pool } from './db';
-import { tirarProprietarioDosEnvolvidos } from './participantes';
-import { calcularSegmento, normalizarCriterios, variaveisDoTexto } from './campanhas';
-import { recalcularContrato } from './contratos';
+import { pool } from './db.js';
+import { tirarProprietarioDosEnvolvidos } from './participantes.js';
+import { calcularSegmento, normalizarCriterios, variaveisDoTexto } from './campanhas.js';
+import { recalcularContrato } from './contratos.js';
 
 /**
  * Regras aplicadas depois de qualquer gravação, venha ela das telas genéricas de CRUD,

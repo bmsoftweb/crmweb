@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { camposWebhook } from './d4sign';
+import { camposWebhook } from './d4sign.js';
 
 // multipart/form-data, como a D4Sign envia
 const f = 'X-abc';

@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
-import { lerConfig } from './config';
-import { cifrar, decifrar, textoConfig } from './segredo';
+import { lerConfig } from './config.js';
+import { cifrar, decifrar, textoConfig } from './segredo.js';
 
 /**
  * Envio de e-mail por SMTP.
