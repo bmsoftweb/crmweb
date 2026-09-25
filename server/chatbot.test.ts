@@ -12,9 +12,11 @@ assert.throws(() => prepararChatbot({ ativo: true, texto_base: 'x' }, null), /ch
 assert.throws(() => prepararChatbot({ ativo: true, chave: 'abc' }, null), /texto-base/);
 
 // A chave vai cifrada e nunca volta para a tela; em branco mantém a gravada
-const gravada = prepararChatbot({ ativo: true, chave: 'minha-chave', texto_base: 'Vendemos sistemas.', vendedores: ['30', 'x', 31] }, null);
+const gravada = prepararChatbot({ ativo: true, chave: 'minha-chave', texto_base: 'Vendemos sistemas.', vendedores: [30, 31] }, null);
 assert.ok(gravada.chave_cifrada && !gravada.chave_cifrada.includes('minha-chave'));
-assert.deepStrictEqual(gravada.vendedores, [30, 31]);
+// O revezamento é do cadastro de usuários: a lista antiga não é mais gravada nem devolvida
+assert.strictEqual('vendedores' in gravada, false);
+assert.strictEqual('vendedores' in chatbotPublica({ ...gravada, vendedores: [1] } as any), false);
 assert.strictEqual('chave_cifrada' in chatbotPublica(gravada), false);
 assert.strictEqual(chatbotPublica(gravada).chave_definida, true);
 const regravada = prepararChatbot({ ...gravada, chave: '' }, gravada);

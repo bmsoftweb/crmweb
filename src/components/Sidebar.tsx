@@ -1,61 +1,7 @@
 import React from 'react';
-import {
-  LayoutDashboard,
-  KanbanSquare,
-  Handshake,
-  CalendarCheck,
-  History,
-  FileSignature,
-  ShoppingCart,
-  Building2,
-  Users,
-  Package,
-  Filter,
-  Columns3,
-  KeyRound,
-  ListOrdered,
-  Tags,
-  Network,
-  Megaphone,
-  ScrollText,
-  Target,
-  MessageSquareText,
-  MessageCircle,
-  Send,
-  Settings,
-  Database,
-  LogOut,
-  X,
-  User,
-  type LucideIcon,
-} from 'lucide-react';
-import { Usuario, ResourceDef, ResourceGroup } from '../types';
-import { GROUP_LABELS } from '../utils/formatters';
-
-/** Mapa dos ícones declarados no registro de metadados do servidor */
-const ICONS: Record<string, LucideIcon> = {
-  Handshake,
-  CalendarCheck,
-  History,
-  FileSignature,
-  ShoppingCart,
-  Building2,
-  Users,
-  Package,
-  Filter,
-  Columns3,
-  KeyRound,
-  ListOrdered,
-  Tags,
-  Network,
-  Megaphone,
-  ScrollText,
-  Target,
-  MessageSquareText,
-  Send,
-};
-
-const GROUP_ORDER: ResourceGroup[] = ['vendas', 'marketing', 'cadastros', 'acesso'];
+import { KeyRound, LogOut, X, User, type LucideIcon } from 'lucide-react';
+import { Usuario, ResourceDef } from '../types';
+import { gruposDoMenu, podeAcessar } from '../utils/menu';
 
 interface SidebarProps {
   activeTab: string;
@@ -164,46 +110,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Navegação */}
       <div className="flex-1 overflow-y-auto py-4">
-        <div className="px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-400">
-          Visão Geral
-        </div>
-        {renderNavButton('dashboard', 'Painel de Vendas', 'Indicadores do funil', LayoutDashboard)}
-        {renderNavButton('kanban', 'Funil de Vendas', 'Kanban dos negócios', KanbanSquare)}
-        {renderNavButton('conversas', 'Conversas', 'Mensagens do WhatsApp', MessageCircle, naoVistas)}
-
-        {GROUP_ORDER.map((group) => {
-          // Itens de proposta/pedido só aparecem como detalhe; usuários, só para administradores
-          const doGrupo = resources.filter(
-            (r) => r.group === group && !r.oculto && (r.name !== 'usuarios' || usuario?.tipo === 'admin'),
-          );
-          if (!doGrupo.length) return null;
-
+        {/* Mesmas opções das permissões do usuário (utils/menu.ts); só as que ele acessa */}
+        {gruposDoMenu(resources).map((g, i) => {
+          const itens = g.itens.filter((it) => podeAcessar(usuario, it.id));
+          const usuarios = g.titulo === 'Sistema' && usuario?.tipo === 'admin' ? resources.find((x) => x.name === 'usuarios') : undefined;
           return (
-            <div key={group} className="pt-3">
-              <div className="px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-400">
-                {GROUP_LABELS[group] || group}
-              </div>
-              <div>
-                {doGrupo.map((r) =>
-                  renderNavButton(
-                    r.name,
-                    r.label,
-                    r.description,
-                    ICONS[r.icon] || Database,
-                    recordCounts[r.name],
-                  ),
-                )}
-              </div>
-            </div>
+            <React.Fragment key={g.titulo}>
+              {/* Usuários: só administradores (fora das permissões), antes de Sistema */}
+              {usuarios && (
+                <div className="pt-3">
+                  <div className="px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-400">Acesso</div>
+                  {renderNavButton(usuarios.name, usuarios.label, usuarios.description, KeyRound, recordCounts[usuarios.name])}
+                </div>
+              )}
+              {itens.length > 0 && (
+                <div className={i ? 'pt-3' : ''}>
+                  <div className="px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-400">{g.titulo}</div>
+                  {itens.map((it) =>
+                    renderNavButton(it.id, it.label, it.descricao, it.icone, it.id === 'conversas' ? naoVistas : it.id in recordCounts ? recordCounts[it.id] : undefined),
+                  )}
+                </div>
+              )}
+            </React.Fragment>
           );
         })}
-
-        <div className="pt-3">
-          <div className="px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-400">
-            Sistema
-          </div>
-          {renderNavButton('configuracoes', 'Configurações', 'Preferências da empresa', Settings)}
-        </div>
       </div>
 
       {/* Usuário & sair */}

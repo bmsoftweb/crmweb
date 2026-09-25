@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { pool } from './db.js';
 import { FieldDef, ResourceDef, RESOURCES, getResource, writableFields, columnNames, colunaSql } from './schema.js';
 import { aposGravar, antesDeExcluir, antesDeGravar } from './regras.js';
+import { exigirAcesso } from './permissoes.js';
 import { gravarEnderecos, normalizarEnderecos } from './enderecos.js';
 import { gravarParticipantes, normalizarParticipantes } from './participantes.js';
 import { conferirTrava, contratoDoItem, recalcularContrato } from './contratos.js';
@@ -232,6 +233,9 @@ export function createCrudRouter() {
   router.get('/crud/:resource', async (req: Request, res: Response) => {
     try {
       const resource = resolveResource(req);
+      // Lista do menu: só com permissão. Painel de detalhe (filter_field) e combos seguem liberados,
+      // para as telas que o usuário acessa continuarem mostrando os dados ligados
+      if (!req.query.filter_field) exigirAcesso(res, resource.name, resource.label);
 
       const page = Math.max(1, Number(req.query.page) || 1);
       const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 25));
@@ -338,7 +342,7 @@ export function createCrudRouter() {
 
       res.json({ data: rows, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(err.status || 400).json({ error: err.message });
     }
   });
 

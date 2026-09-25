@@ -5,6 +5,7 @@ import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
 import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
 import { jornadaAtende, lerJornadaConfig } from './jornada.js';
+import { podeAcessar } from './permissoes.js';
 
 /**
  * Tela de conversas do WhatsApp: uma conversa por telefone (whatsapp_mensagens.telefone, só
@@ -77,6 +78,12 @@ async function atender(res: Response, telefone: string, anterior: { id: number; 
 
 export function createConversasRouter(): Router {
   const router = Router();
+
+  // Tela Conversas: só com permissão (a conversa aberta pela atividade da ficha também passa por aqui)
+  router.use('/whatsapp/conversas', (_req: Request, res: Response, next) => {
+    if (podeAcessar(res.locals.usuario, 'conversas')) return next();
+    res.status(403).json({ error: 'Você não tem permissão para acessar as Conversas. Fale com o administrador.' });
+  });
 
   /**
    * Conversa de uma atividade do tipo WhatsApp (clique na ficha do negócio): o telefone da pessoa

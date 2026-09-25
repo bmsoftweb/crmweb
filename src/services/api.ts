@@ -277,6 +277,9 @@ export const fetchConfig = <T = any>(grupo: string, chave: string): Promise<{ va
 
 export const salvarConfig = (grupo: string, chave: string, valor: unknown): Promise<{ success: boolean }> =>
   enviar('PUT', `/api/config/${grupo}/${chave}`, { valor });
+/** Permissões do usuário: opções do menu que acessa (null = todas) */
+export const salvarPermissoes = (usuarioId: number, permissoes: string[] | null): Promise<{ success: boolean }> =>
+  enviar('PUT', `/api/usuarios/${usuarioId}/permissoes`, { permissoes });
 
 /** Imagem do nó "Enviar imagem" da jornada (base64 sem o prefixo data:) */
 export const enviarArquivoJornada = (nome: string, mimetype: string, base64: string): Promise<{ id: number; nome: string }> =>

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { aposGravar, sincronizarNegocio } from './regras.js';
+import { exigirAcesso } from './permissoes.js';
 import { friendlyDbError } from './crud.js';
 import { calcularTotais, num } from './totais.js';
 import { gerarPdf } from './pdf.js';
@@ -686,6 +687,7 @@ export function createCrmRouter() {
   // Painel
   // ----------------------------------------------------------
   router.get('/crm/dashboard', rota(async (_req, res) => {
+    exigirAcesso(res, 'dashboard', 'o Painel de Vendas');
     // Cada consulta leva um único "?": a empresa logada
     const emp = empresaDa(res);
     const um = async (sql: string) => ((await pool.query<any[]>(sql, [emp]))[0][0] || {}) as Record<string, any>;

@@ -5,6 +5,7 @@ import { conferirInstanciaUnica, configWhatsPublica, prepararConfigWhats, testar
 import { automaticasPublica, prepararAutomaticas } from './automaticas.js';
 import { chatbotPublica, prepararChatbot, testarChatbot } from './chatbot.js';
 import { jornadaPublica, prepararJornada } from './jornada.js';
+import { exigirAcesso } from './permissoes.js';
 import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign.js';
 
 /**
@@ -73,6 +74,9 @@ export function createConfigRouter(): Router {
   router.get('/config/:grupo/:chave', async (req: Request, res: Response) => {
     try {
       const { grupo, chave } = req.params;
+      // Configurações: só administrador. Os campos personalizados de Pessoas são lidos pelo cadastro de
+      // Pessoas de qualquer usuário
+      if (!(grupo === 'pessoas' && chave === 'campos_personalizados')) exigirAcesso(res, 'configuracoes', 'as Configurações');
       validar(grupo, chave);
       const valor = await lerConfig(String(res.locals.empresaId), grupo, chave);
       const segredo = COM_SEGREDO[`${grupo}.${chave}`];

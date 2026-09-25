@@ -11,6 +11,7 @@ import {
   escolhaPelaIa,
   gerarRespostaIa,
   lerChatbot,
+  marcarEncerramento,
   mudarAtendimento,
   registrarLead,
   telefoneCadastro,
@@ -441,6 +442,8 @@ async function variaveisDe(ctx: Contexto, vars: Record<string, any>): Promise<Re
 class Execucao {
   /** Mensagens já mandadas nesta execução: entre uma e outra, "digitando..." e uma pausa curta */
   private enviadas = 0;
+  /** A jornada passou a conversa para a equipe (Departamento, IA sem ligação em "humano"): não é o fim do atendimento */
+  private paraHumano = false;
 
   constructor(
     private ctx: Contexto,
@@ -521,6 +524,7 @@ class Execucao {
     const humano = this.destino(no, 'humano');
     if (humano) return humano;
     await mudarAtendimento(this.ctx.empresaId, this.ctx.telefone, 'humano');
+    this.paraHumano = true;
     return 'fim';
   }
 
@@ -531,6 +535,8 @@ class Execucao {
       if (no === null) return; // continua parado onde está
       if (no === 'fim') {
         this.estado.no = FIM;
+        // O cliente chegou ao fim da jornada (nó Fim ou saída sem ligação): linha de encerramento na conversa
+        if (!this.paraHumano) await marcarEncerramento(this.ctx.empresaId, this.ctx.telefone, null, null, 'Atendimento encerrado pelo cliente (fim da jornada)');
         return;
       }
       this.estado.no = no.id;
@@ -594,6 +600,7 @@ class Execucao {
             await pool.query('UPDATE whatsapp_conversas SET departamento_id = ? WHERE empresa_id = ? AND telefone = ?', [dep[0].id, this.ctx.empresaId, this.ctx.telefone]);
             await avisarDepartamento(this.ctx, this.ctx.departamento, String(this.estado.vars.motivo || 'Jornada de atendimento.'));
           }
+          this.paraHumano = true;
           no = 'fim';
           break;
         }

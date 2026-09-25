@@ -18,6 +18,8 @@ import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 import { enviarAutomaticas } from './automaticas.js';
 import { responderComBot } from './chatbot.js';
 import { waitUntil } from '@vercel/functions';
+import { lerPermissoes, prepararPermissoes } from './permissoes.js';
+import { PERFIS } from './schema.js';
 
 // ==========================================================
 // Sessão: token "usuarioId.expiracao.assinatura" (HMAC-SHA256)
@@ -66,8 +68,10 @@ const usuarioPublico = (u: any) => ({
   id: String(u.id),
   nome: u.nome,
   email: u.email,
-  cargo: u.cargo || (u.tipo === 'admin' ? 'Administrador' : 'Vendedor'),
+  cargo: u.cargo || PERFIS.find((p) => p.value === u.tipo)?.label || 'Vendedor',
   tipo: u.tipo,
+  // Opções do menu que acessa (null = todas); a tela esconde as outras e o servidor recusa
+  permissoes: lerPermissoes(u.permissoes),
 });
 
 /**
@@ -75,7 +79,7 @@ const usuarioPublico = (u: any) => ({
  * empresas.id é VARCHAR: a comparação é feita como texto.
  */
 const SQL_USUARIO_EMPRESA = `
-  SELECT u.id, u.tipo, u.nome, u.email, u.senha_hash, u.cargo, e.id AS empresa_id, e.nome AS empresa_nome
+  SELECT u.id, u.tipo, u.nome, u.email, u.senha_hash, u.cargo, u.permissoes, e.id AS empresa_id, e.nome AS empresa_nome
     FROM usuarios u
     JOIN empresas e ON e.id = CAST(u.empresa_id AS CHAR)
    WHERE u.ativo = 1`;
@@ -213,6 +217,23 @@ export function createApp() {
   app.get('/api/sessao', (_req: Request, res: Response) => {
     const u = res.locals.usuario;
     res.json({ valida: true, usuario: usuarioPublico(u), empresa: { id: String(u.empresa_id), nome: u.empresa_nome } });
+  });
+
+  // Permissões de acesso de um usuário (Usuários › Permissões): só administradores
+  app.put('/api/usuarios/:id/permissoes', async (req: Request, res: Response) => {
+    try {
+      if (res.locals.usuario?.tipo !== 'admin') return res.status(403).json({ error: 'Somente administradores alteram permissões.' });
+      const permissoes = prepararPermissoes(req.body?.permissoes ?? null);
+      const [r] = await pool.query<any>('UPDATE usuarios SET permissoes = ? WHERE id = ? AND empresa_id = ?', [
+        permissoes === null ? null : JSON.stringify(permissoes),
+        Number(req.params.id) || 0,
+        res.locals.empresaId,
+      ]);
+      if (!r.affectedRows) return res.status(404).json({ error: 'Usuário não encontrado.' });
+      res.json({ success: true, permissoes });
+    } catch (err: any) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
   });
 
   // Preferências das listas (larguras e ordem das colunas), guardadas por usuário

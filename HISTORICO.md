@@ -2,6 +2,16 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.21 — 2026-09-25
+
+Usuários: permissões, perfis e revezamento de leads. Banco: colunas usuarios.permissoes (JSON) e usuarios.revezamento; usuarios.tipo com os perfis admin, gerente, supervisor, client (Vendedor) e funcionario.
+
+- Usuários › Permissões (ícone na coluna Ações): modal com as opções do menu, agrupadas como na barra lateral, para liberar ou não cada uma (com "Marcar todos" por grupo e destaque da linha). Sem permissão, a opção some do menu e o servidor recusa a lista daquele cadastro, o Painel, as Conversas e as Configurações; combos dos formulários e painéis de detalhe continuam funcionando. Usuário sem nada gravado acessa tudo; administrador acessa tudo.
+- Configurações e Usuários: só administradores (os campos personalizados de Pessoas continuam lidos por todos).
+- Perfis: Administrador, Gerente, Supervisor, Vendedor e Funcionário.
+- Revezamento de leads: campo "Entra no revezamento de leads" no cadastro do usuário (qualquer perfil). Chatbot e jornada distribuem os leads entre os usuários ativos com o campo ligado; ninguém no revezamento, o lead fica sem responsável. Configurações › Chatbot mostra quem está no revezamento (a lista de vendedores que ficava lá saiu).
+- Jornada: ao chegar ao Fim (ou a uma saída sem ligação), a conversa ganha a linha "Atendimento encerrado pelo cliente (fim da jornada)".
+
 ## 0.0.20 — 2026-09-25
 
 - Conversas: ao enviar, o botão mostra "Enviando..." e o campo de mensagem fica desabilitado até terminar; depois o cursor volta ao campo.

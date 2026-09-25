@@ -47,8 +47,8 @@ export interface ConfigChatbot {
   minutos_devolver: number;
   /** Versão antiga (em horas): lida só para converter, ver minutosDevolver */
   horas_devolver?: number;
-  /** Vendedores do revezamento (vazio = todos os usuários "Vendedor" ativos) */
-  vendedores: number[];
+  /** Versão antiga (lista de vendedores): o revezamento agora é usuarios.revezamento; ignorada */
+  vendedores?: number[];
   /** Último que recebeu um lead: o próximo do revezamento vem depois dele */
   ultimo_vendedor_id?: number | null;
   /** Menu de departamentos (vazio = sem menu): abertura e opções, na ordem */
@@ -63,7 +63,6 @@ const PADRAO: Omit<ConfigChatbot, 'chave_cifrada'> = {
   nome: 'Assistente',
   texto_base: '',
   minutos_devolver: 240,
-  vendedores: [],
   ultimo_vendedor_id: null,
   menu_texto: 'Olá! Para agilizar seu atendimento, escolha uma opção:',
   menu: [],
@@ -77,7 +76,6 @@ export function prepararChatbot(valor: any, anterior: ConfigChatbot | null): Con
     nome: textoConfig(valor?.nome, 60, 'Chatbot: nome do assistente') || PADRAO.nome,
     texto_base: String(valor?.texto_base ?? '').trim().slice(0, 50_000),
     minutos_devolver: Number(valor?.minutos_devolver ?? PADRAO.minutos_devolver),
-    vendedores: (Array.isArray(valor?.vendedores) ? valor.vendedores : []).map(Number).filter((n: number) => Number.isInteger(n) && n > 0),
     ultimo_vendedor_id: anterior?.ultimo_vendedor_id ?? null,
     menu_texto: textoConfig(valor?.menu_texto, 500, 'Chatbot: texto do menu') || PADRAO.menu_texto,
     menu: [],
@@ -106,7 +104,7 @@ export const minutosDevolver = (cfg: Partial<ConfigChatbot> | null | undefined):
 
 /** Valor do banco → o que a tela recebe (sem a chave) */
 export function chatbotPublica(cfg: ConfigChatbot | null) {
-  const { chave_cifrada, horas_devolver, ...resto } = { ...PADRAO, ...(cfg ?? {}) } as ConfigChatbot;
+  const { chave_cifrada, horas_devolver, vendedores, ...resto } = { ...PADRAO, ...(cfg ?? {}) } as ConfigChatbot;
   return { ...resto, minutos_devolver: minutosDevolver(cfg), modelo: modeloDe(resto), chave_definida: Boolean(chave_cifrada), modelos: MODELOS_GEMINI };
 }
 
@@ -205,7 +203,7 @@ export async function marcarEvento(empresaId: string | number, telefone: string,
  * preenchida impede que conte como resposta de atendente. Botão Encerrar: com quem encerrou, agora;
  * tempo esgotado: sem usuário, no momento em que o tempo acabou
  */
-export async function marcarEncerramento(empresaId: string | number, telefone: string, usuarioId: number | null, quando: string | null = null) {
+export async function marcarEncerramento(empresaId: string | number, telefone: string, usuarioId: number | null, quando: string | null = null, texto?: string) {
   await pool.query(
     `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, usuario_id, vista, data_hora)
      SELECT ?, MAX(pessoa_id), MAX(contato_id), ?, 'enviada', 'encerramento', ?, 'enviada', ?, ?, 1, COALESCE(?, NOW())
@@ -213,8 +211,8 @@ export async function marcarEncerramento(empresaId: string | number, telefone: s
     [
       empresaId,
       telefone,
-      usuarioId ? 'Atendimento encerrado' : 'Atendimento encerrado pelo tempo, sem resposta de atendente',
-      `${usuarioId ? 'encerrado' : 'encerrado-tempo'}:${telefone}:${Date.now()}`,
+      texto ?? (usuarioId ? 'Atendimento encerrado' : 'Atendimento encerrado pelo tempo, sem resposta de atendente'),
+      `${usuarioId ? 'encerrado' : texto ? 'encerrado-jornada' : 'encerrado-tempo'}:${telefone}:${Date.now()}`,
       usuarioId,
       quando,
       empresaId,
@@ -256,16 +254,13 @@ export async function mudarAtendimento(empresaId: string | number, telefone: str
 // Revezamento de vendedores
 // ------------------------------------------------------------
 
-/** Próximo vendedor do revezamento (e grava quem foi) */
+/**
+ * Próximo do revezamento de leads (e grava quem foi): usuários ativos com "Entra no revezamento"
+ * ligado no cadastro, na ordem. Ninguém no revezamento: o lead fica sem responsável (null)
+ */
 async function proximoVendedor(empresaId: string | number): Promise<{ id: number; nome: string } | null> {
   const cfg = await lerChatbot(empresaId);
-  const escolhidos = cfg?.vendedores ?? [];
-  const [rows] = await pool.query<any[]>(
-    `SELECT id, nome FROM usuarios WHERE empresa_id = ? AND ativo = 1 AND ${escolhidos.length ? 'id IN (?)' : "tipo = 'client'"} ORDER BY id`,
-    escolhidos.length ? [empresaId, escolhidos] : [empresaId],
-  );
-  // Sem vendedor cadastrado, entra qualquer usuário ativo
-  const lista = rows.length ? rows : ((await pool.query<any[]>('SELECT id, nome FROM usuarios WHERE empresa_id = ? AND ativo = 1 ORDER BY id', [empresaId]))[0] as any[]);
+  const [lista] = await pool.query<any[]>('SELECT id, nome FROM usuarios WHERE empresa_id = ? AND ativo = 1 AND revezamento = 1 ORDER BY id', [empresaId]);
   if (!lista.length) return null;
   const ultimo = cfg?.ultimo_vendedor_id ?? 0;
   const proximo = lista.find((u) => u.id > ultimo) ?? lista[0];

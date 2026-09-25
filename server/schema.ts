@@ -278,6 +278,18 @@ const PERIODICIDADES = [
   { value: 'unica', label: 'Única' },
 ];
 
+/**
+ * Perfis de usuário (usuarios.tipo). Vendedor fica com o valor "client" (o que já estava gravado);
+ * só o Administrador tem regras próprias (Usuários, Configurações, permissões, assumir conversa de outro)
+ */
+export const PERFIS = [
+  { value: 'admin', label: 'Administrador' },
+  { value: 'gerente', label: 'Gerente' },
+  { value: 'supervisor', label: 'Supervisor' },
+  { value: 'client', label: 'Vendedor' },
+  { value: 'funcionario', label: 'Funcionário' },
+];
+
 const CRIADO_ATUALIZADO = [
   { name: 'criado_em', label: 'Criado em', type: 'datetime', readOnly: true } as FieldDef,
   { name: 'atualizado_em', label: 'Atualizado em', type: 'datetime', readOnly: true } as FieldDef,
@@ -1224,7 +1236,16 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'senha_hash', label: 'Senha', type: 'password', hint: 'Em branco na inclusão: a senha é definida no primeiro acesso' },
       { name: 'cargo', label: 'Cargo', type: 'text', listed: true, maxLength: 80 },
       { name: 'departamento_id', label: 'Departamento', type: 'text', listed: true, filterable: true, ref: { resource: 'departamentos', labelField: 'nome' } },
-      { name: 'tipo', label: 'Perfil', type: 'enum', required: true, listed: true, options: [{ value: 'admin', label: 'Administrador' }, { value: 'client', label: 'Vendedor' }], default: 'client' },
+      { name: 'tipo', label: 'Perfil', type: 'enum', required: true, listed: true, filterable: true, options: PERFIS, default: 'client', hint: 'Administrador acessa tudo; os demais, o que estiver liberado em Permissões' },
+      {
+        name: 'revezamento',
+        label: 'Entra no revezamento de leads',
+        type: 'boolean',
+        listed: true,
+        filterable: true,
+        default: false,
+        hint: 'Leads novos do chatbot e da jornada vão, um de cada vez, para quem tem isto ligado',
+      },
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true },
       { name: 'created_at', label: 'Criado em', type: 'datetime', readOnly: true },
     ],

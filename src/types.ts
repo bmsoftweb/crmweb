@@ -95,7 +95,10 @@ export interface Usuario {
   nome: string;
   email: string;
   cargo: string;
-  tipo?: 'admin' | 'client';
+  /** admin = Administrador, client = Vendedor (ver PERFIS em server/schema.ts) */
+  tipo?: 'admin' | 'gerente' | 'supervisor' | 'client' | 'funcionario';
+  /** Opções do menu que acessa (ids de utils/menu.ts); null = todas. Administrador acessa tudo */
+  permissoes?: string[] | null;
 }
 
 /** Chave primária: INT AUTO_INCREMENT (chega como número do servidor) */

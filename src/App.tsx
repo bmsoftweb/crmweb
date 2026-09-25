@@ -32,6 +32,8 @@ import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
 import { ConversasView, PedidoConversa } from './components/ConversasView';
 import { BotaoWhatsApp } from './components/BotaoWhatsApp';
+import { BotaoPermissoes } from './components/PermissoesUsuario';
+import { gruposDoMenu, podeAcessar } from './utils/menu';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { Sessao, lerSessao, salvarSessao, limparSessao } from './utils/session';
 
@@ -96,13 +98,26 @@ export default function App() {
       .catch(() => {}); // sem a tabela ou sem conexão: fica sem etiqueta
   }, [showToast]);
   useEffect(() => destravarSom(), []);
+  // Sem permissão para Conversas: sem etiqueta de não vistas nem aviso sonoro
+  const veConversas = podeAcessar(sessao?.usuario ?? null, 'conversas');
   useEffect(() => {
-    if (!sessao) return;
+    if (!sessao || !veConversas) return;
     atualizarNaoVistas();
     // Também com a aba em segundo plano: o aviso sonoro não pode esperar a pessoa voltar
     const i = setInterval(atualizarNaoVistas, 15_000);
     return () => clearInterval(i);
-  }, [sessao, atualizarNaoVistas]);
+  }, [sessao, veConversas, atualizarNaoVistas]);
+
+  // Tela sem permissão (ex.: o Funil, que abre primeiro): vai para a primeira opção do menu que o usuário acessa
+  useEffect(() => {
+    const u = sessao?.usuario ?? null;
+    if (!u || !resources.length) return;
+    const ids = gruposDoMenu(resources).flatMap((g) => g.itens.map((i) => i.id));
+    if ((ids.includes(activeTab) || activeTab === 'usuarios') && !podeAcessar(u, activeTab)) {
+      const primeira = ids.find((id) => podeAcessar(u, id));
+      if (primeira) setActiveTab(primeira);
+    }
+  }, [sessao, resources, activeTab]);
 
   /** Atividade WhatsApp clicada na ficha do negócio: a tela Conversas abre o número do cliente */
   const [pedidoConversa, setPedidoConversa] = useState<PedidoConversa | null>(null);
@@ -377,7 +392,9 @@ export default function App() {
                       )
                     : activeResource.name === 'pessoas'
                       ? (row) => <BotaoWhatsApp temNumero={Boolean(row.whatsapp || row.telefone)} onAbrir={() => pedirConversa({ pessoaId: row.id as string })} />
-                      : undefined
+                      : activeResource.name === 'usuarios'
+                        ? (row, { recarregar }) => <BotaoPermissoes usuario={row} resources={resources} onRecarregar={recarregar} onToast={showToast} />
+                        : undefined
               }
               acoesDetalhe={(recurso, row) =>
                 recurso === 'pessoas_contatos' ? (

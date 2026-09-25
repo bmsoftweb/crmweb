@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Bot, Loader2, Save } from 'lucide-react';
-import { fetchConfig, fetchOptions, salvarConfig, testarChatbot } from '../services/api';
+import { fetchConfig, fetchOptions, listRecords, salvarConfig, testarChatbot } from '../services/api';
 import { OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { NumberField } from './NumberField';
@@ -13,7 +13,6 @@ interface Chatbot {
   nome: string;
   texto_base: string;
   minutos_devolver: number;
-  vendedores: number[];
   /** Menu de departamentos: abertura e opções, na ordem (vazio = sem menu) */
   menu_texto: string;
   menu: { departamento_id: number; bot: boolean }[];
@@ -47,9 +46,10 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
         setChaveGravada(Boolean(valor?.chave_definida));
       })
       .catch((e) => setErro(e.message));
-    fetchOptions('usuarios', 'nome')
-      .then(setUsuarios)
-      .catch(() => {}); // sem a lista, o revezamento vale para todos os vendedores
+    // Quem está no revezamento (ligado no cadastro de Usuários), só para mostrar
+    listRecords('usuarios', { limit: 200, filters: [{ field: 'revezamento', op: 'eq', value: '1' }, { field: 'ativo', op: 'eq', value: '1' }] })
+      .then((r) => setUsuarios(r.data.map((u) => ({ value: String(u.id), label: String(u.nome) }))))
+      .catch(() => {});
     fetchOptions('departamentos', 'nome')
       .then(setDepartamentos)
       .catch(() => {});
@@ -166,22 +166,21 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
         </div>
 
         <div className={FIELD_CLASS}>
-          <span className={LABEL_CLASS}>Vendedores do revezamento</span>
-          <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1">
-            {usuarios.map((u) => {
-              const id = Number(u.value);
-              return (
-                <Toggle
-                  key={u.value}
-                  size="sm"
-                  checked={v.vendedores.includes(id)}
-                  onChange={(sim) => alterar({ vendedores: sim ? [...v.vendedores, id] : v.vendedores.filter((x) => x !== id) })}
-                  label={u.label}
-                />
-              );
-            })}
-          </div>
-          <span className={HINT_CLASS}>Nenhum marcado: entram todos os usuários com perfil Vendedor ativos. Cada lead novo vai para o próximo da lista.</span>
+          <span className={LABEL_CLASS}>Revezamento de leads</span>
+          {usuarios.length ? (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {usuarios.map((u) => (
+                <span key={u.value} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                  {u.label}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-xs text-amber-800 dark:text-amber-300">
+              Ninguém no revezamento: os leads novos ficam sem responsável até alguém assumir.
+            </div>
+          )}
+          <span className={HINT_CLASS}>Cada lead novo vai para o próximo da lista. Para incluir ou tirar alguém: Usuários › "Entra no revezamento de leads".</span>
         </div>
 
         <div className={FIELD_CLASS}>
