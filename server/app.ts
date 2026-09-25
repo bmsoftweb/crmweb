@@ -11,6 +11,7 @@ import { createImportArquivoRouter } from './importarquivo.js';
 import { createEnderecosRouter } from './enderecos.js';
 import { createParticipantesRouter } from './participantes.js';
 import { createCampanhasRouter } from './campanhas.js';
+import { createConversasRouter } from './conversas.js';
 import { createContratosRouter, createWebhookD4SignRouter, rotinaContratos } from './contratos.js';
 import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 
@@ -249,6 +250,7 @@ export function createApp() {
   app.use('/api', createEnderecosRouter());
   app.use('/api', createParticipantesRouter());
   app.use('/api', createCampanhasRouter());
+  app.use('/api', createConversasRouter());
   app.use('/api', createContratosRouter());
   app.use('/api', createCrmRouter());
   app.use('/api', createCrudRouter());

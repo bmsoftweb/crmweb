@@ -31,6 +31,13 @@ assert.deepStrictEqual(
 assert.deepStrictEqual(conteudoMensagem({ ephemeralMessage: { message: { conversation: 'Some' } } }), { tipo: 'texto', texto: 'Some', arquivo: null });
 assert.strictEqual(conteudoMensagem({ reactionMessage: { text: '👍' } }), null);
 assert.strictEqual(conteudoMensagem({ protocolMessage: {}, messageContextInfo: {} }), null);
-assert.deepStrictEqual(conteudoMensagem({ pollCreationMessage: {} }), { tipo: 'outro', texto: null, arquivo: null });
+assert.deepStrictEqual(conteudoMensagem({ buttonsMessage: { contentText: 'Avalie' } }), { tipo: 'texto', texto: 'Avalie', arquivo: null });
+assert.deepStrictEqual(conteudoMensagem({ listResponseMessage: { title: 'Ótimo' } }), { tipo: 'texto', texto: 'Ótimo', arquivo: null });
+assert.deepStrictEqual(conteudoMensagem({ interactiveMessage: { body: { text: 'Nota de 1 a 5' } } }), { tipo: 'texto', texto: 'Nota de 1 a 5', arquivo: null });
+assert.deepStrictEqual(
+  conteudoMensagem({ pollCreationMessageV3: { name: 'Gostou?', options: [{ optionName: 'Sim' }, { optionName: 'Não' }] } }),
+  { tipo: 'texto', texto: 'Gostou?\n• Sim\n• Não', arquivo: null },
+);
+assert.deepStrictEqual(conteudoMensagem({ groupInviteMessage: {} }), { tipo: 'outro', texto: null, arquivo: null });
 
 console.log('whatsapp: ok');

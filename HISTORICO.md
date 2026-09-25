@@ -2,6 +2,17 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.6 — 2026-09-24
+
+WhatsApp, etapa 2: tela de conversas.
+
+- Novo menu Conversas (Visão Geral), com a etiqueta de mensagens recebidas não vistas (atualiza a cada 30 s).
+- Lista de conversas por número: nome da pessoa ou telefone formatado, prévia e horário da última mensagem, contador de não vistas e busca por nome ou telefone (atualiza a cada 10 s).
+- Conversa: balões separados por dia, situação das enviadas (enviada, entregue, lida, falhou), quem enviou (usuário ou campanha), rótulo de imagem/áudio/documento; abrir marca como vistas; conversa sem pessoa é ligada ao cadastro quando o número passa a existir (atualiza a cada 5 s).
+- Responder pela tela (Enter envia, Shift+Enter quebra a linha): sai pelo WhatsApp da empresa, registrada com o usuário.
+- No celular, uma coluna por vez.
+- Mensagens de empresas (botões, lista, modelo, interativa, enquete) e as respostas a elas passam a aparecer como texto; formato desconhecido fica registrado no log.
+
 ## 0.0.5 — 2026-09-24
 
 WhatsApp, etapa 1: receber mensagens e status de entrega (Evolution API). Tabela nova whatsapp_mensagens.

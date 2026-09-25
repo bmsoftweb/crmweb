@@ -19,6 +19,7 @@ import {
   ScrollText,
   Target,
   MessageSquareText,
+  MessageCircle,
   Send,
   Settings,
   Database,
@@ -59,6 +60,8 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   resources: ResourceDef[];
   recordCounts: Record<string, number>;
+  /** Mensagens do WhatsApp não vistas */
+  naoVistas: number;
   usuario: Usuario | null;
   onLogout: () => void;
   isOpenMobile: boolean;
@@ -70,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   resources,
   recordCounts,
+  naoVistas,
   usuario,
   onLogout,
   isOpenMobile,
@@ -163,6 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         {renderNavButton('dashboard', 'Painel de Vendas', 'Indicadores do funil', LayoutDashboard)}
         {renderNavButton('kanban', 'Funil de Vendas', 'Kanban dos negócios', KanbanSquare)}
+        {renderNavButton('conversas', 'Conversas', 'Mensagens do WhatsApp', MessageCircle, naoVistas)}
 
         {GROUP_ORDER.map((group) => {
           // Itens de proposta/pedido só aparecem como detalhe; usuários, só para administradores

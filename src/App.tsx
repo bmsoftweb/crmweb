@@ -8,6 +8,7 @@ import {
   fetchDashboard,
   invalidateOptions,
   validarSessao,
+  fetchNaoVistas,
 } from './services/api';
 import { limparConfigListas } from './utils/configListas';
 import { Sidebar } from './components/Sidebar';
@@ -28,6 +29,7 @@ import { BotaoNovaVersao } from './components/BotaoNovaVersao';
 import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
+import { ConversasView } from './components/ConversasView';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { Sessao, lerSessao, salvarSessao, limparSessao } from './utils/session';
 
@@ -67,6 +69,20 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [createToken, setCreateToken] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  /** Mensagens do WhatsApp recebidas e ainda não vistas (etiqueta do menu Conversas) */
+  const [naoVistas, setNaoVistas] = useState(0);
+  const atualizarNaoVistas = useCallback(() => {
+    fetchNaoVistas()
+      .then((r) => setNaoVistas(r.total))
+      .catch(() => {}); // sem a tabela ou sem conexão: fica sem etiqueta
+  }, []);
+  useEffect(() => {
+    if (!sessao) return;
+    atualizarNaoVistas();
+    const i = setInterval(() => !document.hidden && atualizarNaoVistas(), 30_000);
+    return () => clearInterval(i);
+  }, [sessao, atualizarNaoVistas]);
+
   /** Motivo exibido na tela de login quando a sessão é recusada */
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
 
@@ -200,6 +216,7 @@ export default function App() {
     dashboard: ['Painel de Vendas', 'Indicadores do funil, follow-ups, propostas e pedidos'],
     kanban: ['Funil de Vendas', 'Arraste os negócios entre as etapas; solte em Ganho ou Perdido para encerrar'],
     configuracoes: ['Configurações', 'Preferências da empresa, por grupo'],
+    conversas: ['Conversas', 'Mensagens do WhatsApp da empresa'],
   };
   const [headerTitle, headerSubtitle] = activeResource
     ? [activeResource.label, activeResource.description]
@@ -221,6 +238,7 @@ export default function App() {
         setActiveTab={navegar}
         resources={resources}
         recordCounts={recordCounts}
+        naoVistas={naoVistas}
         usuario={usuario}
         onLogout={handleLogout}
         isOpenMobile={isMobileSidebarOpen}
@@ -244,6 +262,10 @@ export default function App() {
         {activeTab === 'kanban' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
             <Kanban resourceNegocios={resourceNegocios} refreshToken={refreshToken} createToken={createToken} onToast={showToast} />
+          </main>
+        ) : activeTab === 'conversas' ? (
+          <main className="flex-1 flex flex-col min-h-0 w-full">
+            <ConversasView refreshToken={refreshToken} onVisto={atualizarNaoVistas} />
           </main>
         ) : activeTab === 'configuracoes' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">

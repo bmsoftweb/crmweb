@@ -216,7 +216,7 @@ export function chaveTelefone(bruto: string | null | undefined, comDdi = false):
 }
 
 /** Pessoa da empresa com esse telefone (a de menor id, se houver mais de uma) */
-async function pessoaDoTelefone(empresaId: string | number, telefone: string): Promise<number | null> {
+export async function pessoaDoTelefone(empresaId: string | number, telefone: string): Promise<number | null> {
   const chave = chaveTelefone(telefone, true);
   if (!chave) return null;
   const [rows] = await pool.query<any[]>(
@@ -302,9 +302,28 @@ export function conteudoMensagem(m: any): { tipo: string; texto: string | null; 
   }
   if (m.contactMessage) return { tipo: 'contato', texto: txt(m.contactMessage.displayName), arquivo: null };
   if (m.contactsArrayMessage) return { tipo: 'contato', texto: txt(m.contactsArrayMessage.displayName), arquivo: null };
+  // Mensagens de empresas (botões, lista, modelo, interativa, enquete) e as respostas a elas: vale o texto
+  const interativa =
+    txt(m.buttonsMessage?.contentText) ??
+    txt(m.listMessage?.description ?? m.listMessage?.title) ??
+    txt(m.templateMessage?.hydratedTemplate?.hydratedContentText ?? m.templateMessage?.hydratedFourRowTemplate?.hydratedContentText) ??
+    txt(m.interactiveMessage?.body?.text) ??
+    txt(m.buttonsResponseMessage?.selectedDisplayText) ??
+    txt(m.listResponseMessage?.title) ??
+    txt(m.templateButtonReplyMessage?.selectedDisplayText) ??
+    txt(m.interactiveResponseMessage?.body?.text);
+  if (interativa) return { tipo: 'texto', texto: interativa, arquivo: null };
+  const enquete = m.pollCreationMessage ?? m.pollCreationMessageV2 ?? m.pollCreationMessageV3;
+  if (enquete) {
+    const opcoes = (enquete.options ?? []).map((o: any) => o?.optionName).filter(Boolean);
+    return { tipo: 'texto', texto: [txt(enquete.name) ?? 'Enquete', ...opcoes.map((o: string) => `• ${o}`)].join('\n'), arquivo: null };
+  }
   // Reação, apagar, edição, chaves de criptografia: não são mensagens da conversa
   const ignorar = ['reactionMessage', 'protocolMessage', 'senderKeyDistributionMessage', 'messageContextInfo', 'editedMessage', 'pollUpdateMessage'];
-  return Object.keys(m).some((k) => !ignorar.includes(k)) ? { tipo: 'outro', texto: null, arquivo: null } : null;
+  const outras = Object.keys(m).filter((k) => !ignorar.includes(k));
+  if (!outras.length) return null;
+  console.warn(`WhatsApp: mensagem de formato não reconhecido (${outras.join(', ')}).`);
+  return { tipo: 'outro', texto: null, arquivo: null };
 }
 
 /** Aviso de mensagem nova (recebida, ou enviada pelo celular/pelo CRM) */

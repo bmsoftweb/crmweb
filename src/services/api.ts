@@ -426,3 +426,40 @@ export const travarContrato = (id: Id) => enviar('POST', `/api/contratos/${encod
 /** Gera o PDF do contrato pelo modelo escolhido e guarda como minuta */
 export const gerarMinutaContrato = (contratoId: Id, modeloId?: Id): Promise<{ id: number; nome: string }> =>
   enviar('POST', `/api/contratos/${encodeURIComponent(String(contratoId))}/gerar-minuta`, { modelo_id: modeloId });
+
+// ------------------------------------------------------------
+// Conversas do WhatsApp
+// ------------------------------------------------------------
+export interface ConversaResumo {
+  telefone: string;
+  pessoa_id: number | null;
+  nome: string | null;
+  direcao: 'recebida' | 'enviada';
+  tipo: string;
+  texto: string | null;
+  arquivo_nome: string | null;
+  situacao: string;
+  data_hora: string;
+  nao_vistas: number;
+}
+
+export interface MensagemWhatsApp {
+  id: number;
+  direcao: 'recebida' | 'enviada';
+  tipo: string;
+  texto: string | null;
+  arquivo_nome: string | null;
+  situacao: 'pendente' | 'enviada' | 'entregue' | 'lida' | 'falhou' | 'recebida';
+  usuario_nome: string | null;
+  campanha: boolean;
+  data_hora: string;
+}
+
+export const fetchConversas = (busca = ''): Promise<ConversaResumo[]> =>
+  get(`/api/whatsapp/conversas?busca=${encodeURIComponent(busca)}`);
+/** Mensagens da conversa; abrir marca as recebidas como vistas */
+export const fetchConversa = (telefone: string): Promise<{ pessoa: { id: number; nome: string } | null; mensagens: MensagemWhatsApp[] }> =>
+  get(`/api/whatsapp/conversas/${encodeURIComponent(telefone)}`);
+export const responderConversa = (telefone: string, texto: string): Promise<{ success: boolean }> =>
+  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, { texto });
+export const fetchNaoVistas = (): Promise<{ total: number }> => get('/api/whatsapp/nao-vistas');
