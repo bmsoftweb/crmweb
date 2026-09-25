@@ -174,7 +174,16 @@ export function createConversasRouter(): Router {
     try {
       const telefone = req.params.telefone;
       if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
-      await encerrarAtendimento(res.locals.empresaId, telefone);
+      const emp = res.locals.empresaId;
+      await encerrarAtendimento(emp, telefone);
+      // Marcador na conversa (a tela mostra uma linha): não vai para o WhatsApp; origem preenchida para
+      // não contar como resposta de atendente
+      await pool.query(
+        `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, usuario_id, vista, data_hora)
+         SELECT ?, MAX(pessoa_id), MAX(contato_id), ?, 'enviada', 'encerramento', 'Atendimento encerrado', 'enviada', ?, ?, 1, NOW()
+           FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`,
+        [emp, telefone, `encerrado:${telefone}:${Date.now()}`, res.locals.usuarioId, emp, telefone],
+      );
       res.json({ success: true });
     } catch (err: any) {
       falha(res, err);
@@ -234,7 +243,7 @@ export function createConversasRouter(): Router {
                 DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, d.nome AS departamento
            FROM (SELECT telefone, MAX(id) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
                         SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas
-                   FROM whatsapp_mensagens WHERE empresa_id = ? GROUP BY telefone) x
+                   FROM whatsapp_mensagens WHERE empresa_id = ? AND tipo <> 'encerramento' GROUP BY telefone) x
            JOIN whatsapp_mensagens w ON w.id = x.ultima
            LEFT JOIN pessoas p ON p.id = x.pessoa_id
            LEFT JOIN pessoas_contatos c ON c.id = x.contato_id

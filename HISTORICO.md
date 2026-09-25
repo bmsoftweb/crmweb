@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.16 — 2026-09-25
+
+- Conversas: Encerrar deixa uma linha na conversa ("Atendimento encerrado por Luis · 14:01"), que não vai para o cliente; a IA passa a considerar só as mensagens depois do último encerramento.
+- Ícone do app: funil de vendas no azul do logo (public/favicon.svg), no lugar do ícone padrão.
+
 ## 0.0.15 — 2026-09-25
 
 - Jornada: depois do Fim (ou de uma saída sem ligação), a próxima mensagem do cliente recomeça a jornada do Início (antes só recomeçava depois dos minutos de devolver ao bot).

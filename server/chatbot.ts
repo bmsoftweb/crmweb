@@ -545,16 +545,20 @@ const TIPOS: Record<string, string> = {
   outro: '[mensagem]',
 };
 
-/** Últimas mensagens da conversa → histórico para o Gemini (cliente = user, empresa = model) */
+/**
+ * Últimas mensagens da conversa → histórico para o Gemini (cliente = user, empresa = model). Só as
+ * depois do último "Encerrar": atendimento encerrado é assunto encerrado
+ */
 async function historico(ctx: Contexto): Promise<Content[]> {
   const [rows] = await pool.query<any[]>(
     // Pela ordem de gravação: a hora da mensagem recebida vem do relógio do cliente, a das enviadas do banco
     `SELECT direcao, tipo, texto FROM (
        SELECT id, direcao, tipo, texto FROM whatsapp_mensagens
-        WHERE empresa_id = ? AND telefone = ? AND situacao <> 'falhou' AND (texto <> '' OR tipo <> 'texto')
+        WHERE empresa_id = ? AND telefone = ? AND situacao <> 'falhou' AND (texto <> '' OR tipo <> 'texto') AND tipo <> 'encerramento'
+          AND id > COALESCE((SELECT MAX(e.id) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento'), 0)
         ORDER BY id DESC LIMIT ?) m
      ORDER BY m.id`,
-    [ctx.empresaId, ctx.telefone, HISTORICO],
+    [ctx.empresaId, ctx.telefone, ctx.empresaId, ctx.telefone, HISTORICO],
   );
   const contents: Content[] = [];
   for (const r of rows) {

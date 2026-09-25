@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Funil de vendas branco sobre o azul do logo "CRM" do menu (blue-600) -->
+  <rect width="64" height="64" rx="14" fill="#2563eb"/>
+  <path d="M13 15h38a2 2 0 0 1 1.5 3.3L38 35v11.8a2 2 0 0 1-1 1.7l-7 4A2 2 0 0 1 27 50.8V35L11.5 18.3A2 2 0 0 1 13 15z" fill="#fff"/>
+  <rect x="17" y="21" width="30" height="3" rx="1.5" fill="#2563eb" opacity=".35"/>
+  <rect x="22" y="27" width="20" height="3" rx="1.5" fill="#2563eb" opacity=".35"/>
+</svg>

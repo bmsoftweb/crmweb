@@ -596,6 +596,19 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     {mensagens.map((m) => {
                       const minha = m.direcao === 'enviada';
                       const origem = minha ? (m.bot ? (conversa.bot_nome ? `${conversa.bot_nome} (bot)` : 'Bot') : m.campanha ? 'Campanha' : m.automatica ? 'Automática' : m.usuario_nome) : null;
+                      // Marcador do botão Encerrar: linha horizontal (não foi para o cliente)
+                      if (m.tipo === 'encerramento') {
+                        return (
+                          <div key={m.id} className="flex items-center gap-3 my-3 text-[11px] font-semibold text-stone-500 dark:text-stone-400">
+                            <span className="flex-1 border-t border-stone-300 dark:border-stone-700" />
+                            <span className="flex items-center gap-1.5 shrink-0">
+                              <CircleCheck className="w-3.5 h-3.5" />
+                              Atendimento encerrado{m.usuario_nome ? ` por ${m.usuario_nome}` : ''} · {m.data_hora.slice(11, 16)}
+                            </span>
+                            <span className="flex-1 border-t border-stone-300 dark:border-stone-700" />
+                          </div>
+                        );
+                      }
                       // Resposta do bot reservada e ainda sendo escrita (a IA pensa, "digitando..." no WhatsApp)
                       if (minha && m.situacao === 'pendente' && !m.texto && m.tipo === 'texto') {
                         return (
