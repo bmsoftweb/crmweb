@@ -6,6 +6,7 @@ import { lerConfig } from './config.js';
 import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
 import { jornadaAtende, lerJornadaConfig } from './jornada.js';
 import { podeAcessar } from './permissoes.js';
+import { enviarPesquisa } from './pesquisa.js';
 
 /**
  * Tela de conversas do WhatsApp: uma conversa por telefone (whatsapp_mensagens.telefone, só
@@ -226,8 +227,15 @@ export function createConversasRouter(): Router {
       // Clique repetido (ou conversa já encerrada): não grava outra linha
       const [ok] = await pool.query<any[]>(`SELECT 1 FROM whatsapp_conversas c WHERE c.empresa_id = ? AND c.telefone = ? AND ${ENCERRAVEL}`, [emp, telefone]);
       if (!ok.length) return res.status(400).json({ error: 'Não há atendimento em andamento para encerrar.' });
+      // Quem atendia e o departamento, antes de limpar: vão para a pesquisa de satisfação
+      const [antes] = await pool.query<any[]>(
+        'SELECT u.id, u.nome, c.departamento_id FROM whatsapp_conversas c LEFT JOIN usuarios u ON u.id = c.atendente_id WHERE c.empresa_id = ? AND c.telefone = ?',
+        [emp, telefone],
+      );
       await encerrarAtendimento(emp, telefone);
       await marcarEncerramento(emp, telefone, res.locals.usuarioId);
+      // Pesquisa só se um humano atendeu (alguém tinha pegado a conversa)
+      if (antes[0]?.id) await enviarPesquisa(emp, telefone, 'atendente', { id: antes[0].id, nome: antes[0].nome }, antes[0].departamento_id ?? null);
       res.json({ success: true });
     } catch (err: any) {
       falha(res, err);

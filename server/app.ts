@@ -17,6 +17,7 @@ import { createContratosRouter, createWebhookD4SignRouter, rotinaContratos } fro
 import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 import { enviarAutomaticas } from './automaticas.js';
 import { responderComBot } from './chatbot.js';
+import { tratarRespostaPesquisa } from './pesquisa.js';
 import { waitUntil } from '@vercel/functions';
 import { lerPermissoes, prepararPermissoes } from './permissoes.js';
 import { PERFIS } from './schema.js';
@@ -161,7 +162,15 @@ export function createApp() {
       const novas = await receberAvisoEvolution(req.params.token, req.body);
       // Chatbot em segundo plano (na Vercel, waitUntil mantém a função viva): a espera de 1 a 30 s
       // e a IA não seguram a resposta à Evolution
-      for (const n of novas) waitUntil(responderComBot(n).catch((err) => console.error(`Chatbot: ${err.message}`)));
+      // Resposta de pesquisa de satisfação é tratada antes (não aciona o bot nem a jornada)
+      for (const n of novas) {
+        waitUntil(
+          (async () => {
+            if (await tratarRespostaPesquisa(n)) return;
+            await responderComBot(n);
+          })().catch((err) => console.error(`Chatbot: ${err.message}`)),
+        );
+      }
       res.json({ ok: true });
     } catch (err: any) {
       if (!err.status) console.error(`Evolution webhook: ${err.message}`);

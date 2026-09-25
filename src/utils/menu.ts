@@ -21,6 +21,7 @@ import {
   MessageSquareText,
   MessageCircle,
   Send,
+  Star,
   Settings,
   Database,
   type LucideIcon,
@@ -49,6 +50,7 @@ const ICONS: Record<string, LucideIcon> = {
   Target,
   MessageSquareText,
   Send,
+  Star,
 };
 
 const GROUP_ORDER: ResourceGroup[] = ['vendas', 'marketing', 'cadastros', 'acesso'];

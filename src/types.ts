@@ -256,4 +256,6 @@ export interface DashboardData {
     negocio_id: number | null;
     negocio_titulo: string | null;
   }[];
+  /** Pesquisa de satisfação do mês (nota de 1 a 5) */
+  satisfacao?: { media: number | null; qtd: number; porAtendente: { nome: string; media: number; qtd: number }[] };
 }

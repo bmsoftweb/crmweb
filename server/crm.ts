@@ -730,6 +730,18 @@ export function createCrmRouter() {
         ORDER BY a.data_vencimento, COALESCE(a.hora_vencimento, '00:00:00') LIMIT 10`,
     );
 
+    // Pesquisa de satisfação do mês (avaliações respondidas): média geral e por atendente (sem = bot/jornada)
+    const satisfacao = await um(
+      `SELECT ROUND(AVG(nota), 1) media, COUNT(*) qtd FROM avaliacoes
+        WHERE empresa_id = ? AND nota IS NOT NULL AND pedida_em >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
+    ).catch(() => ({ media: null, qtd: 0 })); // sem a tabela: sem o card
+    const satisfacaoPorAtendente = await varios(
+      `SELECT COALESCE(u.nome, 'Bot / jornada') nome, ROUND(AVG(a.nota), 1) media, COUNT(*) qtd
+         FROM avaliacoes a LEFT JOIN usuarios u ON u.id = a.atendente_id
+        WHERE a.empresa_id = ? AND a.nota IS NOT NULL AND a.pedida_em >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        GROUP BY a.atendente_id, u.nome ORDER BY media DESC, qtd DESC`,
+    ).catch(() => [] as any[]);
+
     const n = (o: Record<string, any>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v]));
     res.json({
       abertos: n(abertos),
@@ -739,6 +751,7 @@ export function createCrmRouter() {
       propostas: propostas.map(n),
       pedidos: pedidos.map(n),
       proximas,
+      satisfacao: { media: satisfacao.media == null ? null : Number(satisfacao.media), qtd: Number(satisfacao.qtd || 0), porAtendente: satisfacaoPorAtendente.map(n) },
     });
   }));
 

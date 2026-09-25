@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, CalendarClock, CalendarX2, Handshake, Loader2, ThumbsDown, ThumbsUp, TriangleAlert } from 'lucide-react';
+import { AlertCircle, CalendarClock, CalendarX2, Handshake, Loader2, Star, ThumbsDown, ThumbsUp, TriangleAlert } from 'lucide-react';
 import { DashboardData } from '../types';
 import { STATUS_COLORS, STATUS_LABELS, formatMoeda } from '../utils/formatters';
 import { iconeAtividade, quando, semaforoFollowup, COR_SEMAFORO } from '../utils/crm';
@@ -241,6 +241,45 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, isLoading, error, on
           </section>
         ))}
       </div>
+
+      {/* Pesquisa de satisfação do WhatsApp (mês atual) */}
+      {data.satisfacao && (
+        <section className={`${CARD} p-5`}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2">
+              <Star className="w-4 h-4 text-amber-500" />
+              Satisfação no mês
+            </h3>
+            <button onClick={() => onNavigate('avaliacoes')} className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer">Ver avaliações</button>
+          </div>
+          {data.satisfacao.qtd === 0 ? (
+            <p className="text-xs text-stone-400 py-4 text-center">Nenhuma avaliação respondida neste mês.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-[12rem_1fr] gap-5 items-start">
+              <div className="text-center">
+                <div className="text-4xl font-black text-stone-900 dark:text-stone-100 tabular-nums">{data.satisfacao.media?.toFixed(1).replace('.', ',')}</div>
+                <div className="flex justify-center gap-0.5 my-1">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Star key={i} className={`w-4 h-4 ${i <= Math.round(data.satisfacao!.media ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-stone-300 dark:text-stone-700'}`} />
+                  ))}
+                </div>
+                <div className="text-[11px] text-stone-500 dark:text-stone-400">{data.satisfacao.qtd} avaliação(ões)</div>
+              </div>
+              <table className="w-full text-xs">
+                <tbody>
+                  {data.satisfacao.porAtendente.map((a) => (
+                    <tr key={a.nome} className="border-t border-stone-100 dark:border-stone-800 first:border-t-0">
+                      <td className="py-1.5">{a.nome}</td>
+                      <td className="py-1.5 text-right tabular-nums w-16 font-semibold">{a.media.toFixed(1).replace('.', ',')} ⭐</td>
+                      <td className="py-1.5 text-right tabular-nums w-24 text-stone-500">{a.qtd} avaliação(ões)</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 };

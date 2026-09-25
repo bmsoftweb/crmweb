@@ -2,6 +2,14 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.22 — 2026-09-25
+
+Pesquisa de satisfação do WhatsApp. Banco: tabela avaliacoes.
+
+- Sai quando a equipe clica em Encerrar numa conversa que atendeu e quando o cliente chega ao fim da jornada: nota de 1 a 5 (número ou estrelas); nota de 1 a 3 pede um comentário; agradecimento no fim. Resposta que não é nota descarta a pesquisa e segue o atendimento normal; sem resposta, vence nos minutos configurados. As respostas não acionam o bot nem entram no histórico da IA.
+- Configurações › Chatbot › Pesquisa de satisfação: liga/desliga (começa desligada), textos da pergunta ({{atendente}}), do pedido de comentário e do agradecimento, validade em minutos e prévia.
+- Resultados: linha na conversa ("Cliente avaliou ⭐⭐⭐⭐ (4)" e o comentário), tela Vendas › Avaliações (só leitura, com filtros) e card "Satisfação no mês" no Painel de Vendas (média geral e por atendente).
+
 ## 0.0.21 — 2026-09-25
 
 Usuários: permissões, perfis e revezamento de leads. Banco: colunas usuarios.permissoes (JSON) e usuarios.revezamento; usuarios.tipo com os perfis admin, gerente, supervisor, client (Vendedor) e funcionario.

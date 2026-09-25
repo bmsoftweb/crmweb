@@ -19,6 +19,7 @@ import {
   type Contexto,
   type OpcaoMenu,
 } from './chatbot.js';
+import { enviarPesquisa } from './pesquisa.js';
 
 /**
  * Jornada de atendimento do WhatsApp (Configurações › Jornada): um fluxo de nós ligados, desenhado
@@ -536,7 +537,11 @@ class Execucao {
       if (no === 'fim') {
         this.estado.no = FIM;
         // O cliente chegou ao fim da jornada (nó Fim ou saída sem ligação): linha de encerramento na conversa
-        if (!this.paraHumano) await marcarEncerramento(this.ctx.empresaId, this.ctx.telefone, null, null, 'Atendimento encerrado pelo cliente (fim da jornada)');
+        if (!this.paraHumano) {
+          await marcarEncerramento(this.ctx.empresaId, this.ctx.telefone, null, null, 'Atendimento encerrado pelo cliente (fim da jornada)');
+          // Pesquisa de satisfação do atendimento do bot/jornada (se ligada)
+          await enviarPesquisa(this.ctx.empresaId, this.ctx.telefone, 'jornada', null, this.ctx.departamento?.id ?? null);
+        }
         return;
       }
       this.estado.no = no.id;

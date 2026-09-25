@@ -5,6 +5,7 @@ import { ConfigEmail } from './ConfigEmail';
 import { ConfigWhatsApp } from './ConfigWhatsApp';
 import { ConfigAutomaticas } from './ConfigAutomaticas';
 import { ConfigChatbot } from './ConfigChatbot';
+import { ConfigPesquisa } from './ConfigPesquisa';
 import { ConfigJornada } from './ConfigJornada';
 import { ConfigVendas } from './ConfigVendas';
 import { ConfigAssinatura } from './ConfigAssinatura';
@@ -107,7 +108,12 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
           {aba === 'pessoas' && <CamposPersonalizados somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'email' && <ConfigEmail somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'whatsapp' && <ConfigWhatsApp somenteLeitura={somenteLeitura} onToast={onToast} />}
-          {aba === 'chatbot' && <ConfigChatbot somenteLeitura={somenteLeitura} onToast={onToast} />}
+          {aba === 'chatbot' && (
+            <>
+              <ConfigChatbot somenteLeitura={somenteLeitura} onToast={onToast} />
+              <ConfigPesquisa somenteLeitura={somenteLeitura} onToast={onToast} />
+            </>
+          )}
           {aba === 'jornada' && <ConfigJornada somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'automaticas' && <ConfigAutomaticas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'vendas' && <ConfigVendas somenteLeitura={somenteLeitura} onToast={onToast} />}
