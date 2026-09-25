@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.10 — 2026-09-25
+
+- Conversas: imagens, figurinhas, áudios e vídeos aparecem na conversa. O arquivo é buscado na Evolution na hora (o CRM não guarda a mídia); imagem abre em tamanho real ao clicar, áudio com player, vídeo carrega ao clicar em "Carregar vídeo". Mídia que o WhatsApp não tem mais aparece como "não disponível".
+
 ## 0.0.9 — 2026-09-25
 
 Chatbot com IA (Gemini) no WhatsApp. Banco: tabela whatsapp_conversas.

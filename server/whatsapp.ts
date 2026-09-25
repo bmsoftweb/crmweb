@@ -657,6 +657,21 @@ export async function conectarWhatsApp(empresaId: string): Promise<{ conectado: 
   throw new ErroProvedor(`WhatsApp: o provedor não devolveu o QR Code (${JSON.stringify(r).slice(0, 150)}).`);
 }
 
+/**
+ * Arquivo de uma mensagem (imagem, figurinha, áudio, vídeo) pelo id no WhatsApp. Evolution: baixa e decifra
+ * pelo chat/getBase64FromMediaMessage; o CRM não guarda o arquivo.
+ */
+export async function midiaDaMensagem(empresaId: string | number, waId: string): Promise<{ mimetype: string; dados: Buffer }> {
+  const c = await credenciais(empresaId);
+  if (c.provedor !== 'evolution') throw new Error('Imagens das mensagens só pela Evolution.');
+  const { url, headers } = endereco(c, { zapi: '', evolution: 'chat/getBase64FromMediaMessage' });
+  const r: any = await (
+    await requisitar(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ message: { key: { id: waId } }, convertToMp4: false }) })
+  ).json();
+  if (!r?.base64) throw new Error('Arquivo da mensagem não encontrado no WhatsApp.');
+  return { mimetype: String(r.mimetype || 'application/octet-stream').split(';')[0], dados: Buffer.from(r.base64, 'base64') };
+}
+
 /** Desconecta o número (logout): para enviar de novo, é preciso ler outro QR Code */
 export async function desconectarWhatsApp(empresaId: string): Promise<void> {
   const c = await credenciais(empresaId);

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Bot, Building2, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
-import { ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchNumeroConversa, mudarAtendimentoConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, Bot, Building2, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
+import { ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -42,6 +42,55 @@ export function telefoneCadastro(t: string): string {
   const numero = m[2].length === 8 && /^[6-9]/.test(m[2]) ? `9${m[2]}` : m[2];
   return `(${m[1]}) ${numero.slice(0, -4)}-${numero.slice(-4)}`;
 }
+
+const MIDIA = ['imagem', 'figurinha', 'audio', 'video'];
+
+/**
+ * Imagem, figurinha, áudio ou vídeo da mensagem, baixado do WhatsApp (o CRM não guarda o
+ * arquivo). Imagem e áudio carregam ao aparecer; vídeo só ao clicar, por ser pesado.
+ */
+const MidiaMensagem: React.FC<{ id: number; tipo: string }> = ({ id, tipo }) => {
+  const [pedir, setPedir] = useState(tipo !== 'video');
+  const [src, setSrc] = useState<string | null>(null);
+  const [falhou, setFalhou] = useState(false);
+  useEffect(() => {
+    if (!pedir) return;
+    let url: string | null = null;
+    let vivo = true;
+    fetchMidiaMensagem(id)
+      .then((u) => {
+        url = u;
+        if (vivo) setSrc(u);
+        else URL.revokeObjectURL(u);
+      })
+      .catch(() => vivo && setFalhou(true));
+    return () => {
+      vivo = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [id, pedir]);
+  const nome = TIPOS[tipo] || tipo;
+  if (falhou) return <div className="italic text-xs opacity-70 mb-0.5">{nome} (não disponível)</div>;
+  if (!pedir) {
+    return (
+      <button type="button" onClick={() => setPedir(true)} className="flex items-center gap-1.5 w-56 h-32 mb-1 justify-center rounded-lg bg-black/10 dark:bg-white/10 text-xs font-semibold cursor-pointer hover:bg-black/15">
+        <Play className="w-4 h-4" /> Carregar vídeo
+      </button>
+    );
+  }
+  if (!src) {
+    const tamanho = tipo === 'figurinha' ? 'w-24 h-24' : tipo === 'audio' ? 'w-60 h-10' : 'w-56 h-40';
+    return <div className={`${tamanho} mb-1 rounded-lg bg-black/10 dark:bg-white/10 animate-pulse`} />;
+  }
+  if (tipo === 'audio') return <audio src={src} controls className="w-64 max-w-full h-10 mb-1" />;
+  if (tipo === 'video') return <video src={src} controls autoPlay className="max-w-full max-h-72 rounded-lg mb-1" />;
+  if (tipo === 'figurinha') return <img src={src} alt="Figurinha" className="w-24 h-24 object-contain mb-1" />;
+  return (
+    <a href={src} target="_blank" rel="noreferrer" title="Abrir a imagem">
+      <img src={src} alt="Imagem" className="max-w-full max-h-72 rounded-lg mb-1 cursor-zoom-in" />
+    </a>
+  );
+};
 
 const TIPOS: Record<string, string> = {
   imagem: 'Imagem',
@@ -438,7 +487,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             }`}
                           >
                             {origem && <div className={`text-[10px] font-semibold mb-0.5 ${minha ? 'text-blue-100' : ''}`}>{origem}</div>}
-                            {m.tipo !== 'texto' && (
+                            {MIDIA.includes(m.tipo) && <MidiaMensagem id={m.id} tipo={m.tipo} />}
+                            {m.tipo !== 'texto' && !MIDIA.includes(m.tipo) && (
                               <div className={`flex items-center gap-1.5 italic text-xs mb-0.5 ${minha ? 'text-blue-100' : 'text-stone-500 dark:text-stone-400'}`}>
                                 {m.tipo === 'documento' && <FileText className="w-3.5 h-3.5 shrink-0" />}
                                 {m.tipo === 'documento' && m.arquivo_nome ? m.arquivo_nome : TIPOS[m.tipo] || m.tipo}

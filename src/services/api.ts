@@ -493,6 +493,12 @@ export const fetchConversaDaAtividade = (
   id: Id,
 ): Promise<{ telefone: string; nome: string | null; atividade: { id: number; assunto: string; concluida: boolean } }> =>
   get(`/api/whatsapp/atividades/${encodeURIComponent(String(id))}/conversa`);
+/** Imagem, áudio ou vídeo de uma mensagem do WhatsApp, como endereço local (blob:) */
+export async function fetchMidiaMensagem(id: number): Promise<string> {
+  const res = await fetch(`/api/whatsapp/mensagens/${id}/midia`, { headers: headers() });
+  if (!res.ok) await parseOrThrow(res);
+  return URL.createObjectURL(await res.blob());
+}
 export const fetchNaoVistas = (): Promise<{ total: number }> => get('/api/whatsapp/nao-vistas');
 /** Assumir a conversa (o chatbot para) ou devolvê-la ao chatbot */
 export const mudarAtendimentoConversa = (telefone: string, atendimento: 'bot' | 'humano'): Promise<{ success: boolean }> =>

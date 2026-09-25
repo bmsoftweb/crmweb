@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
-import { chaveTelefone, donoDoTelefone, enviarWhatsApp, telefoneWhatsApp } from './whatsapp.js';
+import { chaveTelefone, donoDoTelefone, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
 import { atendimentoAtual, mudarAtendimento } from './chatbot.js';
@@ -224,6 +224,22 @@ export function createConversasRouter(): Router {
    * Mensagens da conversa (as 300 mais recentes, em ordem) e a pessoa. Abrir marca as recebidas
    * como vistas. Conversa sem pessoa tenta achá-la de novo (ela pode ter sido cadastrada depois).
    */
+  /** Imagem, figurinha, áudio ou vídeo da mensagem, buscado no provedor (o arquivo não fica no CRM) */
+  router.get('/whatsapp/mensagens/:id/midia', async (req: Request, res: Response) => {
+    try {
+      const [rows] = await pool.query<any[]>("SELECT wa_id FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video')", [
+        Number(req.params.id) || 0,
+        res.locals.empresaId,
+      ]);
+      if (!rows[0]?.wa_id) return res.status(404).json({ error: 'Arquivo não encontrado.' });
+      const { mimetype, dados } = await midiaDaMensagem(res.locals.empresaId, rows[0].wa_id);
+      if (!/^(image|audio|video)\//.test(mimetype)) return res.status(415).json({ error: 'Tipo de arquivo não exibível.' });
+      res.set('Cache-Control', 'private, max-age=86400').type(mimetype).send(dados);
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
   router.get('/whatsapp/conversas/:telefone', async (req: Request, res: Response) => {
     try {
       const emp = res.locals.empresaId;
