@@ -175,6 +175,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [descartar, setDescartar] = useState<'anexo' | 'gravacao' | null>(null);
   const gravadorRef = useRef<{ rec: MediaRecorder; partes: Blob[]; enviar: boolean; timer: number } | null>(null);
   const arquivoRef = useRef<HTMLInputElement>(null);
+  const campoRef = useRef<HTMLTextAreaElement>(null);
   const [erro, setErro] = useState<string | null>(null);
   /** Só as que eu atendo e as que aguardam (sem departamento ou no meu departamento) */
   const [minhas, setMinhas] = useState(false);
@@ -295,6 +296,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
       setErro(err.message);
     } finally {
       setEnviando(false);
+      // O campo fica desabilitado enquanto envia: devolve o cursor para continuar a conversa
+      setTimeout(() => campoRef.current?.focus());
     }
   };
 
@@ -813,7 +816,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     <Paperclip className="w-4 h-4" />
                   </button>
                   <textarea
+                    ref={campoRef}
                     value={texto}
+                    disabled={enviando}
                     onChange={(e) => setTexto(e.target.value)}
                     onKeyDown={(e) => {
                       // Enter envia; Shift+Enter quebra a linha
@@ -826,7 +831,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     maxLength={4000}
                     placeholder={anexo ? (anexo.tipo === 'audio' ? 'Áudio vai sem legenda' : 'Legenda (opcional)') : 'Digite a mensagem'}
                     title="Enter envia; Shift+Enter quebra a linha"
-                    className={`${INPUT_CLASS} flex-1 resize-none text-[13px]`}
+                    className={`${INPUT_CLASS} flex-1 resize-none text-[13px] disabled:opacity-60`}
                   />
                 </>
               )}
@@ -838,12 +843,12 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
               ) : !texto.trim() && !anexo ? (
                 <button onClick={gravar} disabled={enviando} title="Gravar áudio" className="flex items-center justify-center gap-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-default shrink-0">
                   {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
-                  <span className="hidden sm:inline">Gravar</span>
+                  <span className="hidden sm:inline">{enviando ? 'Enviando...' : 'Gravar'}</span>
                 </button>
               ) : (
                 <button onClick={() => enviar()} disabled={enviando} title="Enviar pelo WhatsApp da empresa" className="flex items-center justify-center gap-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-default shrink-0">
                   {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizontal className="w-4 h-4" />}
-                  <span className="hidden sm:inline">Enviar</span>
+                  <span className="hidden sm:inline">{enviando ? 'Enviando...' : 'Enviar'}</span>
                 </button>
               )}
             </div>
