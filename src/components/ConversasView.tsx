@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Bot, Building2, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
-import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, Bot, Building2, CircleCheck, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
+import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -548,6 +548,23 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   >
                     {conversa.atendimento === 'bot' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                     {conversa.atendimento === 'bot' ? 'Assumir' : 'Devolver ao bot'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await encerrarConversa(aberta);
+                        onToast('Atendimento encerrado: a próxima mensagem do cliente começa um atendimento novo.');
+                        await carregarConversa(aberta);
+                        await carregarLista();
+                      } catch (err: any) {
+                        setErro(err.message);
+                      }
+                    }}
+                    title="Encerra esta sessão, como se o tempo de devolver ao bot tivesse passado: sai do departamento e a próxima mensagem do cliente recomeça (menu ou jornada)"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                  >
+                    <CircleCheck className="w-4 h-4" />
+                    Encerrar
                   </button>
                 </div>
               )}

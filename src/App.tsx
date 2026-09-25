@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Usuario, ResourceDef, DbConnectionStatus, DashboardData, RegistroCrud } from './types';
 import {
   setTokenSessao,
@@ -10,6 +10,7 @@ import {
   validarSessao,
   fetchNaoVistas,
 } from './services/api';
+import { destravarSom, tocarAviso } from './utils/som';
 import { limparConfigListas } from './utils/configListas';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -70,17 +71,36 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [createToken, setCreateToken] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  }, []);
+
   /** Mensagens do WhatsApp recebidas e ainda não vistas (etiqueta do menu Conversas) */
   const [naoVistas, setNaoVistas] = useState(0);
+  /** Conversas passadas ao meu departamento que já tocaram o aviso (telefone + quando) */
+  const avisadasRef = useRef(new Set<string>());
   const atualizarNaoVistas = useCallback(() => {
     fetchNaoVistas()
-      .then((r) => setNaoVistas(r.total))
+      .then((r) => {
+        setNaoVistas(r.total);
+        // Cliente encaminhado ao meu departamento: aviso sonoro em qualquer tela, uma vez por encaminhamento
+        const novas = (r.encaminhadas ?? []).filter((e) => !avisadasRef.current.has(`${e.telefone}|${e.desde}`));
+        novas.forEach((e) => avisadasRef.current.add(`${e.telefone}|${e.desde}`));
+        if (novas.length) {
+          tocarAviso();
+          const e = novas[0];
+          showToast(`${e.nome || `+${e.telefone}`} aguardando atendimento no ${e.departamento}${novas.length > 1 ? ` (e mais ${novas.length - 1})` : ''}. Veja em Conversas.`);
+        }
+      })
       .catch(() => {}); // sem a tabela ou sem conexão: fica sem etiqueta
-  }, []);
+  }, [showToast]);
+  useEffect(() => destravarSom(), []);
   useEffect(() => {
     if (!sessao) return;
     atualizarNaoVistas();
-    const i = setInterval(() => !document.hidden && atualizarNaoVistas(), 30_000);
+    // Também com a aba em segundo plano: o aviso sonoro não pode esperar a pessoa voltar
+    const i = setInterval(atualizarNaoVistas, 15_000);
     return () => clearInterval(i);
   }, [sessao, atualizarNaoVistas]);
 
@@ -104,11 +124,6 @@ export default function App() {
     },
     [navegar],
   );
-
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
-  }, []);
 
   const handleLogout = useCallback(() => {
     setSessao(null);

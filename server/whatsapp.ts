@@ -200,9 +200,12 @@ interface Registro {
   disparo_id?: number | null;
 }
 
+/** "*Luis:* texto": o cliente vê quem da equipe escreveu (o registro no CRM fica sem, a tela já mostra o nome) */
+const assinado = (assinatura: string | undefined, texto: string) => (assinatura ? `*${assinatura}:* ${texto}` : texto);
+
 /** Envia texto; devolve o número da conversa (como o WhatsApp o conhece: às vezes sem o 9) */
-export async function enviarWhatsApp(empresaId: string | number, telefone: string, texto: string, reg: Registro = {}): Promise<string> {
-  const resposta = await textoPara(await credenciais(empresaId), telefone, texto);
+export async function enviarWhatsApp(empresaId: string | number, telefone: string, texto: string, reg: Registro = {}, assinatura?: string): Promise<string> {
+  const resposta = await textoPara(await credenciais(empresaId), telefone, assinado(assinatura, texto));
   return registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'texto', texto });
 }
 
@@ -237,8 +240,9 @@ export interface ArquivoEnvio {
  * Envia imagem, vídeo, documento ou áudio. Áudio vai como mensagem de voz (a Evolution converte
  * para o formato do WhatsApp); devolve o número da conversa, como enviarWhatsApp.
  */
-export async function enviarMidiaWhatsApp(empresaId: string | number, telefone: string, a: ArquivoEnvio, reg: Registro = {}): Promise<string> {
-  const resposta = await midiaPara(await credenciais(empresaId), telefone, a);
+export async function enviarMidiaWhatsApp(empresaId: string | number, telefone: string, a: ArquivoEnvio, reg: Registro = {}, assinatura?: string): Promise<string> {
+  const legenda = a.legenda ? assinado(assinatura, a.legenda) : a.legenda;
+  const resposta = await midiaPara(await credenciais(empresaId), telefone, { ...a, legenda });
   return registrarEnviada(empresaId, telefone, resposta, {
     ...reg,
     tipo: a.tipo,
@@ -460,7 +464,7 @@ async function registrarEnviada(
        VALUES (?, ?, ?, ?, 'enviada', ?, ?, ?, ?, 'enviada', ?, ?, 1, NOW())
        ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)), contato_id = COALESCE(contato_id, VALUES(contato_id)),
          disparo_id = COALESCE(disparo_id, VALUES(disparo_id)), usuario_id = COALESCE(usuario_id, VALUES(usuario_id)),
-         arquivo_nome = COALESCE(arquivo_nome, VALUES(arquivo_nome))`,
+         arquivo_nome = COALESCE(arquivo_nome, VALUES(arquivo_nome)), texto = COALESCE(VALUES(texto), texto)`,
       [empresaId, dono.pessoa_id, dono.contato_id, numero, m.tipo, m.texto, m.arquivo_nome ?? null, waId, m.disparo_id ?? null, m.usuario_id ?? null],
     );
     // O aviso de entrega pode ter chegado antes deste registro

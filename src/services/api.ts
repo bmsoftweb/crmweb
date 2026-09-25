@@ -526,7 +526,17 @@ export async function fetchMidiaMensagem(id: number): Promise<string> {
   if (!res.ok) await parseOrThrow(res);
   return URL.createObjectURL(await res.blob());
 }
-export const fetchNaoVistas = (): Promise<{ total: number }> => get('/api/whatsapp/nao-vistas');
+/** Conversa passada ao departamento do usuário que ninguém assumiu (aviso sonoro) */
+export interface Encaminhada {
+  telefone: string;
+  nome: string | null;
+  departamento: string;
+  desde: string;
+}
+export const fetchNaoVistas = (): Promise<{ total: number; encaminhadas: Encaminhada[] }> => get('/api/whatsapp/nao-vistas');
+/** Encerrar a sessão da conversa: como se o tempo de devolver ao bot tivesse passado */
+export const encerrarConversa = (telefone: string): Promise<{ success: boolean }> =>
+  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/encerrar`);
 /** Assumir a conversa (o chatbot para) ou devolvê-la ao chatbot */
 export const mudarAtendimentoConversa = (telefone: string, atendimento: 'bot' | 'humano'): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atendimento`, { atendimento });

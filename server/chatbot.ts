@@ -162,11 +162,7 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
   const c = rows[0];
   if (c.atendimento === 'humano') {
     if (!Number(c.parado)) return 'humano';
-    // Volta ao bot sem departamento: a próxima mensagem recebe o menu de novo (pode ser outro assunto)
-    await pool.query(
-      "UPDATE whatsapp_conversas SET atendimento = 'bot', atendente_id = NULL, humano_desde = NULL, departamento_id = NULL, no_atual = NULL, retomar_em = NULL, atualizado_em = NOW() WHERE empresa_id = ? AND telefone = ?",
-      [empresaId, telefone],
-    );
+    await encerrarAtendimento(empresaId, telefone);
     return 'bot';
   }
   // Com o bot, mas um atendente respondeu (tela ou celular) depois disso: passa a ser dele
@@ -178,14 +174,28 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
 }
 
 /**
+ * Encerra a sessão (botão Encerrar, ou o tempo de devolver ao bot esgotado): volta ao bot sem
+ * departamento e fora da jornada; a próxima mensagem do cliente recomeça (menu / Início)
+ */
+export async function encerrarAtendimento(empresaId: string | number, telefone: string) {
+  await pool.query(
+    `INSERT INTO whatsapp_conversas (empresa_id, telefone) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE atendimento = 'bot', atendente_id = NULL, humano_desde = NULL, departamento_id = NULL, no_atual = NULL,
+       retomar_em = NULL, atualizado_em = NOW()`,
+    [empresaId, telefone],
+  );
+}
+
+/**
  * Muda a situação pela tela (Assumir / Devolver ao bot) ou pelo bot (transferência). Devolver ao bot
- * limpa o departamento: a próxima mensagem do cliente recebe o menu
+ * continua a mesma sessão: o departamento fica; na jornada, uma conversa que tinha chegado ao Fim
+ * recomeça do Início na próxima mensagem
  */
 export async function mudarAtendimento(empresaId: string | number, telefone: string, atendimento: 'bot' | 'humano', atendenteId: number | null = null) {
   await pool.query(
     `INSERT INTO whatsapp_conversas (empresa_id, telefone, atendimento, atendente_id, humano_desde) VALUES (?, ?, ?, ?, IF(? = 'humano', NOW(), NULL))
      ON DUPLICATE KEY UPDATE atendimento = VALUES(atendimento), atendente_id = VALUES(atendente_id), humano_desde = VALUES(humano_desde),
-       departamento_id = IF(VALUES(atendimento) = 'bot', NULL, departamento_id), no_atual = IF(VALUES(atendimento) = 'bot', NULL, no_atual),
+       no_atual = IF(VALUES(atendimento) = 'bot' AND no_atual = '__fim', NULL, no_atual),
        retomar_em = NULL, atualizado_em = NOW()`,
     [empresaId, telefone, atendimento, atendimento === 'humano' ? atendenteId : null, atendimento],
   );

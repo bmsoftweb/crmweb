@@ -3,7 +3,8 @@ import { pool } from './db.js';
 import { ArquivoEnvio, chaveTelefone, donoDoTelefone, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
-import { atendimentoAtual, minutosDevolver, mudarAtendimento } from './chatbot.js';
+import { atendimentoAtual, encerrarAtendimento, minutosDevolver, mudarAtendimento } from './chatbot.js';
+import { jornadaDoNumero } from './jornada.js';
 
 /**
  * Tela de conversas do WhatsApp: uma conversa por telefone (whatsapp_mensagens.telefone, só
@@ -168,6 +169,18 @@ export function createConversasRouter(): Router {
   });
 
   /** Assumir a conversa (o chatbot para) ou devolvê-la ao chatbot */
+  /** Encerrar: fim da sessão, como se o tempo de devolver ao bot tivesse passado */
+  router.post('/whatsapp/conversas/:telefone/encerrar', async (req: Request, res: Response) => {
+    try {
+      const telefone = req.params.telefone;
+      if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
+      await encerrarAtendimento(res.locals.empresaId, telefone);
+      res.json({ success: true });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
   router.post('/whatsapp/conversas/:telefone/atendimento', async (req: Request, res: Response) => {
     try {
       const telefone = req.params.telefone;
@@ -188,7 +201,17 @@ export function createConversasRouter(): Router {
         "SELECT COUNT(*) AS total FROM whatsapp_mensagens WHERE empresa_id = ? AND direcao = 'recebida' AND vista = 0",
         [res.locals.empresaId],
       );
-      res.json({ total: Number(r[0].total) });
+      // Conversas passadas ao meu departamento que ninguém assumiu ainda (a tela toca o aviso sonoro)
+      const [encaminhadas] = await pool.query<any[]>(
+        `SELECT c.telefone, d.nome AS departamento, DATE_FORMAT(c.humano_desde, '%Y-%m-%d %H:%i:%s') AS desde,
+                COALESCE((SELECT p.nome FROM whatsapp_mensagens w JOIN pessoas p ON p.id = w.pessoa_id
+                           WHERE w.empresa_id = c.empresa_id AND w.telefone = c.telefone ORDER BY w.id DESC LIMIT 1), ${NOME_CONTATO('c')}) AS nome
+           FROM whatsapp_conversas c JOIN departamentos d ON d.id = c.departamento_id
+          WHERE c.empresa_id = ? AND c.atendimento = 'humano' AND c.atendente_id IS NULL
+            AND c.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)`,
+        [res.locals.empresaId, res.locals.usuario.id],
+      );
+      res.json({ total: Number(r[0].total), encaminhadas });
     } catch (err: any) {
       falha(res, err);
     }
@@ -287,7 +310,8 @@ export function createConversasRouter(): Router {
         : [[]];
       // Com o chatbot ligado: quem está atendendo (bot ou humano)
       const chatbot: any = await lerConfig(String(emp), 'whatsapp', 'chatbot');
-      const atendimento = chatbot?.ativo ? await atendimentoAtual(emp, telefone, minutosDevolver(chatbot)) : null;
+      const comBot = chatbot?.ativo || (await jornadaDoNumero(Number(emp), telefone));
+      const atendimento = comBot ? await atendimentoAtual(emp, telefone, minutosDevolver(chatbot)) : null;
       const [dep] = await pool.query<any[]>(
         'SELECT d.nome FROM whatsapp_conversas c JOIN departamentos d ON d.id = c.departamento_id WHERE c.empresa_id = ? AND c.telefone = ?',
         [emp, telefone],
@@ -328,7 +352,9 @@ export function createConversasRouter(): Router {
       // Quem responde pela tela assume a conversa (o chatbot para de responder)
       await mudarAtendimento(emp, telefone, 'humano', res.locals.usuarioId);
       const reg = { pessoa_id: ult[0]?.pessoa_id ?? null, contato_id: ult[0]?.contato_id ?? null, usuario_id: res.locals.usuarioId };
-      const numero = arquivo ? await enviarMidiaWhatsApp(emp, telefone, arquivo, reg) : await enviarWhatsApp(emp, telefone, texto, reg);
+      // Vários atendentes na mesma conversa: o cliente vê quem escreveu ("*Luis:* ...")
+      const assinatura = String(res.locals.usuario?.nome ?? '').trim() || undefined;
+      const numero = arquivo ? await enviarMidiaWhatsApp(emp, telefone, arquivo, reg, assinatura) : await enviarWhatsApp(emp, telefone, texto, reg, assinatura);
       // Conversa aberta pela atividade WhatsApp: a mensagem enviada conclui a atividade
       let concluida = false;
       const atividadeId = Number(req.body?.atividade_id) || null;

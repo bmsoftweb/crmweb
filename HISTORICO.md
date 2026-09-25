@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.12 — 2026-09-25
+
+- Conversas: botão Encerrar — fim da sessão, como se o tempo de devolver ao bot tivesse passado (sai do departamento e da jornada; a próxima mensagem do cliente recomeça). "Devolver ao bot" agora continua a mesma sessão (mantém o departamento). Os botões aparecem também nas conversas atendidas pela jornada.
+- Aviso sonoro e na tela, em qualquer tela do app (consulta a cada 15 s, também com a aba em segundo plano), quando um cliente é encaminhado ao departamento do usuário e ninguém assumiu.
+- Mensagens enviadas pela tela Conversas chegam ao cliente com o nome do atendente em negrito ("*Luis:* ..."), também na legenda de imagem, vídeo e documento; no CRM ficam gravadas sem o nome.
+
 ## 0.0.11 — 2026-09-25
 
 WhatsApp: jornada de atendimento, menu de departamentos, envio de mídia e quem executa as atividades. Banco: tabelas departamentos e jornada_arquivos; colunas usuarios.departamento_id, atividades.executor_id e departamento_id, whatsapp_conversas.departamento_id, no_atual, variaveis e retomar_em. Dependência nova: @xyflow/react.
