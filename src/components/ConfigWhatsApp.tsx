@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, PlugZap, QrCode, Save, Unplug, Webhook, X } from 'lucide-react';
+import { Loader2, PlugZap, QrCode, Save, Smartphone, Unplug, Webhook, X } from 'lucide-react';
 import { ativarRecebimentoWhatsApp, conectarWhatsApp, desconectarWhatsApp, fetchConfig, salvarConfig, testarWhatsApp } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { NumberField } from './NumberField';
 import { AvisoErro } from './AvisoErro';
 import { ConfirmDialog } from './ConfirmDialog';
+import { telefoneCadastro } from './ConversasView';
 
 interface Whats {
   provedor: '' | 'evolution' | 'zapi';
@@ -37,12 +38,17 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
   const [desconectando, setDesconectando] = useState(false);
   /** Situação do número no provedor; null = não se sabe (sem configuração ou provedor com falha) */
   const [conectado, setConectado] = useState<boolean | null>(null);
+  /** Número do aparelho conectado (Evolution) */
+  const [numero, setNumero] = useState<string | undefined>();
   /** Recebimento de mensagens ativado (webhook na Evolution): endereço do CRM e quando */
   const [recebimento, setRecebimento] = useState<{ origem: string; em: string } | null>(null);
 
   const consultarSituacao = () =>
     testarWhatsApp()
-      .then((r) => setConectado(r.conectado))
+      .then((r) => {
+        setConectado(r.conectado);
+        setNumero(r.numero);
+      })
       .catch(() => setConectado(null));
 
   useEffect(() => {
@@ -71,7 +77,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
         if (!vivo) return;
         if (r.conectado) {
           setQrcode(null);
-          setConectado(true);
+          consultarSituacao(); // traz o número conectado
           onToast('WhatsApp conectado.');
           return;
         }
@@ -134,6 +140,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
     try {
       const r = await testarWhatsApp();
       setConectado(r.conectado);
+      setNumero(r.numero);
       onToast(r.mensagem);
     } catch (err: any) {
       setErro(err.message);
@@ -291,12 +298,30 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
             <Unplug className="w-4 h-4" />
             Desconectar
           </button>
-          {conectado !== null && (
-            <span className={`flex items-center gap-1.5 text-xs font-semibold ${conectado ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-500 dark:text-stone-400'}`}>
-              <span className={`w-2 h-2 rounded-full ${conectado ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+        </div>
+      )}
+
+      {conectado !== null && (
+        <div
+          className={`self-start flex items-center gap-3 pl-3 pr-5 py-3 rounded-lg border ${
+            conectado
+              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30'
+              : 'border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-900'
+          }`}
+        >
+          <span className={`flex items-center justify-center w-9 h-9 rounded-full ${conectado ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400' : 'bg-stone-200 text-stone-500 dark:bg-stone-800 dark:text-stone-400'}`}>
+            {conectado ? <Smartphone className="w-4 h-4" /> : <Unplug className="w-4 h-4" />}
+          </span>
+          <div className="flex flex-col">
+            <span className={`flex items-center gap-1.5 text-xs font-semibold ${conectado ? 'text-emerald-700 dark:text-emerald-300' : 'text-stone-600 dark:text-stone-300'}`}>
+              <span className={`w-2 h-2 rounded-full ${conectado ? 'bg-emerald-500 animate-pulse' : 'bg-stone-400'}`} />
               {conectado ? 'Conectado' : 'Desconectado'}
             </span>
-          )}
+            <span className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+              {conectado ? (numero ? telefoneCadastro(numero) : 'Número conectado') : 'Nenhum número conectado'}
+            </span>
+            {v.instancia && <span className="text-[11px] text-stone-500 dark:text-stone-400">Instância {v.instancia}</span>}
+          </div>
         </div>
       )}
 

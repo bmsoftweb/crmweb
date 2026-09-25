@@ -236,23 +236,38 @@ export async function intervaloWhatsApp(empresaId: string | number): Promise<num
  * destinatário recusado fica como "falhou", com o motivo. Devolve false se já tinha saído.
  */
 export async function enviarAutomatica(empresaId: string | number, origem: string, pessoaId: number | null, telefone: string, texto: string): Promise<boolean> {
-  const c = await credenciais(empresaId);
+  const id = await reservarEnvio(empresaId, origem, { pessoa_id: pessoaId, contato_id: null }, telefone, texto);
+  if (!id) return false;
+  await enviarReservada(empresaId, id, origem, telefone, texto);
+  return true;
+}
+
+/** Reserva a origem (única na empresa) antes de enviar; null se ela já existia (já saiu ou está saindo) */
+export async function reservarEnvio(empresaId: string | number, origem: string, dono: Dono, telefone: string, texto: string): Promise<number | null> {
   const [r] = await pool.query<any>(
-    `INSERT IGNORE INTO whatsapp_mensagens (empresa_id, pessoa_id, telefone, direcao, tipo, texto, situacao, origem, vista, data_hora)
-     VALUES (?, ?, ?, 'enviada', 'texto', ?, 'pendente', ?, 1, NOW())`,
-    [empresaId, pessoaId, telefone, texto, origem],
+    `INSERT IGNORE INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, vista, data_hora)
+     VALUES (?, ?, ?, ?, 'enviada', 'texto', ?, 'pendente', ?, 1, NOW())`,
+    [empresaId, dono.pessoa_id, dono.contato_id, telefone, texto, origem],
   );
-  if (!r.affectedRows) return false;
+  return r.affectedRows ? r.insertId : null;
+}
+
+/**
+ * Envia a mensagem reservada (texto final). Provedor em falha desfaz a reserva (tenta de novo depois)
+ * e lança ErroProvedor; destinatário recusado fica como "falhou", com o motivo.
+ */
+export async function enviarReservada(empresaId: string | number, id: number, origem: string, telefone: string, texto: string): Promise<void> {
   let resposta: any;
   try {
+    const c = await credenciais(empresaId);
     resposta = await textoPara(c, telefone, texto);
   } catch (err: any) {
     if (err instanceof ErroProvedor) {
-      await pool.query('DELETE FROM whatsapp_mensagens WHERE id = ?', [r.insertId]);
+      await pool.query('DELETE FROM whatsapp_mensagens WHERE id = ?', [id]);
       throw err;
     }
-    await pool.query("UPDATE whatsapp_mensagens SET situacao = 'falhou', erro = ? WHERE id = ?", [String(err?.message || err).slice(0, 255), r.insertId]);
-    return true;
+    await pool.query("UPDATE whatsapp_mensagens SET texto = ?, situacao = 'falhou', erro = ? WHERE id = ?", [texto, String(err?.message || err).slice(0, 255), id]);
+    return;
   }
   // Já saiu: daqui em diante, falha só vai para o log (nunca pode liberar um novo envio)
   try {
@@ -260,12 +275,27 @@ export async function enviarAutomatica(empresaId: string | number, origem: strin
     const jid = resposta?.key?.remoteJid;
     const numero = typeof jid === 'string' && jid.endsWith('@s.whatsapp.net') ? digitosDoJid(jid) : telefone;
     // O aviso do webhook pode ter gravado a mesma mensagem antes: fica a reserva, que tem a origem
-    if (waId) await pool.query('DELETE FROM whatsapp_mensagens WHERE empresa_id = ? AND wa_id = ? AND id <> ?', [empresaId, waId, r.insertId]);
-    await pool.query("UPDATE whatsapp_mensagens SET wa_id = ?, telefone = ?, situacao = 'enviada' WHERE id = ?", [waId, numero, r.insertId]);
+    if (waId) await pool.query('DELETE FROM whatsapp_mensagens WHERE empresa_id = ? AND wa_id = ? AND id <> ?', [empresaId, waId, id]);
+    await pool.query("UPDATE whatsapp_mensagens SET texto = ?, wa_id = ?, telefone = ?, situacao = 'enviada' WHERE id = ?", [texto, waId, numero, id]);
   } catch (err: any) {
     console.error(`WhatsApp: mensagem automática ${origem} enviada, mas não registrada: ${err.message}`);
   }
-  return true;
+}
+
+/** Mostra "digitando..." para o cliente por alguns segundos (só Evolution; falha é ignorada) */
+export async function mostrarDigitando(empresaId: string | number, telefone: string, ms: number): Promise<void> {
+  try {
+    const c = await credenciais(empresaId);
+    if (c.provedor !== 'evolution') return;
+    await fetch(`${c.url}/chat/sendPresence/${encodeURIComponent(c.instancia)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: c.token },
+      body: JSON.stringify({ number: telefone, presence: 'composing', delay: ms }),
+      signal: AbortSignal.timeout(ms + 10_000),
+    });
+  } catch {
+    // é só um enfeite: sem ele, a resposta sai do mesmo jeito
+  }
 }
 
 // ------------------------------------------------------------
@@ -441,26 +471,35 @@ export function conteudoMensagem(m: any): { tipo: string; texto: string | null; 
   return { tipo: 'outro', texto: null, arquivo: null };
 }
 
-/** Aviso de mensagem nova (recebida, ou enviada pelo celular/pelo CRM) */
-async function gravarMensagem(empresaId: string | number, d: any) {
+/** Mensagem recebida nova (o chatbot decide se responde) */
+export interface MensagemNova {
+  empresaId: number;
+  telefone: string;
+  id: number;
+}
+
+/** Aviso de mensagem nova (recebida, ou enviada pelo celular/pelo CRM). Devolve a recebida nova, se for o caso */
+async function gravarMensagem(empresaId: number, d: any): Promise<MensagemNova | null> {
   const key = d?.key ?? {};
   // Com o endereçamento novo (LID), o número vem no remoteJidAlt/senderPn
   const jid = [key.remoteJid, key.remoteJidAlt, key.senderPn].find((j) => typeof j === 'string' && j.endsWith('@s.whatsapp.net'));
-  if (!jid || !key.id) return; // grupo, status, canal
+  if (!jid || !key.id) return null; // grupo, status, canal
   const c = conteudoMensagem(d.message);
-  if (!c) return;
+  if (!c) return null;
   const telefone = digitosDoJid(jid);
   const recebida = !key.fromMe;
   const dono = await donoDoTelefone(empresaId, telefone);
   const ts = Number(d.messageTimestamp) || null;
   // Nome do perfil no WhatsApp de quem mandou: identifica quem ainda não está em Pessoas
   const nomeContato = recebida && typeof d.pushName === 'string' && d.pushName.trim() ? d.pushName.trim().slice(0, 150) : null;
-  await pool.query(
+  const [r] = await pool.query<any>(
     `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, nome_contato, direcao, tipo, texto, arquivo_nome, wa_id, situacao, vista, data_hora)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(FROM_UNIXTIME(?), NOW()))
      ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)), contato_id = COALESCE(contato_id, VALUES(contato_id))`,
     [empresaId, dono.pessoa_id, dono.contato_id, telefone, nomeContato, recebida ? 'recebida' : 'enviada', c.tipo, c.texto, c.arquivo, key.id, recebida ? 'recebida' : 'enviada', recebida ? 0 : 1, ts],
   );
+  // affectedRows 1 = linha nova (2/0 = aviso repetido de uma que já estava gravada)
+  return recebida && r.affectedRows === 1 ? { empresaId, telefone, id: r.insertId } : null;
 }
 
 /** Situação que a Evolution informa (texto, ou o número do Baileys) → a da tabela */
@@ -513,16 +552,20 @@ async function empresaDoToken(token: string): Promise<{ empresaId: number; cfg: 
  * Aviso da Evolution (webhook, rota pública): mensagens novas e mudanças de situação.
  * O token do endereço identifica a empresa; aviso de outra instância é ignorado.
  */
-export async function receberAvisoEvolution(token: string, corpo: any): Promise<void> {
+export async function receberAvisoEvolution(token: string, corpo: any): Promise<MensagemNova[]> {
   const dono = await empresaDoToken(token);
   if (!dono) throw Object.assign(new Error('Endereço de recebimento desconhecido.'), { status: 404 });
-  if (corpo?.instance && corpo.instance !== dono.cfg.instancia) return;
+  if (corpo?.instance && corpo.instance !== dono.cfg.instancia) return [];
   const evento = String(corpo?.event ?? '').toLowerCase().replace(/_/g, '.');
   const itens = Array.isArray(corpo?.data) ? corpo.data : [corpo?.data];
+  const novas: MensagemNova[] = [];
   for (const d of itens) {
-    if (evento === 'messages.upsert' || evento === 'send.message') await gravarMensagem(dono.empresaId, d);
-    else if (evento === 'messages.update') await atualizarSituacao(dono.empresaId, d);
+    if (evento === 'messages.upsert' || evento === 'send.message') {
+      const nova = await gravarMensagem(dono.empresaId, d);
+      if (nova) novas.push(nova);
+    } else if (evento === 'messages.update') await atualizarSituacao(dono.empresaId, d);
   }
+  return novas;
 }
 
 /**
@@ -565,25 +608,28 @@ export async function ativarRecebimento(empresaId: string, origem: string): Prom
  * Se o número está conectado. Evolution: pelo connectionStatus de instance/fetchInstances;
  * o instance/connectionState (2.3.7) continua dizendo "open" depois de um logout.
  */
-async function conectadoNoProvedor(c: Credenciais): Promise<boolean> {
+async function conectadoNoProvedor(c: Credenciais): Promise<{ conectado: boolean; numero?: string }> {
   if (c.provedor === 'zapi') {
     const { url, headers } = endereco(c, { zapi: 'status', evolution: '' });
     const r: any = await (await requisitar(url, { headers })).json().catch(() => ({}));
-    return r?.connected === true;
+    return { conectado: r?.connected === true };
   }
   const url = `${c.url}/instance/fetchInstances?instanceName=${encodeURIComponent(c.instancia)}`;
   const r: any = await (await requisitar(url, { headers: { apikey: c.token } })).json().catch(() => null);
   const inst = Array.isArray(r) ? r.find((i: any) => (i?.name ?? i?.instance?.instanceName) === c.instancia) : null;
   if (!inst) throw new ErroProvedor(`WhatsApp: instância "${c.instancia}" não encontrada na Evolution.`);
-  return (inst.connectionStatus ?? inst.instance?.status) === 'open';
+  const conectado = (inst.connectionStatus ?? inst.instance?.status) === 'open';
+  // ownerJid: "5547999999999@s.whatsapp.net" (número do aparelho conectado)
+  const numero = String(inst.ownerJid ?? inst.instance?.owner ?? '').split('@')[0].split(':')[0];
+  return { conectado, numero: conectado && numero ? numero : undefined };
 }
 
 /** Consulta no provedor se o número está conectado; erro só quando o provedor falha (fora do ar, chave errada) */
-export async function testarWhatsApp(empresaId: string): Promise<{ conectado: boolean; mensagem: string }> {
+export async function testarWhatsApp(empresaId: string): Promise<{ conectado: boolean; numero?: string; mensagem: string }> {
   const c = await credenciais(empresaId);
-  const conectado = await conectadoNoProvedor(c);
+  const { conectado, numero } = await conectadoNoProvedor(c);
   const nome = c.provedor === 'zapi' ? 'Z-API' : 'Evolution';
-  return { conectado, mensagem: conectado ? `${nome}: número conectado.` : `${nome}: o provedor respondeu, mas o número está desconectado. Use Conectar WhatsApp.` };
+  return { conectado, numero, mensagem: conectado ? `${nome}: número conectado.` : `${nome}: o provedor respondeu, mas o número está desconectado. Use Conectar WhatsApp.` };
 }
 
 /**
@@ -600,7 +646,7 @@ export async function conectarWhatsApp(empresaId: string): Promise<{ conectado: 
   // Sem QR porque o provedor diz que já está conectado: confirma pela situação confiável.
   // Evolution 2.3.7 fica presa em "open" depois que o aparelho é removido; o logout destrava
   if (dizConectado()) {
-    if (await conectadoNoProvedor(c)) return { conectado: true };
+    if ((await conectadoNoProvedor(c)).conectado) return { conectado: true };
     if (c.provedor === 'evolution') {
       await desconectarWhatsApp(empresaId).catch(() => {});
       r = await pedirQr();

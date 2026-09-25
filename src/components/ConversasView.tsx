@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Building2, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
-import { ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchNumeroConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, Bot, Building2, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
+import { ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchNumeroConversa, mudarAtendimentoConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -369,6 +369,37 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   )}
                 </div>
               </div>
+              {conversa?.atendimento && (
+                <div className="shrink-0 flex items-center gap-2">
+                  <span
+                    className={`hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                      conversa.atendimento === 'bot'
+                        ? 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
+                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    }`}
+                  >
+                    {conversa.atendimento === 'bot' ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                    {conversa.atendimento === 'bot' ? 'Bot atendendo' : 'Humano atendendo'}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const novo = conversa.atendimento === 'bot' ? 'humano' : 'bot';
+                        await mudarAtendimentoConversa(aberta, novo);
+                        onToast(novo === 'humano' ? 'Você assumiu a conversa: o bot não responde mais.' : 'Conversa devolvida ao bot.');
+                        await carregarConversa(aberta);
+                      } catch (err: any) {
+                        setErro(err.message);
+                      }
+                    }}
+                    title={conversa.atendimento === 'bot' ? 'O bot para de responder esta conversa' : 'O bot volta a responder esta conversa'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                  >
+                    {conversa.atendimento === 'bot' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                    {conversa.atendimento === 'bot' ? 'Assumir' : 'Devolver ao bot'}
+                  </button>
+                </div>
+              )}
               {conversa && !nomeAberta && (
                 <button
                   onClick={() => setCadastrando({ telefone: aberta, nome: perfilAberta || '' })}
@@ -396,7 +427,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     </div>
                     {mensagens.map((m) => {
                       const minha = m.direcao === 'enviada';
-                      const origem = minha ? (m.campanha ? 'Campanha' : m.automatica ? 'Automática' : m.usuario_nome) : null;
+                      const origem = minha ? (m.bot ? 'Bot' : m.campanha ? 'Campanha' : m.automatica ? 'Automática' : m.usuario_nome) : null;
                       return (
                         <div key={m.id} title={m.erro ? `Não enviada: ${m.erro}` : undefined} className={`flex mb-1.5 ${minha ? 'justify-end' : 'justify-start'}`}>
                           <div

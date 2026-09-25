@@ -104,7 +104,6 @@ export default function App() {
     },
     [navegar],
   );
-  const abrirConversa = useCallback((atividadeId: string | number) => pedirConversa({ atividadeId }), [pedirConversa]);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -196,7 +195,7 @@ export default function App() {
             onFechar={fechar}
             onAlterado={aoGravar}
             onToast={showToast}
-            onAbrirConversa={abrirConversa}
+            onConversar={pedirConversa}
           />
         ) : null;
       }
@@ -205,7 +204,7 @@ export default function App() {
       }
       return null;
     },
-    [resourceNegocios, showToast, abrirConversa],
+    [resourceNegocios, showToast, pedirConversa],
   );
 
   // ----------------------------------------------------------
@@ -287,7 +286,7 @@ export default function App() {
               refreshToken={refreshToken}
               createToken={createToken}
               onToast={showToast}
-              onAbrirConversa={abrirConversa}
+              onConversar={pedirConversa}
             />
           </main>
         ) : activeTab === 'conversas' ? (

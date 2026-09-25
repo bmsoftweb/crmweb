@@ -3,6 +3,7 @@ import { pool } from './db.js';
 import { configSmtpPublica, prepararConfigSmtp, testarSmtp } from './email.js';
 import { conferirInstanciaUnica, configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp, ativarRecebimento } from './whatsapp.js';
 import { automaticasPublica, prepararAutomaticas } from './automaticas.js';
+import { chatbotPublica, prepararChatbot, testarChatbot } from './chatbot.js';
 import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign.js';
 
 /**
@@ -18,7 +19,7 @@ import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarCont
 const CHAVES: Record<string, string[]> = {
   pessoas: ['campos_personalizados'],
   email: ['smtp'],
-  whatsapp: ['provedor', 'automaticas'],
+  whatsapp: ['provedor', 'automaticas', 'chatbot'],
   // { ativo: boolean } — tarefa "Retorno Envio" ao enviar proposta ou pedido (sem configuração: ligado)
   vendas: ['retorno_envio'],
   assinatura: ['d4sign'],
@@ -32,6 +33,7 @@ const COM_SEGREDO: Record<string, { preparar: (valor: any, anterior: any) => any
   'email.smtp': { preparar: prepararConfigSmtp, publica: configSmtpPublica },
   'whatsapp.provedor': { preparar: prepararConfigWhats, publica: configWhatsPublica },
   'whatsapp.automaticas': { preparar: prepararAutomaticas, publica: automaticasPublica },
+  'whatsapp.chatbot': { preparar: prepararChatbot, publica: chatbotPublica },
   'assinatura.d4sign': { preparar: prepararConfigD4, publica: configD4Publica },
 };
 export const somenteAdmin = (res: Response) => {
@@ -158,6 +160,16 @@ export function createConfigRouter(): Router {
     try {
       somenteAdmin(res);
       res.json({ success: true, ...(await conectarWhatsApp(String(res.locals.empresaId))) });
+    } catch (err: any) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  /** Pergunta curta ao Gemini com a chave e o modelo gravados */
+  router.post('/config/whatsapp/chatbot/testar', async (_req: Request, res: Response) => {
+    try {
+      somenteAdmin(res);
+      res.json({ success: true, mensagem: await testarChatbot(String(res.locals.empresaId)) });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message });
     }

@@ -30,6 +30,7 @@ import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoe
 import { INPUT_CLASS } from '../utils/formStyles';
 import { COR_SEMAFORO, TIPOS_INTERACAO, iconeAtividade, iconeInteracao, quando, semaforoFollowup } from '../utils/crm';
 import { AtividadeModal } from './AtividadeModal';
+import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { ConfirmDialog } from './ConfirmDialog';
 import { DocumentoEditor } from './DocumentoEditor';
 import { RecordForm } from './RecordForm';
@@ -43,14 +44,14 @@ interface NegocioFichaProps {
   /** Algo mudou (etapa, status, atividades...): quem abriu recarrega a lista/Kanban */
   onAlterado: () => void;
   onToast: (msg: string) => void;
-  /** Atividade WhatsApp pendente: abre a tela Conversas no número do cliente */
-  onAbrirConversa?: (atividadeId: Id) => void;
+  /** Abre a tela Conversas: pela atividade WhatsApp pendente ou pela pessoa do negócio */
+  onConversar?: (de: { atividadeId?: Id; pessoaId?: Id }) => void;
 }
 
 type Aba = 'atividades' | 'historico' | 'propostas' | 'pedidos';
 type Visao = { tipo: 'ficha' } | { tipo: 'propostas' | 'pedidos'; id: Id | null };
 
-export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource, onFechar, onAlterado, onToast, onAbrirConversa }) => {
+export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource, onFechar, onAlterado, onToast, onConversar }) => {
   const [ficha, setFicha] = useState<FichaNegocio | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba>('atividades');
@@ -197,7 +198,10 @@ export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource,
               {n.pessoa_nome && (
                 <span className="flex items-center gap-1">
                   <User className="w-3.5 h-3.5" /> {n.pessoa_nome}
-                  {n.pessoa_telefone && <span className="text-stone-400">• {n.pessoa_telefone}</span>}
+                  {(n.pessoa_whatsapp || n.pessoa_telefone) && <span className="text-stone-400">• {n.pessoa_whatsapp || n.pessoa_telefone}</span>}
+                  {onConversar && n.pessoa_id && (
+                    <BotaoWhatsApp temNumero={Boolean(n.pessoa_whatsapp || n.pessoa_telefone)} onAbrir={() => onConversar({ pessoaId: n.pessoa_id })} />
+                  )}
                 </span>
               )}
               <span>{n.funil_nome}</span>
@@ -321,7 +325,7 @@ export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource,
               const Icone = iconeAtividade(a.tipo);
               const cor = feita ? '' : COR_SEMAFORO[semaforoFollowup(a.data_vencimento, a.hora_vencimento)].texto;
               // Atividade WhatsApp pendente: o clique abre a conversa com o cliente
-              const conversa = a.tipo === 'whatsapp' && !feita && Boolean(onAbrirConversa);
+              const conversa = a.tipo === 'whatsapp' && !feita && Boolean(onConversar);
               return (
                 <div key={a.id} className="flex items-start gap-3 p-3 rounded-xl border border-stone-200 dark:border-stone-800 group">
                   <button
@@ -339,7 +343,7 @@ export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource,
                   <Icone className="w-4 h-4 mt-0.5 text-stone-400 shrink-0" />
                   <div
                     className={`flex-1 min-w-0 ${conversa ? 'cursor-pointer rounded-lg -m-1 p-1 hover:bg-emerald-50 dark:hover:bg-emerald-950/30' : ''}`}
-                    onClick={conversa ? () => onAbrirConversa!(a.id) : undefined}
+                    onClick={conversa ? () => onConversar!({ atividadeId: a.id }) : undefined}
                     title={conversa ? 'Abrir a conversa no WhatsApp (enviar a mensagem conclui a atividade)' : undefined}
                   >
                     <div className={`text-xs font-semibold ${feita ? 'line-through text-stone-400' : 'text-stone-800 dark:text-stone-100'}`}>

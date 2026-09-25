@@ -2,6 +2,17 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.9 — 2026-09-25
+
+Chatbot com IA (Gemini) no WhatsApp. Banco: tabela whatsapp_conversas.
+
+- Configurações › Chatbot: liga/desliga, chave do Gemini (gravada cifrada), modelo (Gemini 3.8 Flash, 3.5 Flash, 3.5 Flash-Lite, 3.1 Flash-Lite), nome do assistente, texto-base da empresa, horas para devolver ao bot e vendedores do revezamento. Botão "Testar Gemini".
+- O bot responde o tempo todo, com espera aleatória de 1 a 30 segundos e "digitando..." (evita banimento), só a última mensagem recebida e nunca duas vezes a mesma.
+- Quem ainda não é cliente vira lead: pessoa com o WhatsApp, contato (se informou a empresa), negócio na primeira etapa do funil para o próximo vendedor do revezamento e atividade WhatsApp para ele.
+- Passa a conversa para um humano quando o cliente pede ou quando não sabe responder. Conversas: etiqueta "Bot atendendo"/"Humano atendendo" com os botões Assumir e Devolver ao bot; responder pela tela assume a conversa; volta ao bot depois das horas configuradas sem resposta de atendente. Respostas do bot aparecem marcadas "Bot".
+- Ficha do negócio: ícone do WhatsApp ao lado da pessoa, abre a conversa.
+- Configurações › WhatsApp: a situação da conexão virou um quadro abaixo dos botões, com o número conectado e a instância.
+
 ## 0.0.8 — 2026-09-25
 
 - Ícone do WhatsApp na lista de Pessoas e na aba Contatos do painel de detalhes: abre a conversa com o WhatsApp da pessoa (sem ele, o telefone) ou do contato (WhatsApp, celular, telefone). Sem número, o ícone fica apagado; sem DDD, avisa para corrigir o cadastro.

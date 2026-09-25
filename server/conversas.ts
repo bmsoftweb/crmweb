@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { chaveTelefone, donoDoTelefone, enviarWhatsApp, telefoneWhatsApp } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
+import { lerConfig } from './config.js';
+import { atendimentoAtual, mudarAtendimento } from './chatbot.js';
 
 /**
  * Tela de conversas do WhatsApp: uma conversa por telefone (whatsapp_mensagens.telefone, só
@@ -165,6 +167,20 @@ export function createConversasRouter(): Router {
     }
   });
 
+  /** Assumir a conversa (o chatbot para) ou devolvê-la ao chatbot */
+  router.post('/whatsapp/conversas/:telefone/atendimento', async (req: Request, res: Response) => {
+    try {
+      const telefone = req.params.telefone;
+      if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
+      const atendimento = req.body?.atendimento;
+      if (atendimento !== 'bot' && atendimento !== 'humano') return res.status(400).json({ error: 'Atendimento inválido.' });
+      await mudarAtendimento(res.locals.empresaId, telefone, atendimento, res.locals.usuarioId);
+      res.json({ success: true });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
   /** Recebidas ainda não vistas, para a etiqueta do menu */
   router.get('/whatsapp/nao-vistas', async (_req: Request, res: Response) => {
     try {
@@ -231,7 +247,8 @@ export function createConversasRouter(): Router {
       const [mensagens] = await pool.query<any[]>(
         `SELECT * FROM (
            SELECT w.id, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao, u.nome AS usuario_nome,
-                  (w.disparo_id IS NOT NULL) AS campanha, (w.origem IS NOT NULL) AS automatica, w.erro, DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora
+                  (w.disparo_id IS NOT NULL) AS campanha, (w.origem IS NOT NULL AND w.origem NOT LIKE 'bot:%') AS automatica,
+                  (w.origem LIKE 'bot:%') AS bot, w.erro, DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora
              FROM whatsapp_mensagens w LEFT JOIN usuarios u ON u.id = w.usuario_id
             WHERE w.empresa_id = ? AND w.telefone = ?
             ORDER BY w.data_hora DESC, w.id DESC LIMIT 300) m
@@ -242,7 +259,10 @@ export function createConversasRouter(): Router {
       const [contato] = contatoId
         ? await pool.query<any[]>('SELECT id, nome, cargo, departamento FROM pessoas_contatos WHERE id = ? AND empresa_id = ?', [contatoId, emp])
         : [[]];
-      res.json({ pessoa: pessoa[0] ?? null, contato: contato[0] ?? null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica) })) });
+      // Com o chatbot ligado: quem está atendendo (bot ou humano)
+      const chatbot: any = await lerConfig(String(emp), 'whatsapp', 'chatbot');
+      const atendimento = chatbot?.ativo ? await atendimentoAtual(emp, telefone, Number(chatbot.horas_devolver) || 4) : null;
+      res.json({ pessoa: pessoa[0] ?? null, contato: contato[0] ?? null, atendimento, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
     } catch (err: any) {
       falha(res, err);
     }
@@ -264,6 +284,8 @@ export function createConversasRouter(): Router {
         'SELECT MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?',
         [emp, telefone],
       );
+      // Quem responde pela tela assume a conversa (o chatbot para de responder)
+      await mudarAtendimento(emp, telefone, 'humano', res.locals.usuarioId);
       const numero = await enviarWhatsApp(emp, telefone, texto, {
         pessoa_id: ult[0]?.pessoa_id ?? null,
         contato_id: ult[0]?.contato_id ?? null,

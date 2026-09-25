@@ -252,7 +252,7 @@ export function createCrmRouter() {
   router.get('/crm/negocios/:id', rota(async (req, res) => {
     const id = req.params.id;
     const [neg] = await pool.query<any[]>(
-      `SELECT n.*, p.nome AS pessoa_nome, p.email AS pessoa_email, p.telefone AS pessoa_telefone,
+      `SELECT n.*, p.nome AS pessoa_nome, p.email AS pessoa_email, p.telefone AS pessoa_telefone, p.whatsapp AS pessoa_whatsapp,
               f.nome AS funil_nome, et.nome AS etapa_nome, u.nome AS proprietario_nome
          FROM negocios n
          LEFT JOIN pessoas p ON p.id = n.pessoa_id

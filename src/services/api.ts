@@ -331,7 +331,7 @@ export const enviarDocumento = (
 export const testarSmtp = (): Promise<{ success: boolean }> => enviar('POST', '/api/config/email/smtp/testar');
 
 /** Consulta no provedor se o número do WhatsApp gravado em Configurações está conectado */
-export const testarWhatsApp = (): Promise<{ conectado: boolean; mensagem: string }> => enviar('POST', '/api/config/whatsapp/provedor/testar');
+export const testarWhatsApp = (): Promise<{ conectado: boolean; numero?: string; mensagem: string }> => enviar('POST', '/api/config/whatsapp/provedor/testar');
 
 /** QR Code para conectar o número do WhatsApp gravado; conectado: true se já estiver */
 export const conectarWhatsApp = (): Promise<{ conectado: boolean; qrcode?: string }> => enviar('POST', '/api/config/whatsapp/provedor/conectar');
@@ -460,6 +460,8 @@ export interface MensagemWhatsApp {
   campanha: boolean;
   /** Mensagem automática (Configurações › Mensagens automáticas) */
   automatica: boolean;
+  /** Resposta do chatbot */
+  bot: boolean;
   /** Motivo, quando não saiu */
   erro: string | null;
   data_hora: string;
@@ -473,6 +475,8 @@ export const fetchConversa = (
 ): Promise<{
   pessoa: { id: number; nome: string } | null;
   contato: { id: number; nome: string; cargo: string | null; departamento: string | null } | null;
+  /** Com o chatbot ligado: quem atende a conversa (null = chatbot desligado) */
+  atendimento: 'bot' | 'humano' | null;
   nome_contato: string | null;
   mensagens: MensagemWhatsApp[];
 }> =>
@@ -490,6 +494,11 @@ export const fetchConversaDaAtividade = (
 ): Promise<{ telefone: string; nome: string | null; atividade: { id: number; assunto: string; concluida: boolean } }> =>
   get(`/api/whatsapp/atividades/${encodeURIComponent(String(id))}/conversa`);
 export const fetchNaoVistas = (): Promise<{ total: number }> => get('/api/whatsapp/nao-vistas');
+/** Assumir a conversa (o chatbot para) ou devolvê-la ao chatbot */
+export const mudarAtendimentoConversa = (telefone: string, atendimento: 'bot' | 'humano'): Promise<{ success: boolean }> =>
+  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atendimento`, { atendimento });
+/** Pergunta curta ao Gemini com a chave e o modelo gravados em Configurações › Chatbot */
+export const testarChatbot = (): Promise<{ mensagem: string }> => enviar('POST', '/api/config/whatsapp/chatbot/testar');
 
 /** Para quem dá para abrir uma conversa: pessoa, contato ou o número digitado */
 export interface DestinoConversa {

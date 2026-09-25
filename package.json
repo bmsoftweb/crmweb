@@ -1,7 +1,7 @@
 {
   "name": "crmweb",
   "private": true,
-  "version": "0.0.8",
+  "version": "0.0.9",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -12,8 +12,10 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^2.24.0",
     "@sparticuz/chromium": "^153.0.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@vercel/functions": "^3.9.9",
     "@vitejs/plugin-react": "^5.0.4",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",

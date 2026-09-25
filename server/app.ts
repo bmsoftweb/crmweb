@@ -15,6 +15,8 @@ import { createConversasRouter } from './conversas.js';
 import { createContratosRouter, createWebhookD4SignRouter, rotinaContratos } from './contratos.js';
 import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 import { enviarAutomaticas } from './automaticas.js';
+import { responderComBot } from './chatbot.js';
+import { waitUntil } from '@vercel/functions';
 
 // ==========================================================
 // Sessão: token "usuarioId.expiracao.assinatura" (HMAC-SHA256)
@@ -150,7 +152,10 @@ export function createApp() {
   // identifica a empresa. Processa antes de responder (na Vercel a função congela depois)
   app.post('/api/webhooks/evolution/:token', async (req: Request, res: Response) => {
     try {
-      await receberAvisoEvolution(req.params.token, req.body);
+      const novas = await receberAvisoEvolution(req.params.token, req.body);
+      // Chatbot em segundo plano (na Vercel, waitUntil mantém a função viva): a espera de 1 a 30 s
+      // e a IA não seguram a resposta à Evolution
+      for (const n of novas) waitUntil(responderComBot(n).catch((err) => console.error(`Chatbot: ${err.message}`)));
       res.json({ ok: true });
     } catch (err: any) {
       if (!err.status) console.error(`Evolution webhook: ${err.message}`);
