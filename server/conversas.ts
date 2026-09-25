@@ -316,7 +316,7 @@ export function createConversasRouter(): Router {
         'SELECT d.nome FROM whatsapp_conversas c JOIN departamentos d ON d.id = c.departamento_id WHERE c.empresa_id = ? AND c.telefone = ?',
         [emp, telefone],
       );
-      res.json({ pessoa: pessoa[0] ?? null, contato: contato[0] ?? null, atendimento, departamento: dep[0]?.nome ?? null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
+      res.json({ pessoa: pessoa[0] ?? null, contato: contato[0] ?? null, atendimento, departamento: dep[0]?.nome ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
     } catch (err: any) {
       falha(res, err);
     }

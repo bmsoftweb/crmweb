@@ -495,6 +495,8 @@ export const fetchConversa = (
   atendimento: 'bot' | 'humano' | null;
   /** Departamento escolhido no menu do chatbot */
   departamento: string | null;
+  /** Nome do assistente (Configurações › Chatbot): as respostas do bot aparecem como "Eloisa (bot)" */
+  bot_nome: string | null;
   nome_contato: string | null;
   mensagens: MensagemWhatsApp[];
 }> =>

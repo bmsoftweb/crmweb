@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.14 — 2026-09-25
+
+- Conversas: resposta do bot ainda sendo escrita aparece como "digitando..." (não mais um balão vazio com relógio); as respostas do bot aparecem com o nome do assistente ("Eloisa (bot)").
+- Chatbot: a IA só pode dizer que vai transferir se usar a transferência para humano na mesma resposta.
+
 ## 0.0.13 — 2026-09-25
 
 - Jornada: os tipos de nó ficam numa barra lateral à esquerda do quadro, agrupados (Conversa, Lógica, Integrações, CRM, Encerrar). Clique inclui no centro do quadro; arrastar até o quadro inclui onde for solto.

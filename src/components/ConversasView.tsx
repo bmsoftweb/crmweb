@@ -595,7 +595,25 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     </div>
                     {mensagens.map((m) => {
                       const minha = m.direcao === 'enviada';
-                      const origem = minha ? (m.bot ? 'Bot' : m.campanha ? 'Campanha' : m.automatica ? 'Automática' : m.usuario_nome) : null;
+                      const origem = minha ? (m.bot ? (conversa.bot_nome ? `${conversa.bot_nome} (bot)` : 'Bot') : m.campanha ? 'Campanha' : m.automatica ? 'Automática' : m.usuario_nome) : null;
+                      // Resposta do bot reservada e ainda sendo escrita (a IA pensa, "digitando..." no WhatsApp)
+                      if (minha && m.situacao === 'pendente' && !m.texto && m.tipo === 'texto') {
+                        return (
+                          <div key={m.id} className="flex mb-1.5 justify-end">
+                            <div title="O bot está escrevendo a resposta" className="rounded-2xl rounded-br-md px-3 py-1.5 bg-blue-600/70 text-white shadow-xs">
+                              <div className="text-[10px] font-semibold mb-0.5 text-blue-100">{origem}</div>
+                              <div className="flex items-center gap-1 h-4 italic text-xs text-blue-100">
+                                digitando
+                                <span className="flex gap-0.5">
+                                  {[0, 150, 300].map((d) => (
+                                    <span key={d} className="w-1 h-1 rounded-full bg-white animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                                  ))}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
                       return (
                         <div key={m.id} title={m.erro ? `Não enviada: ${m.erro}` : undefined} className={`flex mb-1.5 ${minha ? 'justify-end' : 'justify-start'}`}>
                           <div
