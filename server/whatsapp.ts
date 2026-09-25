@@ -169,12 +169,27 @@ export async function enviarPdfWhatsApp(empresaId: string | number, telefone: st
   );
 }
 
+/**
+ * Se o número está conectado. Evolution: pelo connectionStatus de instance/fetchInstances;
+ * o instance/connectionState (2.3.7) continua dizendo "open" depois de um logout.
+ */
+async function conectadoNoProvedor(c: Credenciais): Promise<boolean> {
+  if (c.provedor === 'zapi') {
+    const { url, headers } = endereco(c, { zapi: 'status', evolution: '' });
+    const r: any = await (await requisitar(url, { headers })).json().catch(() => ({}));
+    return r?.connected === true;
+  }
+  const url = `${c.url}/instance/fetchInstances?instanceName=${encodeURIComponent(c.instancia)}`;
+  const r: any = await (await requisitar(url, { headers: { apikey: c.token } })).json().catch(() => null);
+  const inst = Array.isArray(r) ? r.find((i: any) => (i?.name ?? i?.instance?.instanceName) === c.instancia) : null;
+  if (!inst) throw new ErroProvedor(`WhatsApp: instância "${c.instancia}" não encontrada na Evolution.`);
+  return (inst.connectionStatus ?? inst.instance?.status) === 'open';
+}
+
 /** Consulta no provedor se o número está conectado; erro só quando o provedor falha (fora do ar, chave errada) */
 export async function testarWhatsApp(empresaId: string): Promise<{ conectado: boolean; mensagem: string }> {
   const c = await credenciais(empresaId);
-  const { url, headers } = endereco(c, { zapi: 'status', evolution: 'instance/connectionState' });
-  const r: any = await (await requisitar(url, { headers })).json().catch(() => ({}));
-  const conectado = c.provedor === 'zapi' ? r?.connected === true : (r?.instance?.state ?? r?.state) === 'open';
+  const conectado = await conectadoNoProvedor(c);
   const nome = c.provedor === 'zapi' ? 'Z-API' : 'Evolution';
   return { conectado, mensagem: conectado ? `${nome}: número conectado.` : `${nome}: o provedor respondeu, mas o número está desconectado. Use Conectar WhatsApp.` };
 }
@@ -187,10 +202,20 @@ export async function testarWhatsApp(empresaId: string): Promise<{ conectado: bo
 export async function conectarWhatsApp(empresaId: string): Promise<{ conectado: boolean; qrcode?: string }> {
   const c = await credenciais(empresaId);
   const { url, headers } = endereco(c, { zapi: 'qr-code/image', evolution: 'instance/connect' });
-  const r: any = await (await requisitar(url, { headers })).json().catch(() => ({}));
+  const pedirQr = async () => (await requisitar(url, { headers })).json().catch(() => ({}));
+  let r: any = await pedirQr();
+  const dizConectado = () => r?.connected === true || (r?.instance?.state ?? r?.state) === 'open';
+  // Sem QR porque o provedor diz que já está conectado: confirma pela situação confiável.
+  // Evolution 2.3.7 fica presa em "open" depois que o aparelho é removido; o logout destrava
+  if (dizConectado()) {
+    if (await conectadoNoProvedor(c)) return { conectado: true };
+    if (c.provedor === 'evolution') {
+      await desconectarWhatsApp(empresaId).catch(() => {});
+      r = await pedirQr();
+    }
+  }
   const qr: string | undefined = c.provedor === 'zapi' ? r?.value : r?.base64;
   if (qr) return { conectado: false, qrcode: qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}` };
-  if (r?.connected === true || (r?.instance?.state ?? r?.state) === 'open') return { conectado: true };
   throw new ErroProvedor(`WhatsApp: o provedor não devolveu o QR Code (${JSON.stringify(r).slice(0, 150)}).`);
 }
 
