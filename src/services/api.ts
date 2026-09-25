@@ -462,6 +462,11 @@ export interface ConversaResumo {
   nao_vistas: number;
   /** Departamento escolhido no menu do chatbot */
   departamento: string | null;
+  /** bot = com o bot/jornada; aguardando = esperando alguém atender; atendimento = alguém pegou */
+  estado: 'bot' | 'aguardando' | 'atendimento' | null;
+  atendente_nome: string | null;
+  atendido_em: string | null;
+  aguardando_desde: string | null;
 }
 
 export interface MensagemWhatsApp {
@@ -497,6 +502,16 @@ export const fetchConversa = (
   departamento: string | null;
   /** Nome do assistente (Configurações › Chatbot): as respostas do bot aparecem como "Eloisa (bot)" */
   bot_nome: string | null;
+  /** bot = com o bot/jornada; aguardando = esperando alguém atender; atendimento = alguém pegou */
+  estado: 'bot' | 'aguardando' | 'atendimento';
+  /** Quem pegou a conversa (trava: só ele responde) */
+  atendente: { id: number; nome: string } | null;
+  atendido_em: string | null;
+  aguardando_desde: string | null;
+  eu_atendo: boolean;
+  sou_admin: boolean;
+  /** Bot ou jornada atendem este número (há para onde devolver) */
+  com_bot: boolean;
   nome_contato: string | null;
   mensagens: MensagemWhatsApp[];
 }> =>
@@ -542,6 +557,11 @@ export const encerrarConversa = (telefone: string): Promise<{ success: boolean }
 /** Assumir a conversa (o chatbot para) ou devolvê-la ao chatbot */
 export const mudarAtendimentoConversa = (telefone: string, atendimento: 'bot' | 'humano'): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atendimento`, { atendimento });
+/** Atender: pega a conversa e trava para o usuário */
+export const atenderConversa = (telefone: string): Promise<{ success: boolean }> => enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atender`);
+/** Transferir para um atendente ou um departamento */
+export const transferirConversa = (telefone: string, destino: { usuario_id?: number; departamento_id?: number }): Promise<{ success: boolean }> =>
+  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/transferir`, destino);
 /** Pergunta curta ao Gemini com a chave e o modelo gravados em Configurações › Chatbot */
 export const testarChatbot = (): Promise<{ mensagem: string }> => enviar('POST', '/api/config/whatsapp/chatbot/testar');
 

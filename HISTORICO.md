@@ -2,6 +2,17 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.18 — 2026-09-25
+
+Conversas: atender, travar e transferir. Banco: coluna whatsapp_conversas.atendido_em.
+
+- Estados da conversa: com o bot/jornada, Aguardando (ninguém pegou) ou Em atendimento (quem e desde quando), no cabeçalho e no card da lista.
+- Botão Atender: pega a conversa e trava para o atendente (os outros veem, mas não respondem nem mudam o atendimento; o servidor também recusa). Administrador pode Assumir de outro. Responder sem ninguém atendendo pega a conversa.
+- Transferir: para um atendente (já fica com ele) ou para um departamento (volta a aguardar, com aviso sonoro para quem é de lá).
+- Atendente que pegou e não respondeu no tempo de devolver ao bot: a conversa volta a aguardar. Com o chatbot desligado, conversa sem atendente fica aguardando.
+- Linhas na conversa (só no CRM): começou o atendimento, assumiu, transferiu, devolveu ao bot, liberado pelo tempo.
+- "Só as minhas": as que eu atendo e as que aguardam no meu departamento (ou sem departamento).
+
 ## 0.0.17 — 2026-09-25
 
 - Conversas: linha "Atendimento encerrado pelo tempo, sem resposta de atendente" quando a conversa volta ao bot pelo tempo, com a hora em que o tempo acabou; a IA também recomeça depois dela.

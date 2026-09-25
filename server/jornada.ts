@@ -257,14 +257,22 @@ export function jornadaPublica(cfg: Jornada | null): Jornada {
 
 const lerJornada = async (empresaId: string | number): Promise<Jornada | null> => lerConfig(String(empresaId), 'whatsapp', 'jornada');
 
+export const lerJornadaConfig = lerJornada;
+
+/** Número está na lista de teste da jornada */
+function ehNumeroDeTeste(j: Jornada, telefone: string): boolean {
+  const chave = chaveTelefone(telefone, true);
+  return Boolean(chave) && j.numeros_teste.some((n) => chaveTelefone(n, n.length >= 12) === chave || chaveTelefone(`55${n}`, true) === chave);
+}
+
+/** A jornada (já lida) atende este número: ligada, e no modo teste só os números de teste */
+export const jornadaAtende = (j: Jornada | null, telefone: string): boolean => Boolean(j?.ativo) && (j!.modo === 'todos' || ehNumeroDeTeste(j!, telefone));
+
 /** A jornada que atende este número (ligada, e no modo teste só para os números de teste) */
 export async function jornadaDoNumero(empresaId: number, telefone: string): Promise<{ jornada: Jornada; numeroDeTeste: boolean } | null> {
   const j = await lerJornada(empresaId);
-  if (!j?.ativo) return null;
-  const chave = chaveTelefone(telefone, true);
-  const numeroDeTeste = Boolean(chave) && j.numeros_teste.some((n) => chaveTelefone(n, n.length >= 12) === chave || chaveTelefone(`55${n}`, true) === chave);
-  if (j.modo === 'teste' && !numeroDeTeste) return null;
-  return { jornada: j, numeroDeTeste };
+  if (!j || !jornadaAtende(j, telefone)) return null;
+  return { jornada: j, numeroDeTeste: ehNumeroDeTeste(j, telefone) };
 }
 
 // ------------------------------------------------------------

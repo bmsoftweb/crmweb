@@ -138,11 +138,11 @@ export async function testarChatbot(empresaId: string): Promise<string> {
 // ------------------------------------------------------------
 
 /**
- * Com quem está a conversa agora. Humano: alguém assumiu (tela, transferência do bot) ou mandou
- * mensagem por fora do bot (tela, celular) depois da última troca de situação; volta ao bot depois de
- * X minutos sem mensagem de atendente.
+ * Com quem está a conversa agora. Humano: aguardando (sem atendente) ou em atendimento (atendente_id,
+ * atendido_em). Passados X minutos sem mensagem de atendente: quem estava atendendo é liberado e a
+ * conversa volta a aguardar; aguardando, volta ao bot (comBot) ou continua aguardando (sem bot).
  */
-export async function atendimentoAtual(empresaId: string | number, telefone: string, minutosDevolver: number): Promise<'bot' | 'humano'> {
+export async function atendimentoAtual(empresaId: string | number, telefone: string, minutosDevolver: number, comBot = true): Promise<'bot' | 'humano'> {
   await pool.query('INSERT IGNORE INTO whatsapp_conversas (empresa_id, telefone) VALUES (?, ?)', [empresaId, telefone]);
   const [rows] = await pool.query<any[]>(
     `SELECT c.atendimento,
@@ -152,7 +152,8 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
             (SELECT MAX(w.data_hora) FROM whatsapp_mensagens w
               WHERE w.empresa_id = c.empresa_id AND w.telefone = c.telefone AND w.direcao = 'enviada'
                 AND w.origem IS NULL AND w.disparo_id IS NULL) > NOW() - INTERVAL ? MINUTE AS humano_recente,
-            DATE_FORMAT(GREATEST(COALESCE(c.humano_desde, '1000-01-01'),
+            c.atendente_id, (SELECT u.nome FROM usuarios u WHERE u.id = c.atendente_id) AS atendente_nome,
+            DATE_FORMAT(GREATEST(COALESCE(IF(c.atendente_id IS NULL, c.humano_desde, c.atendido_em), '1000-01-01'),
                      COALESCE((SELECT MAX(w.data_hora) FROM whatsapp_mensagens w
                                 WHERE w.empresa_id = c.empresa_id AND w.telefone = c.telefone AND w.direcao = 'enviada'
                                   AND w.origem IS NULL AND w.disparo_id IS NULL), '1000-01-01')) + INTERVAL ? MINUTE, '%Y-%m-%d %H:%i:%s') AS esgotou_em
@@ -163,6 +164,16 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
   if (c.atendimento === 'humano') {
     const [agora] = await pool.query<any[]>("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS agora");
     if (c.esgotou_em > agora[0].agora) return 'humano';
+    if (c.atendente_id) {
+      // Pegou e parou de responder: libera para outro atendente (volta a aguardar desde agora)
+      await pool.query(
+        'UPDATE whatsapp_conversas SET atendente_id = NULL, atendido_em = NULL, humano_desde = NOW(), atualizado_em = NOW() WHERE empresa_id = ? AND telefone = ?',
+        [empresaId, telefone],
+      );
+      await marcarEvento(empresaId, telefone, `Atendimento liberado pelo tempo: ${c.atendente_nome ?? 'o atendente'} não respondeu`, null, c.esgotou_em);
+      return 'humano';
+    }
+    if (!comBot) return 'humano';
     await encerrarAtendimento(empresaId, telefone);
     // A linha fica no momento em que o tempo acabou (antes da mensagem que fez perceber)
     await marcarEncerramento(empresaId, telefone, null, c.esgotou_em);
@@ -174,6 +185,19 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
     return 'humano';
   }
   return 'bot';
+}
+
+/**
+ * Linha informativa na conversa (tipo 'evento'): começou o atendimento, transferiu, liberado pelo
+ * tempo... Não vai para o WhatsApp, não entra no histórico da IA nem na prévia da lista
+ */
+export async function marcarEvento(empresaId: string | number, telefone: string, texto: string, usuarioId: number | null, quando: string | null = null) {
+  await pool.query(
+    `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, usuario_id, vista, data_hora)
+     SELECT ?, MAX(pessoa_id), MAX(contato_id), ?, 'enviada', 'evento', ?, 'enviada', ?, ?, 1, COALESCE(?, NOW())
+       FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`,
+    [empresaId, telefone, texto.slice(0, 250), `evento:${telefone}:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`, usuarioId, quando, empresaId, telefone],
+  );
 }
 
 /**
@@ -206,7 +230,7 @@ export async function marcarEncerramento(empresaId: string | number, telefone: s
 export async function encerrarAtendimento(empresaId: string | number, telefone: string) {
   await pool.query(
     `INSERT INTO whatsapp_conversas (empresa_id, telefone) VALUES (?, ?)
-     ON DUPLICATE KEY UPDATE atendimento = 'bot', atendente_id = NULL, humano_desde = NULL, departamento_id = NULL, no_atual = NULL,
+     ON DUPLICATE KEY UPDATE atendimento = 'bot', atendente_id = NULL, atendido_em = NULL, humano_desde = NULL, departamento_id = NULL, no_atual = NULL,
        retomar_em = NULL, atualizado_em = NOW()`,
     [empresaId, telefone],
   );
@@ -221,6 +245,7 @@ export async function mudarAtendimento(empresaId: string | number, telefone: str
   await pool.query(
     `INSERT INTO whatsapp_conversas (empresa_id, telefone, atendimento, atendente_id, humano_desde) VALUES (?, ?, ?, ?, IF(? = 'humano', NOW(), NULL))
      ON DUPLICATE KEY UPDATE atendimento = VALUES(atendimento), atendente_id = VALUES(atendente_id), humano_desde = VALUES(humano_desde),
+       atendido_em = IF(VALUES(atendente_id) IS NULL, NULL, NOW()),
        no_atual = IF(VALUES(atendimento) = 'bot' AND no_atual = '__fim', NULL, no_atual),
        retomar_em = NULL, atualizado_em = NOW()`,
     [empresaId, telefone, atendimento, atendimento === 'humano' ? atendenteId : null, atendimento],
@@ -580,7 +605,7 @@ async function historico(ctx: Contexto): Promise<Content[]> {
     // Pela ordem de gravação: a hora da mensagem recebida vem do relógio do cliente, a das enviadas do banco
     `SELECT direcao, tipo, texto FROM (
        SELECT id, direcao, tipo, texto FROM whatsapp_mensagens
-        WHERE empresa_id = ? AND telefone = ? AND situacao <> 'falhou' AND (texto <> '' OR tipo <> 'texto') AND tipo <> 'encerramento'
+        WHERE empresa_id = ? AND telefone = ? AND situacao <> 'falhou' AND (texto <> '' OR tipo <> 'texto') AND tipo NOT IN ('encerramento', 'evento')
           AND id > COALESCE((SELECT MAX(e.id) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento' AND e.usuario_id IS NOT NULL), 0)
           AND data_hora > COALESCE((SELECT MAX(e.data_hora) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento' AND e.usuario_id IS NULL), '1000-01-01')
         ORDER BY id DESC LIMIT ?) m

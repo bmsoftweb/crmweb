@@ -3,8 +3,8 @@ import { pool } from './db.js';
 import { ArquivoEnvio, chaveTelefone, donoDoTelefone, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
-import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, minutosDevolver, mudarAtendimento } from './chatbot.js';
-import { jornadaDoNumero } from './jornada.js';
+import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
+import { jornadaAtende, lerJornadaConfig } from './jornada.js';
 
 /**
  * Tela de conversas do WhatsApp: uma conversa por telefone (whatsapp_mensagens.telefone, só
@@ -33,6 +33,39 @@ async function numeroDaConversa(empresaId: string, telefone: string): Promise<st
     [empresaId, chave.slice(-8)],
   );
   return rows.find((r) => chaveTelefone(r.telefone, true) === chave)?.telefone ?? telefone;
+}
+
+/** Quem está atendendo a conversa (null = ninguém pegou) */
+async function atendenteDa(empresaId: string, telefone: string): Promise<{ id: number; nome: string } | null> {
+  const [r] = await pool.query<any[]>(
+    'SELECT u.id, u.nome FROM whatsapp_conversas c JOIN usuarios u ON u.id = c.atendente_id WHERE c.empresa_id = ? AND c.telefone = ?',
+    [empresaId, telefone],
+  );
+  return r[0] ?? null;
+}
+
+/**
+ * Trava do atendimento: conversa em atendimento com outro usuário só é mexida por ele (o
+ * administrador pode, se `adminPode`). Lança 403 com o nome de quem está atendendo.
+ */
+async function conferirTrava(res: Response, telefone: string, adminPode: boolean) {
+  const dono = await atendenteDa(res.locals.empresaId, telefone);
+  if (!dono || Number(dono.id) === Number(res.locals.usuarioId)) return dono;
+  if (adminPode && res.locals.usuario?.tipo === 'admin') return dono;
+  throw Object.assign(new Error(`Esta conversa está em atendimento com ${dono.nome}: só ele(a) pode responder ou mudar o atendimento.`), { status: 403 });
+}
+
+/** Pega a conversa para o usuário (trava para ele); registra a linha na conversa */
+async function atender(res: Response, telefone: string, anterior: { id: number; nome: string } | null) {
+  const emp = res.locals.empresaId;
+  await pool.query(
+    `INSERT INTO whatsapp_conversas (empresa_id, telefone, atendimento, atendente_id, atendido_em, humano_desde) VALUES (?, ?, 'humano', ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE atendimento = 'humano', atendente_id = VALUES(atendente_id), atendido_em = NOW(),
+       humano_desde = COALESCE(humano_desde, NOW()), retomar_em = NULL, atualizado_em = NOW()`,
+    [emp, telefone, res.locals.usuarioId],
+  );
+  const nome = res.locals.usuario?.nome ?? 'Atendente';
+  await marcarEvento(emp, telefone, anterior && Number(anterior.id) !== Number(res.locals.usuarioId) ? `${nome} assumiu o atendimento de ${anterior.nome}` : `${nome} começou o atendimento`, res.locals.usuarioId);
 }
 
 export function createConversasRouter(): Router {
@@ -175,6 +208,7 @@ export function createConversasRouter(): Router {
       const telefone = req.params.telefone;
       if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
       const emp = res.locals.empresaId;
+      await conferirTrava(res, telefone, true);
       await encerrarAtendimento(emp, telefone);
       await marcarEncerramento(emp, telefone, res.locals.usuarioId);
       res.json({ success: true });
@@ -183,13 +217,65 @@ export function createConversasRouter(): Router {
     }
   });
 
+  /** Atender: pega a conversa (o bot para, o aviso sonoro para e só este usuário responde) */
+  router.post('/whatsapp/conversas/:telefone/atender', async (req: Request, res: Response) => {
+    try {
+      const telefone = req.params.telefone;
+      if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
+      const anterior = await conferirTrava(res, telefone, true);
+      await atender(res, telefone, anterior);
+      res.json({ success: true });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
+  /** Transferir para outro atendente (já em atendimento com ele) ou para um departamento (aguardando) */
+  router.post('/whatsapp/conversas/:telefone/transferir', async (req: Request, res: Response) => {
+    try {
+      const telefone = req.params.telefone;
+      if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
+      const emp = res.locals.empresaId;
+      await conferirTrava(res, telefone, true);
+      const eu = res.locals.usuario?.nome ?? 'Atendente';
+      const usuarioId = Number(req.body?.usuario_id) || null;
+      const departamentoId = Number(req.body?.departamento_id) || null;
+      await pool.query('INSERT IGNORE INTO whatsapp_conversas (empresa_id, telefone) VALUES (?, ?)', [emp, telefone]);
+      if (usuarioId) {
+        const [u] = await pool.query<any[]>('SELECT id, nome FROM usuarios WHERE id = ? AND empresa_id = ? AND ativo = 1', [usuarioId, emp]);
+        if (!u[0]) return res.status(400).json({ error: 'Usuário não encontrado.' });
+        await pool.query(
+          "UPDATE whatsapp_conversas SET atendimento = 'humano', atendente_id = ?, atendido_em = NOW(), humano_desde = COALESCE(humano_desde, NOW()), retomar_em = NULL, atualizado_em = NOW() WHERE empresa_id = ? AND telefone = ?",
+          [u[0].id, emp, telefone],
+        );
+        await marcarEvento(emp, telefone, `Transferido para ${u[0].nome} por ${eu}`, res.locals.usuarioId);
+      } else if (departamentoId) {
+        const [d] = await pool.query<any[]>('SELECT id, nome FROM departamentos WHERE id = ? AND empresa_id = ?', [departamentoId, emp]);
+        if (!d[0]) return res.status(400).json({ error: 'Departamento não encontrado.' });
+        // Aguardando de novo, desde agora: quem é do departamento recebe o aviso sonoro
+        await pool.query(
+          "UPDATE whatsapp_conversas SET atendimento = 'humano', atendente_id = NULL, atendido_em = NULL, departamento_id = ?, humano_desde = NOW(), retomar_em = NULL, atualizado_em = NOW() WHERE empresa_id = ? AND telefone = ?",
+          [d[0].id, emp, telefone],
+        );
+        await marcarEvento(emp, telefone, `Transferido para ${d[0].nome} por ${eu}`, res.locals.usuarioId);
+      } else {
+        return res.status(400).json({ error: 'Escolha um atendente ou um departamento.' });
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
+  /** Devolver ao bot (só quem está atendendo, ou o administrador) */
   router.post('/whatsapp/conversas/:telefone/atendimento', async (req: Request, res: Response) => {
     try {
       const telefone = req.params.telefone;
       if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
-      const atendimento = req.body?.atendimento;
-      if (atendimento !== 'bot' && atendimento !== 'humano') return res.status(400).json({ error: 'Atendimento inválido.' });
-      await mudarAtendimento(res.locals.empresaId, telefone, atendimento, res.locals.usuarioId);
+      if (req.body?.atendimento !== 'bot') return res.status(400).json({ error: 'Use Atender para pegar a conversa.' });
+      await conferirTrava(res, telefone, true);
+      await mudarAtendimento(res.locals.empresaId, telefone, 'bot');
+      await marcarEvento(res.locals.empresaId, telefone, `Devolvido ao bot por ${res.locals.usuario?.nome ?? 'atendente'}`, res.locals.usuarioId);
       res.json({ success: true });
     } catch (err: any) {
       falha(res, err);
@@ -230,26 +316,46 @@ export function createConversasRouter(): Router {
       const digitos = busca.replace(/\D/g, '');
       const minhas = req.query.minhas === '1';
       const eu = res.locals.usuario.id;
+      const chatbot: any = await lerConfig(String(res.locals.empresaId), 'whatsapp', 'chatbot');
+      const jornada = await lerJornadaConfig(res.locals.empresaId);
       const [rows] = await pool.query<any[]>(
         `SELECT w.telefone, x.pessoa_id, p.nome, x.contato_id, c.nome AS contato_nome, COALESCE(c.departamento, c.cargo) AS contato_setor,
                 ${NOME_CONTATO('w')} AS nome_contato, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao,
-                DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, d.nome AS departamento
+                DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, d.nome AS departamento,
+                wc.atendimento, wc.atendente_id, ua.nome AS atendente_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
+                DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde
            FROM (SELECT telefone, MAX(id) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
                         SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas
-                   FROM whatsapp_mensagens WHERE empresa_id = ? AND tipo <> 'encerramento' GROUP BY telefone) x
+                   FROM whatsapp_mensagens WHERE empresa_id = ? AND tipo NOT IN ('encerramento', 'evento') GROUP BY telefone) x
            JOIN whatsapp_mensagens w ON w.id = x.ultima
            LEFT JOIN pessoas p ON p.id = x.pessoa_id
            LEFT JOIN pessoas_contatos c ON c.id = x.contato_id
            LEFT JOIN whatsapp_conversas wc ON wc.empresa_id = w.empresa_id AND wc.telefone = w.telefone
            LEFT JOIN departamentos d ON d.id = wc.departamento_id
+           LEFT JOIN usuarios ua ON ua.id = wc.atendente_id
           WHERE (? = '' OR p.nome LIKE ? OR c.nome LIKE ? OR ${NOME_CONTATO('w')} LIKE ? OR (? <> '' AND w.telefone LIKE ?))
-            AND (? = 0 OR wc.departamento_id IS NULL OR wc.atendente_id = ?
-                 OR wc.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?))
+            AND (? = 0 OR wc.atendente_id = ?
+                 OR (wc.atendente_id IS NULL AND (wc.departamento_id IS NULL
+                     OR wc.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?))))
           ORDER BY w.data_hora DESC, w.id DESC
           LIMIT 200`,
         [res.locals.empresaId, busca, `%${busca}%`, `%${busca}%`, `%${busca}%`, digitos, `%${digitos}%`, minhas ? 1 : 0, eu, eu],
       );
-      res.json(rows.map((r) => ({ ...r, nao_vistas: Number(r.nao_vistas) })));
+      // Estado: em atendimento (alguém pegou), aguardando (humano sem atendente; sem bot, quando o
+      // cliente foi o último a escrever) ou com o bot
+      res.json(
+        rows.map(({ atendimento, atendente_id, ...r }) => {
+          const comBot = Boolean(chatbot?.ativo) || jornadaAtende(jornada, r.telefone);
+          const estado = atendente_id
+            ? 'atendimento'
+            : atendimento === 'humano' || (!comBot && r.direcao === 'recebida')
+              ? 'aguardando'
+              : comBot
+                ? 'bot'
+                : null;
+          return { ...r, estado, nao_vistas: Number(r.nao_vistas) };
+        }),
+      );
     } catch (err: any) {
       falha(res, err);
     }
@@ -310,15 +416,31 @@ export function createConversasRouter(): Router {
       const [contato] = contatoId
         ? await pool.query<any[]>('SELECT id, nome, cargo, departamento FROM pessoas_contatos WHERE id = ? AND empresa_id = ?', [contatoId, emp])
         : [[]];
-      // Com o chatbot ligado: quem está atendendo (bot ou humano)
+      // Situação do atendimento: com o bot (ou jornada), aguardando alguém atender ou em atendimento
       const chatbot: any = await lerConfig(String(emp), 'whatsapp', 'chatbot');
-      const comBot = chatbot?.ativo || (await jornadaDoNumero(Number(emp), telefone));
-      const atendimento = comBot ? await atendimentoAtual(emp, telefone, minutosDevolver(chatbot)) : null;
-      const [dep] = await pool.query<any[]>(
-        'SELECT d.nome FROM whatsapp_conversas c JOIN departamentos d ON d.id = c.departamento_id WHERE c.empresa_id = ? AND c.telefone = ?',
+      const comBot = Boolean(chatbot?.ativo) || jornadaAtende(await lerJornadaConfig(emp), telefone);
+      const atendimento = await atendimentoAtual(emp, telefone, minutosDevolver(chatbot), comBot);
+      const [cv] = await pool.query<any[]>(
+        `SELECT d.nome AS departamento, c.atendente_id, u.nome AS atendente_nome, DATE_FORMAT(c.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
+                DATE_FORMAT(c.humano_desde, '%Y-%m-%d %H:%i:%s') AS aguardando_desde
+           FROM whatsapp_conversas c LEFT JOIN departamentos d ON d.id = c.departamento_id LEFT JOIN usuarios u ON u.id = c.atendente_id
+          WHERE c.empresa_id = ? AND c.telefone = ?`,
         [emp, telefone],
       );
-      res.json({ pessoa: pessoa[0] ?? null, contato: contato[0] ?? null, atendimento, departamento: dep[0]?.nome ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
+      const c = cv[0] ?? {};
+      const estado = c.atendente_id ? 'atendimento' : atendimento === 'humano' || !comBot ? 'aguardando' : 'bot';
+      res.json({
+        pessoa: pessoa[0] ?? null,
+        contato: contato[0] ?? null,
+        atendimento: comBot ? atendimento : null,
+        estado,
+        atendente: c.atendente_id ? { id: c.atendente_id, nome: c.atendente_nome } : null,
+        atendido_em: c.atendido_em ?? null,
+        aguardando_desde: c.aguardando_desde ?? null,
+        eu_atendo: Boolean(c.atendente_id) && Number(c.atendente_id) === Number(res.locals.usuarioId),
+        sou_admin: res.locals.usuario?.tipo === 'admin',
+        com_bot: comBot,
+        departamento: c.departamento ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
     } catch (err: any) {
       falha(res, err);
     }
@@ -351,8 +473,9 @@ export function createConversasRouter(): Router {
         'SELECT MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?',
         [emp, telefone],
       );
-      // Quem responde pela tela assume a conversa (o chatbot para de responder)
-      await mudarAtendimento(emp, telefone, 'humano', res.locals.usuarioId);
+      // Em atendimento com outro: recusa. Ninguém atendendo: quem responde pega a conversa (o bot para)
+      const dono = await conferirTrava(res, telefone, false);
+      if (!dono) await atender(res, telefone, null);
       const reg = { pessoa_id: ult[0]?.pessoa_id ?? null, contato_id: ult[0]?.contato_id ?? null, usuario_id: res.locals.usuarioId };
       // Vários atendentes na mesma conversa: o cliente vê quem escreveu ("*Luis:* ...")
       const assinatura = String(res.locals.usuario?.nome ?? '').trim() || undefined;

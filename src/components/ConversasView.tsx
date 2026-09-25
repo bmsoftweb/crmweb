@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Bot, Building2, CircleCheck, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
-import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
+import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, atenderConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -46,6 +46,13 @@ export function telefoneCadastro(t: string): string {
 }
 
 const MIDIA = ['imagem', 'figurinha', 'audio', 'video'];
+
+/** "2026-09-25 14:05:00" → "há 12 min" / "há 2 h" */
+function haQuanto(dataHora: string | null): string {
+  if (!dataHora) return '';
+  const min = Math.max(0, Math.round((Date.now() - new Date(dataHora.replace(' ', 'T')).getTime()) / 60_000));
+  return min < 1 ? 'agora' : min < 60 ? `há ${min} min` : min < 1440 ? `há ${Math.floor(min / 60)} h` : `há ${Math.floor(min / 1440)} d`;
+}
 
 /** Arquivo enviado pela conversa: a Vercel recusa requisição acima de 4,5 MB, e o base64 cresce 1/3 */
 const MAX_ARQUIVO = 3 * 1024 * 1024;
@@ -169,8 +176,16 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const gravadorRef = useRef<{ rec: MediaRecorder; partes: Blob[]; enviar: boolean; timer: number } | null>(null);
   const arquivoRef = useRef<HTMLInputElement>(null);
   const [erro, setErro] = useState<string | null>(null);
-  /** Só as sem departamento, as do meu departamento e as que eu assumi */
+  /** Só as que eu atendo e as que aguardam (sem departamento ou no meu departamento) */
   const [minhas, setMinhas] = useState(false);
+  /** Transferir: destino escolhido ("u:ID" atendente, "d:ID" departamento); null = janela fechada */
+  const [transferir, setTransferir] = useState<string | null>(null);
+  const [destinos, setDestinos] = useState<{ usuarios: OpcaoRef[]; departamentos: OpcaoRef[] }>({ usuarios: [], departamentos: [] });
+  useEffect(() => {
+    Promise.all([fetchOptions('usuarios', 'nome'), fetchOptions('departamentos', 'nome')])
+      .then(([usuarios, departamentos]) => setDestinos({ usuarios, departamentos }))
+      .catch(() => {});
+  }, []);
   /** Atividade que abriu a conversa: enviar a mensagem a conclui */
   const [atividade, setAtividade] = useState<{ id: number; assunto: string; telefone: string } | null>(null);
   /** Nome de quem ainda não tem conversa (vem da atividade) */
@@ -372,6 +387,20 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   }
 
   const linhas = Math.min(5, texto.split('\n').length);
+  /** Em atendimento com outro usuário: só vê (o administrador pode assumir) */
+  const travada = conversa?.estado === 'atendimento' && !conversa.eu_atendo;
+  const podeMexer = Boolean(conversa) && (!travada || Boolean(conversa?.sou_admin));
+  const acaoAtendimento = async (fn: () => Promise<unknown>, aviso: string) => {
+    if (!aberta) return;
+    try {
+      await fn();
+      onToast(aviso);
+      await carregarConversa(aberta);
+      await carregarLista();
+    } catch (err: any) {
+      setErro(err.message);
+    }
+  };
 
   return (
     <div className="flex-1 min-h-0 flex bg-white dark:bg-stone-900">
@@ -462,6 +491,23 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                         {c.direcao === 'enviada' && 'Você: '}
                         {resumo(c)}
                       </span>
+                      {c.estado === 'aguardando' && (
+                        <span
+                          title={`Aguardando alguém atender${c.aguardando_desde ? ` ${haQuanto(c.aguardando_desde)}` : ''}`}
+                          className="shrink-0 text-[10px] font-semibold px-1.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                        >
+                          Aguardando
+                        </span>
+                      )}
+                      {c.estado === 'atendimento' && (
+                        <span
+                          title={`Em atendimento com ${c.atendente_nome} desde ${c.atendido_em?.slice(11, 16) ?? ''}`}
+                          className="shrink-0 flex items-center gap-0.5 text-[10px] font-semibold px-1.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        >
+                          <User className="w-2.5 h-2.5" />
+                          {c.atendente_nome} · {c.atendido_em?.slice(11, 16)}
+                        </span>
+                      )}
                       {c.departamento && (
                         <span className="shrink-0 text-[10px] font-semibold px-1.5 rounded bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">{c.departamento}</span>
                       )}
@@ -520,52 +566,70 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   {conversa.departamento}
                 </span>
               )}
-              {conversa?.atendimento && (
+              {conversa && (
                 <div className="shrink-0 flex items-center gap-2">
-                  <span
-                    className={`hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                      conversa.atendimento === 'bot'
-                        ? 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
-                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                    }`}
-                  >
-                    {conversa.atendimento === 'bot' ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
-                    {conversa.atendimento === 'bot' ? 'Bot atendendo' : 'Humano atendendo'}
-                  </span>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const novo = conversa.atendimento === 'bot' ? 'humano' : 'bot';
-                        await mudarAtendimentoConversa(aberta, novo);
-                        onToast(novo === 'humano' ? 'Você assumiu a conversa: o bot não responde mais.' : 'Conversa devolvida ao bot.');
-                        await carregarConversa(aberta);
-                      } catch (err: any) {
-                        setErro(err.message);
+                  {conversa.estado === 'bot' && (
+                    <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                      <Bot className="w-3.5 h-3.5" />
+                      {conversa.bot_nome || 'Bot'} atendendo
+                    </span>
+                  )}
+                  {conversa.estado === 'aguardando' && (
+                    <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                      <Clock className="w-3.5 h-3.5" />
+                      Aguardando atendimento{conversa.aguardando_desde ? ` · ${haQuanto(conversa.aguardando_desde)}` : ''}
+                    </span>
+                  )}
+                  {conversa.estado === 'atendimento' && (
+                    <span
+                      title={conversa.eu_atendo ? 'Só você responde esta conversa' : `Só ${conversa.atendente?.nome} responde esta conversa`}
+                      className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    >
+                      {conversa.eu_atendo ? <User className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                      {conversa.eu_atendo ? 'Você' : conversa.atendente?.nome} · desde {conversa.atendido_em?.slice(11, 16)}
+                    </span>
+                  )}
+                  {(conversa.estado !== 'atendimento' || (!conversa.eu_atendo && conversa.sou_admin)) && (
+                    <button
+                      onClick={() =>
+                        acaoAtendimento(
+                          () => atenderConversa(aberta),
+                          conversa.estado === 'atendimento' ? `Você assumiu o atendimento de ${conversa.atendente?.nome}.` : 'Você está atendendo: só você responde esta conversa.',
+                        )
                       }
-                    }}
-                    title={conversa.atendimento === 'bot' ? 'O bot para de responder esta conversa' : 'O bot volta a responder esta conversa'}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
-                  >
-                    {conversa.atendimento === 'bot' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                    {conversa.atendimento === 'bot' ? 'Assumir' : 'Devolver ao bot'}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await encerrarConversa(aberta);
-                        onToast('Atendimento encerrado: a próxima mensagem do cliente começa um atendimento novo.');
-                        await carregarConversa(aberta);
-                        await carregarLista();
-                      } catch (err: any) {
-                        setErro(err.message);
-                      }
-                    }}
-                    title="Encerra esta sessão, como se o tempo de devolver ao bot tivesse passado: sai do departamento e a próxima mensagem do cliente recomeça (menu ou jornada)"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
-                  >
-                    <CircleCheck className="w-4 h-4" />
-                    Encerrar
-                  </button>
+                      title={conversa.estado === 'atendimento' ? 'Tomar o atendimento (administrador)' : 'Pegar a conversa: o bot para e só você responde'}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                    >
+                      <Hand className="w-4 h-4" />
+                      {conversa.estado === 'atendimento' ? 'Assumir' : 'Atender'}
+                    </button>
+                  )}
+                  {podeMexer && (
+                    <button onClick={() => setTransferir('')} title="Passar para outro atendente ou para um departamento" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer">
+                      <ArrowRightLeft className="w-4 h-4" />
+                      Transferir
+                    </button>
+                  )}
+                  {podeMexer && conversa.com_bot && conversa.estado !== 'bot' && (
+                    <button
+                      onClick={() => acaoAtendimento(() => mudarAtendimentoConversa(aberta, 'bot'), 'Conversa devolvida ao bot.')}
+                      title="O bot volta a responder esta conversa (mesma sessão)"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                    >
+                      <Bot className="w-4 h-4" />
+                      Devolver ao bot
+                    </button>
+                  )}
+                  {podeMexer && (
+                    <button
+                      onClick={() => acaoAtendimento(() => encerrarConversa(aberta), 'Atendimento encerrado: a próxima mensagem do cliente começa um atendimento novo.')}
+                      title="Encerra esta sessão, como se o tempo de devolver ao bot tivesse passado: sai do departamento e a próxima mensagem do cliente recomeça (menu ou jornada)"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                    >
+                      <CircleCheck className="w-4 h-4" />
+                      Encerrar
+                    </button>
+                  )}
                 </div>
               )}
               {conversa && !nomeAberta && (
@@ -596,6 +660,18 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     {mensagens.map((m) => {
                       const minha = m.direcao === 'enviada';
                       const origem = minha ? (m.bot ? (conversa.bot_nome ? `${conversa.bot_nome} (bot)` : 'Bot') : m.campanha ? 'Campanha' : m.automatica ? 'Automática' : m.usuario_nome) : null;
+                      // Evento do atendimento (começou, transferiu, liberado pelo tempo): linha discreta
+                      if (m.tipo === 'evento') {
+                        return (
+                          <div key={m.id} className="flex items-center gap-3 my-2 text-[10px] text-stone-400 dark:text-stone-500">
+                            <span className="flex-1 border-t border-dashed border-stone-200 dark:border-stone-800" />
+                            <span className="shrink-0">
+                              {m.texto} · {m.data_hora.slice(11, 16)}
+                            </span>
+                            <span className="flex-1 border-t border-dashed border-stone-200 dark:border-stone-800" />
+                          </div>
+                        );
+                      }
                       // Marcador do botão Encerrar: linha horizontal (não foi para o cliente)
                       if (m.tipo === 'encerramento') {
                         return (
@@ -674,6 +750,19 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                 </button>
               </div>
             )}
+            {travada ? (
+              <div className="shrink-0 p-3 border-t border-stone-200 dark:border-stone-800 flex items-center gap-2 text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-900">
+                <Lock className="w-4 h-4 shrink-0 text-stone-400" />
+                Em atendimento com <b>{conversa?.atendente?.nome}</b> desde {conversa?.atendido_em?.slice(11, 16)}: só ele(a) pode responder.
+                {conversa?.sou_admin && ' Como administrador, você pode assumir.'}
+              </div>
+            ) : (
+            <>
+            {conversa && conversa.estado !== 'atendimento' && (
+              <div className="shrink-0 px-3 pt-2 text-[11px] text-stone-500 dark:text-stone-400">
+                Ao responder, você passa a atender esta conversa (o bot para e só você responde).
+              </div>
+            )}
             {anexo && (
               <div className="shrink-0 mx-3 mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-xs text-stone-700 dark:text-stone-200">
                 {anexo.tipo === 'audio' ? <Mic className="w-4 h-4 shrink-0" /> : anexo.tipo === 'documento' ? <FileText className="w-4 h-4 shrink-0" /> : <Paperclip className="w-4 h-4 shrink-0" />}
@@ -748,6 +837,58 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                 </button>
               )}
             </div>
+            </>
+            )}
+            {transferir !== null && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-stone-950/60" onClick={() => setTransferir(null)} aria-hidden="true" />
+                <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-sm bg-white dark:bg-stone-900 rounded-2xl shadow-2xl p-5 flex flex-col gap-4">
+                  <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Transferir a conversa</h3>
+                  <div className={FIELD_CLASS}>
+                    <label htmlFor="transferir-para" className={LABEL_CLASS}>Para</label>
+                    <select id="transferir-para" autoFocus value={transferir} onChange={(e) => setTransferir(e.target.value)} className={`${INPUT_CLASS} w-full cursor-pointer`}>
+                      <option value="">Escolha...</option>
+                      <optgroup label="Atendente (já fica com ele)">
+                        {destinos.usuarios
+                          .filter((u) => !u.label.includes('(inativo)'))
+                          .map((u) => (
+                            <option key={`u${u.value}`} value={`u:${u.value}`}>
+                              {u.label}
+                            </option>
+                          ))}
+                      </optgroup>
+                      <optgroup label="Departamento (aguarda alguém atender)">
+                        {destinos.departamentos.map((d) => (
+                          <option key={`d${d.value}`} value={`d:${d.value}`}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setTransferir(null)} className="px-4 py-2 rounded-lg text-xs font-semibold border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer">
+                      Cancelar
+                    </button>
+                    <button
+                      disabled={!transferir}
+                      onClick={async () => {
+                        const [tipo, id] = String(transferir).split(':');
+                        setTransferir(null);
+                        await acaoAtendimento(
+                          () => transferirConversa(aberta!, tipo === 'u' ? { usuario_id: Number(id) } : { departamento_id: Number(id) }),
+                          'Conversa transferida.',
+                        );
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50"
+                    >
+                      <ArrowRightLeft className="w-4 h-4" />
+                      Transferir
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {descartar && (
               <ConfirmDialog
                 titulo={descartar === 'anexo' ? 'Remover o arquivo?' : 'Descartar a gravação?'}
