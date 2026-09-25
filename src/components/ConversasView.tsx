@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Bot, Building2, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
-import { ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, Bot, Building2, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
+import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
 import { SelectBusca } from './SelectBusca';
 import { AvisoErro } from './AvisoErro';
+import { ConfirmDialog } from './ConfirmDialog';
+import { Toggle } from './Toggle';
 
 /** Quem pediu para abrir uma conversa (seq muda a cada clique) */
 export interface PedidoConversa {
@@ -44,6 +46,23 @@ export function telefoneCadastro(t: string): string {
 }
 
 const MIDIA = ['imagem', 'figurinha', 'audio', 'video'];
+
+/** Arquivo enviado pela conversa: a Vercel recusa requisição acima de 4,5 MB, e o base64 cresce 1/3 */
+const MAX_ARQUIVO = 3 * 1024 * 1024;
+
+/** Arquivo/gravação → base64 sem o prefixo data: */
+const paraBase64 = (b: Blob) =>
+  new Promise<string>((ok, erro) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(',')[1] || '');
+    r.onerror = () => erro(r.error);
+    r.readAsDataURL(b);
+  });
+
+const tipoDoArquivo = (mime: string): ArquivoConversa['tipo'] =>
+  mime.startsWith('image/') ? 'imagem' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'documento';
+
+const tamanhoLegivel = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1).replace('.', ',')} MB`);
 
 /**
  * Imagem, figurinha, áudio ou vídeo da mensagem, baixado do WhatsApp (o CRM não guarda o
@@ -142,7 +161,16 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [cadastrando, setCadastrando] = useState<{ telefone: string; nome: string } | null>(null);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  /** Arquivo escolhido para enviar (o texto vira a legenda) */
+  const [anexo, setAnexo] = useState<(ArquivoConversa & { tamanho: number }) | null>(null);
+  /** Segundos de gravação do áudio em andamento; null = não está gravando */
+  const [gravando, setGravando] = useState<number | null>(null);
+  const [descartar, setDescartar] = useState<'anexo' | 'gravacao' | null>(null);
+  const gravadorRef = useRef<{ rec: MediaRecorder; partes: Blob[]; enviar: boolean; timer: number } | null>(null);
+  const arquivoRef = useRef<HTMLInputElement>(null);
   const [erro, setErro] = useState<string | null>(null);
+  /** Só as sem departamento, as do meu departamento e as que eu assumi */
+  const [minhas, setMinhas] = useState(false);
   /** Atividade que abriu a conversa: enviar a mensagem a conclui */
   const [atividade, setAtividade] = useState<{ id: number; assunto: string; telefone: string } | null>(null);
   /** Nome de quem ainda não tem conversa (vem da atividade) */
@@ -158,11 +186,11 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
 
   const carregarLista = useCallback(async () => {
     try {
-      setConversas(await fetchConversas(busca));
+      setConversas(await fetchConversas(busca, minhas));
     } catch (err: any) {
       setErro(err.message);
     }
-  }, [busca]);
+  }, [busca, minhas]);
 
   // Clique na atividade WhatsApp da ficha do negócio: abre o número do cliente
   useEffect(() => {
@@ -229,14 +257,17 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
     qtdRef.current = qtd;
   }, [conversa]);
 
-  const enviar = async () => {
-    const t = texto.trim();
-    if (!aberta || !t || enviando) return;
+  /** Envia o texto, ou o arquivo com o texto como legenda (áudio vai sem legenda e não limpa o texto) */
+  const enviar = async (arquivo: ArquivoConversa | null = anexo) => {
+    const audio = arquivo?.tipo === 'audio';
+    const t = audio ? '' : texto.trim();
+    if (!aberta || (!t && !arquivo) || enviando) return;
     setEnviando(true);
     try {
       const vinculada = atividade?.telefone === aberta ? atividade : null;
-      const r = await responderConversa(aberta, t, vinculada?.id);
-      setTexto('');
+      const r = await responderConversa(aberta, t, vinculada?.id, arquivo);
+      if (!audio) setTexto('');
+      if (arquivo === anexo) setAnexo(null);
       if (vinculada) {
         setAtividade(null);
         if (r.atividade_concluida) onToast(`Atividade "${vinculada.assunto}" concluída.`);
@@ -251,6 +282,62 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
       setEnviando(false);
     }
   };
+
+  const escolherArquivo = async (f: File | undefined) => {
+    if (arquivoRef.current) arquivoRef.current.value = '';
+    if (!f) return;
+    if (f.size > MAX_ARQUIVO) return setErro(`Arquivo grande demais (${tamanhoLegivel(f.size)}); o máximo é 3 MB.`);
+    try {
+      const mimetype = f.type || 'application/octet-stream';
+      setAnexo({ tipo: tipoDoArquivo(mimetype), base64: await paraBase64(f), mimetype, nome: f.name, tamanho: f.size });
+    } catch (err: any) {
+      setErro(`Não foi possível ler o arquivo: ${err?.message || err}`);
+    }
+  };
+
+  /** Grava pelo microfone; ao parar com enviar = true, manda como mensagem de voz */
+  const gravar = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      const g = { rec, partes: [] as Blob[], enviar: false, timer: 0 };
+      rec.ondataavailable = (e) => {
+        if (e.data.size) g.partes.push(e.data);
+      };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        clearInterval(g.timer);
+        gravadorRef.current = null;
+        setGravando(null);
+        if (!g.enviar) return;
+        const mimetype = (rec.mimeType || 'audio/webm').split(';')[0];
+        const blob = new Blob(g.partes, { type: mimetype });
+        if (blob.size > MAX_ARQUIVO) return setErro('Áudio longo demais (máximo de 3 MB).');
+        await enviar({ tipo: 'audio', base64: await paraBase64(blob), mimetype, nome: `audio.${mimetype.split('/')[1]}` });
+      };
+      rec.start();
+      const inicio = Date.now();
+      g.timer = window.setInterval(() => setGravando(Math.floor((Date.now() - inicio) / 1000)), 500);
+      gravadorRef.current = g;
+      setGravando(0);
+    } catch (err: any) {
+      setErro(err?.name === 'NotAllowedError' ? 'Permita o uso do microfone no navegador para gravar áudio.' : `Não foi possível gravar: ${err?.message || err}`);
+    }
+  };
+  const pararGravacao = (enviarAudio: boolean) => {
+    const g = gravadorRef.current;
+    if (!g) return;
+    g.enviar = enviarAudio;
+    g.rec.stop();
+  };
+  // Trocar de conversa (ou sair da tela) descarta a gravação e o arquivo escolhido
+  useEffect(
+    () => () => {
+      pararGravacao(false);
+      setAnexo(null);
+    },
+    [aberta],
+  );
 
   const resumoAberta = conversas?.find((c) => c.telefone === aberta);
   const nomeAberta =
@@ -309,6 +396,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
             <MessageSquarePlus className="w-4 h-4" />
             <span className="hidden sm:inline">Nova</span>
           </button>
+        </div>
+        <div className="px-3 py-2 border-b border-stone-200 dark:border-stone-800" title="As conversas sem departamento, as do seu departamento e as que você assumiu">
+          <Toggle size="sm" checked={minhas} onChange={setMinhas} label="Só as minhas" />
         </div>
         <div className="flex-1 overflow-y-auto">
           {conversas === null ? (
@@ -372,6 +462,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                         {c.direcao === 'enviada' && 'Você: '}
                         {resumo(c)}
                       </span>
+                      {c.departamento && (
+                        <span className="shrink-0 text-[10px] font-semibold px-1.5 rounded bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">{c.departamento}</span>
+                      )}
                       {c.nao_vistas > 0 && (
                         <span className="text-[10px] font-bold leading-4 h-4 min-w-4 px-1 rounded-full bg-emerald-500 text-white text-center shrink-0">
                           {c.nao_vistas > 99 ? '99+' : c.nao_vistas}
@@ -418,6 +511,15 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   )}
                 </div>
               </div>
+              {conversa?.departamento && (
+                <span
+                  title="Departamento escolhido no menu do chatbot"
+                  className="hidden sm:flex shrink-0 items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+                >
+                  <Network className="w-3.5 h-3.5" />
+                  {conversa.departamento}
+                </span>
+              )}
               {conversa?.atendimento && (
                 <div className="shrink-0 flex items-center gap-2">
                   <span
@@ -523,33 +625,92 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                 </button>
               </div>
             )}
+            {anexo && (
+              <div className="shrink-0 mx-3 mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-xs text-stone-700 dark:text-stone-200">
+                {anexo.tipo === 'audio' ? <Mic className="w-4 h-4 shrink-0" /> : anexo.tipo === 'documento' ? <FileText className="w-4 h-4 shrink-0" /> : <Paperclip className="w-4 h-4 shrink-0" />}
+                <span className="truncate font-semibold">{anexo.nome}</span>
+                <span className="shrink-0 text-stone-500 dark:text-stone-400">
+                  {TIPOS[anexo.tipo]} · {tamanhoLegivel(anexo.tamanho)}
+                </span>
+                <button onClick={() => setDescartar('anexo')} title="Remover o arquivo" className="ml-auto shrink-0 text-stone-400 hover:text-red-600 cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <div className="shrink-0 p-3 border-t border-stone-200 dark:border-stone-800 flex items-stretch gap-2">
-              <textarea
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                onKeyDown={(e) => {
-                  // Enter envia; Shift+Enter quebra a linha
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    enviar();
-                  }
-                }}
-                rows={linhas}
-                maxLength={4000}
-                placeholder="Digite a mensagem"
-                title="Enter envia; Shift+Enter quebra a linha"
-                className={`${INPUT_CLASS} flex-1 resize-none text-[13px]`}
-              />
-              <button
-                onClick={enviar}
-                disabled={enviando || !texto.trim()}
-                title="Enviar pelo WhatsApp da empresa"
-                className="flex items-center justify-center gap-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-default shrink-0"
-              >
-                {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizontal className="w-4 h-4" />}
-                <span className="hidden sm:inline">Enviar</span>
-              </button>
+              {gravando !== null ? (
+                <div className="flex-1 flex items-center gap-2 px-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-xs font-semibold">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  Gravando {Math.floor(gravando / 60)}:{String(gravando % 60).padStart(2, '0')}
+                  <button onClick={() => setDescartar('gravacao')} className="ml-auto flex items-center gap-1 hover:underline cursor-pointer">
+                    <X className="w-4 h-4" /> Descartar
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    ref={arquivoRef}
+                    type="file"
+                    accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar"
+                    onChange={(e) => escolherArquivo(e.target.files?.[0])}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => arquivoRef.current?.click()}
+                    disabled={enviando}
+                    title="Enviar imagem, vídeo, áudio ou documento (até 3 MB)"
+                    className="flex items-center justify-center px-3 rounded-lg text-stone-600 dark:text-stone-300 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <textarea
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter envia; Shift+Enter quebra a linha
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        enviar();
+                      }
+                    }}
+                    rows={linhas}
+                    maxLength={4000}
+                    placeholder={anexo ? (anexo.tipo === 'audio' ? 'Áudio vai sem legenda' : 'Legenda (opcional)') : 'Digite a mensagem'}
+                    title="Enter envia; Shift+Enter quebra a linha"
+                    className={`${INPUT_CLASS} flex-1 resize-none text-[13px]`}
+                  />
+                </>
+              )}
+              {gravando !== null ? (
+                <button onClick={() => pararGravacao(true)} title="Parar e enviar o áudio" className="flex items-center justify-center gap-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-default shrink-0">
+                  <SendHorizontal className="w-4 h-4" />
+                  <span className="hidden sm:inline">Enviar</span>
+                </button>
+              ) : !texto.trim() && !anexo ? (
+                <button onClick={gravar} disabled={enviando} title="Gravar áudio" className="flex items-center justify-center gap-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-default shrink-0">
+                  {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+                  <span className="hidden sm:inline">Gravar</span>
+                </button>
+              ) : (
+                <button onClick={() => enviar()} disabled={enviando} title="Enviar pelo WhatsApp da empresa" className="flex items-center justify-center gap-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-default shrink-0">
+                  {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizontal className="w-4 h-4" />}
+                  <span className="hidden sm:inline">Enviar</span>
+                </button>
+              )}
             </div>
+            {descartar && (
+              <ConfirmDialog
+                titulo={descartar === 'anexo' ? 'Remover o arquivo?' : 'Descartar a gravação?'}
+                mensagem={descartar === 'anexo' ? 'O arquivo não será enviado.' : 'O áudio gravado não será enviado.'}
+                confirmar={descartar === 'anexo' ? 'Remover' : 'Descartar'}
+                onConfirmar={() => {
+                  if (descartar === 'anexo') setAnexo(null);
+                  else pararGravacao(false);
+                  setDescartar(null);
+                }}
+                onCancelar={() => setDescartar(null)}
+              />
+            )}
           </>
         )}
       </section>

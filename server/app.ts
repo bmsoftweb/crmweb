@@ -12,6 +12,7 @@ import { createEnderecosRouter } from './enderecos.js';
 import { createParticipantesRouter } from './participantes.js';
 import { createCampanhasRouter } from './campanhas.js';
 import { createConversasRouter } from './conversas.js';
+import { createJornadaRouter, retomarJornadas } from './jornada.js';
 import { createContratosRouter, createWebhookD4SignRouter, rotinaContratos } from './contratos.js';
 import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 import { enviarAutomaticas } from './automaticas.js';
@@ -82,10 +83,11 @@ const SQL_USUARIO_EMPRESA = `
 /** App Express com todas as rotas /api. Local: server.ts adiciona o Vite e o listen; Vercel: api/index.ts */
 export function createApp() {
   const app = express();
-  // Documentos de contrato (PDF em base64) passam do limite normal de 2 MB
+  // Documentos de contrato e arquivos das conversas (base64) passam do limite normal de 2 MB
   const jsonNormal = express.json({ limit: '2mb' });
   const jsonDocumentos = express.json({ limit: '25mb' });
-  app.use((req, res, next) => (/^\/api\/contratos\/\d+\/documentos$/.test(req.path) ? jsonDocumentos : jsonNormal)(req, res, next));
+  const comArquivo = /^\/api\/(contratos\/\d+\/documentos|whatsapp\/conversas\/\d+|jornada\/arquivos)$/;
+  app.use((req, res, next) => (comArquivo.test(req.path) ? jsonDocumentos : jsonNormal)(req, res, next));
 
   // ==========================================================
   // 0. Login por e-mail (ou nome) + senha
@@ -180,7 +182,7 @@ export function createApp() {
     }
   };
   // A função tem até 60 s: campanhas até 25 s, automáticas até 20 s; o resto fica para o minuto seguinte
-  app.get('/api/cron/whatsapp', cron(async () => ({ campanhas: await enviarPendentes(50, 25_000), automaticas: await enviarAutomaticas(20_000) })));
+  app.get('/api/cron/whatsapp', cron(async () => ({ campanhas: await enviarPendentes(50, 25_000), automaticas: await enviarAutomaticas(20_000), jornadas: await retomarJornadas(20_000) })));
   app.get('/api/cron/contratos', cron(rotinaContratos));
 
   // ==========================================================
@@ -257,6 +259,7 @@ export function createApp() {
   app.use('/api', createParticipantesRouter());
   app.use('/api', createCampanhasRouter());
   app.use('/api', createConversasRouter());
+  app.use('/api', createJornadaRouter());
   app.use('/api', createContratosRouter());
   app.use('/api', createCrmRouter());
   app.use('/api', createCrudRouter());

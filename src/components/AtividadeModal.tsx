@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CalendarPlus, Loader2, X } from 'lucide-react';
-import { createRecord } from '../services/api';
-import { Id } from '../types';
+import { createRecord, fetchOptions } from '../services/api';
+import { Id, OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { LEMBRETE_PARA, TIPOS_ATIVIDADE } from '../utils/crm';
@@ -27,6 +27,16 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
   const [hora, setHora] = useState('');
   const [duracao, setDuracao] = useState('00:15');
   const [lembretePara, setLembretePara] = useState('cliente');
+  /** Quem executa: qualquer pessoa, um usuário ou um departamento */
+  const [quem, setQuem] = useState<'qualquer' | 'usuario' | 'departamento'>('qualquer');
+  const [executorId, setExecutorId] = useState('');
+  const [departamentoId, setDepartamentoId] = useState('');
+  const [usuarios, setUsuarios] = useState<OpcaoRef[]>([]);
+  const [departamentos, setDepartamentos] = useState<OpcaoRef[]>([]);
+  useEffect(() => {
+    fetchOptions('usuarios', 'nome').then(setUsuarios).catch(() => {});
+    fetchOptions('departamentos', 'nome').then(setDepartamentos).catch(() => {});
+  }, []);
   const [observacao, setObservacao] = useState('');
   const [concluida, setConcluida] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -35,6 +45,8 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!data) return setErro('Informe a data de vencimento.');
+    if (quem === 'usuario' && !executorId) return setErro('Escolha o usuário que executa a atividade.');
+    if (quem === 'departamento' && !departamentoId) return setErro('Escolha o departamento que executa a atividade.');
     setSalvando(true);
     setErro(null);
     try {
@@ -45,6 +57,8 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
         hora_vencimento: hora || null,
         duracao: duracao || null,
         lembrete_para: lembretePara,
+        executor_id: quem === 'usuario' ? executorId : null,
+        departamento_id: quem === 'departamento' ? departamentoId : null,
         observacao: observacao || null,
         concluida: concluida ? 1 : 0,
         negocio_id: negocioId || null,
@@ -123,6 +137,43 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
               <label htmlFor="atv-duracao" className={LABEL_CLASS}>Duração</label>
               <input id="atv-duracao" type="time" value={duracao} onChange={(e) => setDuracao(e.target.value)} className={`${INPUT_CLASS} w-full`} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className={FIELD_CLASS}>
+              <label htmlFor="atv-quem" className={LABEL_CLASS}>Quem executa</label>
+              <select id="atv-quem" value={quem} onChange={(e) => setQuem(e.target.value as typeof quem)} className={`${INPUT_CLASS} w-full cursor-pointer`}>
+                <option value="qualquer">Qualquer pessoa</option>
+                <option value="usuario">Um usuário</option>
+                <option value="departamento">Um departamento</option>
+              </select>
+            </div>
+            {quem === 'usuario' && (
+              <div className={FIELD_CLASS}>
+                <label htmlFor="atv-executor" className={LABEL_CLASS}>Usuário<span className="text-rose-500 ml-1">*</span></label>
+                <select id="atv-executor" value={executorId} onChange={(e) => setExecutorId(e.target.value)} required className={`${INPUT_CLASS} w-full cursor-pointer`}>
+                  <option value="">Escolha...</option>
+                  {usuarios.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {quem === 'departamento' && (
+              <div className={FIELD_CLASS}>
+                <label htmlFor="atv-departamento" className={LABEL_CLASS}>Departamento<span className="text-rose-500 ml-1">*</span></label>
+                <select id="atv-departamento" value={departamentoId} onChange={(e) => setDepartamentoId(e.target.value)} required className={`${INPUT_CLASS} w-full cursor-pointer`}>
+                  <option value="">{departamentos.length ? 'Escolha...' : 'Nenhum: cadastre em Cadastros › Departamentos'}</option>
+                  {departamentos.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className={FIELD_CLASS}>

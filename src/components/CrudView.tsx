@@ -425,6 +425,8 @@ export const CrudView: React.FC<CrudViewProps> = ({
   // Busca avançada: painel aberto e filtros aplicados
   const [buscaAvancadaAberta, setBuscaAvancadaAberta] = useState(false);
   const [filtros, setFiltros] = useState<FiltroAvancado[]>(filtroPadrao);
+  /** Só as do usuário logado (recursos com o filtro "minhas", ex.: atividades) */
+  const [minhas, setMinhas] = useState(false);
 
   const [refOptions, setRefOptions] = useState<Record<string, OpcaoRef[]>>({});
 
@@ -563,6 +565,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
         dir,
         filters: filtros,
         arvore: modoArvore ? 'raizes' : undefined,
+        minhas,
       });
       setRows(data.data);
       // Raízes que continuam na página e estavam abertas: relê os filhos (podem ter mudado)
@@ -581,7 +584,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [resource.name, page, limit, search, sort, dir, filtros, onCountChange, modoArvore, lerFilhos, resource.pk]);
+  }, [resource.name, page, limit, search, sort, dir, filtros, minhas, onCountChange, modoArvore, lerFilhos, resource.pk]);
 
   useEffect(() => {
     load();
@@ -923,6 +926,20 @@ export const CrudView: React.FC<CrudViewProps> = ({
                 </span>
               )}
             </button>
+          )}
+
+          {resource.minhas && (
+            <span title="As atividades do seu usuário, as do seu departamento e as de qualquer pessoa" className="shrink-0">
+              <Toggle
+                size="sm"
+                checked={minhas}
+                onChange={(v) => {
+                  setMinhas(v);
+                  setPage(1);
+                }}
+                label="Só as minhas"
+              />
+            </span>
           )}
 
           <select

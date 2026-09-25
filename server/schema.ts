@@ -115,6 +115,11 @@ export interface ResourceDef {
   canCreate: boolean;
   canUpdate: boolean;
   canDelete: boolean;
+  /**
+   * Filtro "Só as minhas" da lista: condição sobre o alias "t"; cada "?" = usuário logado.
+   * Não vai para o navegador (a tela só sabe que o filtro existe).
+   */
+  minhasSql?: string;
   /** Excluir só preenche esta coluna com NOW() (o scopeSql deve esconder os excluídos) */
   exclusaoLogica?: string;
   details?: DetailDef[];
@@ -366,6 +371,9 @@ export const RESOURCES: ResourceDef[] = [
     autoIncrement: true,
     labelField: 'assunto',
     defaultSort: { field: 'data_vencimento', dir: 'asc' },
+    // Minhas: as do usuário, as do departamento dele e as de qualquer pessoa
+    minhasSql: `(t.executor_id = ? OR (t.executor_id IS NULL AND (t.departamento_id IS NULL
+                   OR t.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?))))`,
     canCreate: true,
     canUpdate: true,
     canDelete: true,
@@ -383,8 +391,19 @@ export const RESOURCES: ResourceDef[] = [
         required: true,
         options: LEMBRETE_PARA,
         default: 'cliente',
-        hint: 'WhatsApp automático antes da atividade, se ligado em Configurações › Mensagens automáticas. Vendedor = responsável do negócio.',
+        hint: 'WhatsApp automático antes da atividade, se ligado em Configurações › Mensagens automáticas. Vendedor = o usuário que executa ou, sem ele, o responsável do negócio.',
       },
+      {
+        name: 'quem_executa',
+        label: 'Quem executa',
+        type: 'text',
+        readOnly: true,
+        listed: true,
+        sql: `COALESCE((SELECT u.nome FROM usuarios u WHERE u.id = t.executor_id),
+                       (SELECT d.nome FROM departamentos d WHERE d.id = t.departamento_id), 'Qualquer pessoa')`,
+      },
+      { name: 'executor_id', label: 'Executor (usuário)', type: 'text', filterable: true, ref: { resource: 'usuarios', labelField: 'nome' }, hint: 'Ou um usuário ou um departamento; os dois vazios = qualquer pessoa' },
+      { name: 'departamento_id', label: 'Executor (departamento)', type: 'text', filterable: true, ref: { resource: 'departamentos', labelField: 'nome' } },
       { name: 'negocio_id', label: 'Negócio', type: 'text', listed: true, filterable: true, ref: { resource: 'negocios', labelField: 'titulo' } },
       { name: 'pessoa_id', label: 'Contato', type: 'text', listed: true, ref: { resource: 'pessoas', labelField: 'nome' } },
       { name: 'concluida', label: 'Concluída', type: 'boolean', listed: true, filterable: true },
@@ -821,6 +840,33 @@ export const RESOURCES: ResourceDef[] = [
     ],
   },
   {
+    name: 'departamentos',
+    table: 'departamentos',
+    tenantColumn: 'empresa_id',
+    scopeSql: 't.empresa_id = ?',
+    label: 'Departamentos',
+    labelSingular: 'Departamento',
+    description: 'Áreas da empresa (Vendas, Suporte, Financeiro...): agrupam usuários e recebem atividades',
+    icon: 'Network',
+    group: 'cadastros',
+    pk: ['id'],
+    autoIncrement: true,
+    labelField: 'nome',
+    optionsSql: `SELECT id AS value, CONCAT(nome, IF(ativo = 1, '', ' (inativo)')) AS label
+                   FROM departamentos WHERE empresa_id = ? ORDER BY ativo DESC, nome LIMIT 1000`,
+    defaultSort: { field: 'nome', dir: 'asc' },
+    canCreate: true,
+    canUpdate: true,
+    canDelete: true,
+    details: [{ resource: 'usuarios', foreignKey: 'departamento_id', label: 'Usuários do Departamento' }],
+    fields: [
+      ID,
+      { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 80 },
+      { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true, default: true, width: 'xs' },
+      { name: 'criado_em', label: 'Criado em', type: 'datetime', readOnly: true },
+    ],
+  },
+  {
     name: 'segmentos',
     table: 'segmentos',
     tenantColumn: 'empresa_id',
@@ -1177,6 +1223,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'telefone', label: 'WhatsApp', type: 'text', listed: true, maxLength: 20, hint: 'Com DDD: recebe os lembretes das atividades dos negócios dele' },
       { name: 'senha_hash', label: 'Senha', type: 'password', hint: 'Em branco na inclusão: a senha é definida no primeiro acesso' },
       { name: 'cargo', label: 'Cargo', type: 'text', listed: true, maxLength: 80 },
+      { name: 'departamento_id', label: 'Departamento', type: 'text', listed: true, filterable: true, ref: { resource: 'departamentos', labelField: 'nome' } },
       { name: 'tipo', label: 'Perfil', type: 'enum', required: true, listed: true, options: [{ value: 'admin', label: 'Administrador' }, { value: 'client', label: 'Vendedor' }], default: 'client' },
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true },
       { name: 'created_at', label: 'Criado em', type: 'datetime', readOnly: true },

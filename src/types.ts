@@ -79,6 +79,8 @@ export interface ResourceDef {
    * é a raiz e os demais aparecem como filhos (ex.: versões de uma proposta).
    */
   arvore?: { grupo: string; ordem: string };
+  /** A lista tem o filtro "Só as minhas" (as do usuário logado) */
+  minhas?: boolean;
   fields: FieldDef[];
 }
 

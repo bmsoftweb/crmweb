@@ -135,6 +135,18 @@ export const RecordForm: React.FC<RecordFormProps> = ({
   onSalvarLayout,
 }) => {
   const isEdit = Boolean(record);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Inclusão: o foco já vem no primeiro campo vazio (os que já vêm com o padrão ficam para trás)
+  useEffect(() => {
+    if (record) return;
+    const id = requestAnimationFrame(() => {
+      const campos: HTMLInputElement[] = Array.from(
+        formRef.current?.querySelectorAll<HTMLInputElement>('input:not([type=hidden]):not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled])') ?? [],
+      );
+      (campos.find((c) => !c.value) ?? campos[0])?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [record]);
 
   /** Pessoa: endereços editados no próprio cadastro e gravados junto no Salvar (null = ainda carregando) */
   const comEnderecos = resource.name === 'pessoas';
@@ -650,7 +662,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({
     ));
 
   return (
-    <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900">
+    <form ref={formRef} onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900">
       {/* Corpo rolável */}
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-5xl mx-auto px-5 py-5 space-y-4">

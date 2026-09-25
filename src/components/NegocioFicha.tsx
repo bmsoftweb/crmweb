@@ -352,6 +352,7 @@ export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource,
                     </div>
                     <div className={`text-[11px] ${cor || 'text-stone-400'}`}>
                       {quando(a.data_vencimento, a.hora_vencimento)}
+                      {` • ${a.quem_executa || 'Qualquer pessoa'}`}
                       {feita && a.concluida_em && ` • concluída em ${formatDateTimeBR(a.concluida_em)}`}
                     </div>
                     {a.observacao && <p className="mt-1 text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap">{a.observacao}</p>}

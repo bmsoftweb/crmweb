@@ -182,7 +182,8 @@ export async function avisosDevidos(empresaId: number, cfg: ConfigAutomaticas, d
   const linhas: { origem: string; texto: string; dados: any; para?: { telefone: string; pessoa_id: null } }[] = [];
 
   if (cfg.atividade.ativo && cfg.atividade.tipos.length) {
-    // Vendedor = responsável do negócio da atividade (ou do contrato), com WhatsApp no cadastro de usuários
+    // Vendedor = o usuário que executa a atividade; sem ele, o responsável do negócio (ou do contrato).
+    // Com WhatsApp no cadastro de usuários
     const [rows] = await db.query<any[]>(
       `SELECT a.id, a.assunto, a.tipo, a.lembrete_para, DATE_FORMAT(a.data_vencimento, '%d/%m/%Y') AS data, TIME_FORMAT(a.hora_vencimento, '%H:%i') AS hora,
               DATE_FORMAT(TIMESTAMP(a.data_vencimento, a.hora_vencimento), '%Y-%m-%d %H:%i') AS quando, ${daPessoa()},
@@ -191,7 +192,7 @@ export async function avisosDevidos(empresaId: number, cfg: ConfigAutomaticas, d
          LEFT JOIN pessoas p ON p.id = a.pessoa_id
          LEFT JOIN negocios n ON n.id = a.negocio_id
          LEFT JOIN contratos ct ON ct.id = a.contrato_id
-         LEFT JOIN usuarios u ON u.id = COALESCE(n.proprietario_id, ct.proprietario_id) AND u.ativo = 1
+         LEFT JOIN usuarios u ON u.id = COALESCE(a.executor_id, n.proprietario_id, ct.proprietario_id) AND u.ativo = 1
         WHERE a.empresa_id = ? AND a.concluida = 0 AND a.hora_vencimento IS NOT NULL AND a.tipo IN (?) AND a.lembrete_para <> 'nenhum'
           AND TIMESTAMP(a.data_vencimento, a.hora_vencimento) BETWEEN NOW() AND NOW() + INTERVAL ? HOUR`,
       [empresaId, cfg.atividade.tipos, cfg.atividade.horas],

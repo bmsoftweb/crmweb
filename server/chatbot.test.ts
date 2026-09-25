@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { chatbotPublica, prepararChatbot } from './chatbot.js';
+import { chatbotPublica, escolhaDoTexto, listaMenu, minutosDevolver, prepararChatbot } from './chatbot.js';
 
 // Sem nada gravado: desligado, com o modelo e o nome padrão, sem chave
 const vazio = chatbotPublica(null);
@@ -30,7 +30,35 @@ assert.deepStrictEqual(chatbotPublica(null).modelos.map((m) => m.value), ['gemin
 // Modelo gravado que saiu da lista: a tela recebe o primeiro da lista
 assert.strictEqual(chatbotPublica({ ...gravada, modelo: 'gemini-flash-latest' }).modelo, 'gemini-3.8-flash');
 
-// Limite das horas para devolver ao bot
-assert.throws(() => prepararChatbot({ ...gravada, chave: '', horas_devolver: 0 }, gravada), /1 a 720/);
+// Minutos para devolver ao bot: limite, e a configuração antiga (horas) convertida
+assert.throws(() => prepararChatbot({ ...gravada, chave: '', minutos_devolver: 0 }, gravada), /1 a 43.200/);
+assert.strictEqual(prepararChatbot({ ...gravada, chave: '', minutos_devolver: 30 }, gravada).minutos_devolver, 30);
+assert.strictEqual(minutosDevolver({ horas_devolver: 4 } as any), 240);
+assert.strictEqual(minutosDevolver({ minutos_devolver: 15, horas_devolver: 4 } as any), 15);
+assert.strictEqual(minutosDevolver(null), 240);
+assert.strictEqual(chatbotPublica({ ...gravada, minutos_devolver: undefined, horas_devolver: 2 } as any).minutos_devolver, 120);
+assert.strictEqual('horas_devolver' in chatbotPublica({ ...gravada, horas_devolver: 2 } as any), false);
+
+// Menu de departamentos: sem repetidos, id inválido fora, no máximo 9
+const comMenu = prepararChatbot({ ...gravada, chave: '', menu: [{ departamento_id: 3, bot: true }, { departamento_id: '3' }, { departamento_id: 'x' }, { departamento_id: 5 }] }, gravada);
+assert.deepStrictEqual(comMenu.menu, [{ departamento_id: 3, bot: true }, { departamento_id: 5, bot: false }]);
+assert.ok(comMenu.menu_texto);
+assert.throws(() => prepararChatbot({ ...gravada, chave: '', menu: Array.from({ length: 10 }, (_, i) => ({ departamento_id: i + 1 })) }, gravada), /no máximo 9/);
+
+const opcoes = [
+  { numero: 1, departamento_id: 3, nome: 'Vendas', bot: true },
+  { numero: 2, departamento_id: 5, nome: 'Suporte Técnico', bot: false },
+  { numero: 3, departamento_id: 7, nome: 'Financeiro', bot: false },
+];
+assert.strictEqual(listaMenu(opcoes), '1 - Vendas\n2 - Suporte Técnico\n3 - Financeiro');
+assert.strictEqual(escolhaDoTexto('2', opcoes)?.departamento_id, 5);
+assert.strictEqual(escolhaDoTexto(' 3. ', opcoes)?.departamento_id, 7);
+assert.strictEqual(escolhaDoTexto('Opção 1', opcoes)?.departamento_id, 3);
+assert.strictEqual(escolhaDoTexto('4', opcoes), null);
+assert.strictEqual(escolhaDoTexto('quero o financeiro', opcoes)?.departamento_id, 7);
+assert.strictEqual(escolhaDoTexto('suporte tecnico por favor', opcoes)?.departamento_id, 5);
+// Dois departamentos citados, ou nenhum: quem decide é a IA
+assert.strictEqual(escolhaDoTexto('vendas ou financeiro?', opcoes), null);
+assert.strictEqual(escolhaDoTexto('bom dia', opcoes), null);
 
 console.log('chatbot: ok');

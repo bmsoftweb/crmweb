@@ -2,6 +2,17 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.11 — 2026-09-25
+
+WhatsApp: jornada de atendimento, menu de departamentos, envio de mídia e quem executa as atividades. Banco: tabelas departamentos e jornada_arquivos; colunas usuarios.departamento_id, atividades.executor_id e departamento_id, whatsapp_conversas.departamento_id, no_atual, variaveis e retomar_em. Dependência nova: @xyflow/react.
+
+- Configurações › Jornada: editor gráfico do atendimento do WhatsApp (arrastar nós e ligar saídas). Nós: Início, Mensagem, Enviar imagem, Menu, Pergunta, Condição (horário, cadastrado, negócio aberto, variável), Condição múltipla, Esperar (retomado pelo cron), Chamar API (https, variáveis, cabeçalhos secretos cifrados, campos da resposta viram variáveis), IA (Gemini), Registrar lead, Departamento e Fim. Modo teste (só os números da lista) ou todos os clientes; modelo a partir do menu do Chatbot.
+- Chatbot: menu de departamentos (número ou texto, com a IA como apoio); por departamento, o bot continua ou passa direto para humano, com atividade para o departamento e aviso no WhatsApp de quem é dele. Tempo para devolver ao bot agora em minutos (a configuração antiga, em horas, é convertida). O bot não responde números de usuários da empresa.
+- Conversas: enviar imagem, vídeo, áudio e documento (até 3 MB) e gravar áudio pelo microfone; etiqueta do departamento e filtro "Só as minhas".
+- Cadastros › Departamentos; usuário com departamento. Atividade com "Quem executa" (usuário, departamento ou qualquer pessoa), coluna na lista e na ficha do negócio, filtro "Só as minhas". Lembrete "para o vendedor" vai para quem executa (sem executor, para o responsável do negócio).
+- Configurações › WhatsApp: situação da conexão num quadro com o número conectado.
+- Formulários de inclusão abrem com o foco no primeiro campo vazio.
+
 ## 0.0.10 — 2026-09-25
 
 - Conversas: imagens, figurinhas, áudios e vídeos aparecem na conversa. O arquivo é buscado na Evolution na hora (o CRM não guarda a mídia); imagem abre em tamanho real ao clicar, áudio com player, vídeo carrega ao clicar em "Carregar vídeo". Mídia que o WhatsApp não tem mais aparece como "não disponível".

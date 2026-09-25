@@ -44,6 +44,9 @@ export async function antesDeGravar(recurso: string, payload: Record<string, any
     const [rows] = await pool.query<any[]>('SELECT 1 FROM pessoas WHERE id = ? AND empresa_id = ?', [payload.pessoa_id, empresaId]);
     if (!rows.length) throw new Error('A pessoa do contato não existe nesta empresa.');
   }
+  if (recurso === 'atividades' && payload.executor_id && payload.departamento_id) {
+    throw new Error('Quem executa: escolha um usuário ou um departamento, não os dois (os dois vazios = qualquer pessoa).');
+  }
   if (recurso === 'negocios' && payload.etapa_id) {
     const [rows] = await pool.query<any[]>('SELECT funil_id FROM etapas WHERE id = ?', [payload.etapa_id]);
     if (!rows.length) throw new Error('A etapa escolhida não existe.');

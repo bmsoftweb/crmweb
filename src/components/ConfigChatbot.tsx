@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, Loader2, Save } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bot, Loader2, Save } from 'lucide-react';
 import { fetchConfig, fetchOptions, salvarConfig, testarChatbot } from '../services/api';
 import { OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
@@ -12,8 +12,11 @@ interface Chatbot {
   modelo: string;
   nome: string;
   texto_base: string;
-  horas_devolver: number;
+  minutos_devolver: number;
   vendedores: number[];
+  /** Menu de departamentos: abertura e opções, na ordem (vazio = sem menu) */
+  menu_texto: string;
+  menu: { departamento_id: number; bot: boolean }[];
   /** Digitada agora; em branco mantém a gravada */
   chave: string;
   /** Modelos do Gemini que dá para escolher (vêm do servidor) */
@@ -33,6 +36,7 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
   const [v, setV] = useState<Chatbot | null>(null);
   const [chaveGravada, setChaveGravada] = useState(false);
   const [usuarios, setUsuarios] = useState<OpcaoRef[]>([]);
+  const [departamentos, setDepartamentos] = useState<OpcaoRef[]>([]);
   const [ocupado, setOcupado] = useState<'salvar' | 'testar' | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -46,6 +50,9 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     fetchOptions('usuarios', 'nome')
       .then(setUsuarios)
       .catch(() => {}); // sem a lista, o revezamento vale para todos os vendedores
+    fetchOptions('departamentos', 'nome')
+      .then(setDepartamentos)
+      .catch(() => {});
   }, []);
 
   if (!v) return erro ? <AvisoErro mensagem={erro} onFechar={() => setErro(null)} /> : <Loader2 className="w-4 h-4 animate-spin text-stone-400" />;
@@ -55,6 +62,16 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     setErro(null);
   };
   const campo = `${INPUT_CLASS} w-full`;
+
+  // Menu: os escolhidos na ordem gravada, depois os demais departamentos
+  const menu = v.menu ?? [];
+  const nomeDep = (id: number) => departamentos.find((d) => Number(d.value) === id)?.label ?? `Departamento ${id}`;
+  const foraDoMenu = departamentos.filter((d) => !menu.some((m) => m.departamento_id === Number(d.value)));
+  const mover = (i: number, passo: number) => {
+    const novo = [...menu];
+    [novo[i], novo[i + passo]] = [novo[i + passo], novo[i]];
+    alterar({ menu: novo });
+  };
 
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,8 +145,8 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
             <input id="bot-nome" value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} maxLength={60} required className={campo} />
           </div>
           <div className={FIELD_CLASS}>
-            <label htmlFor="bot-horas" className={LABEL_CLASS}>Devolver ao bot depois de (horas)</label>
-            <NumberField id="bot-horas" value={String(v.horas_devolver)} onChange={(t) => alterar({ horas_devolver: Number(t) || 0 })} scale={0} className={campo} />
+            <label htmlFor="bot-minutos" className={LABEL_CLASS}>Devolver ao bot depois de (minutos)</label>
+            <NumberField id="bot-minutos" value={String(v.minutos_devolver)} onChange={(t) => alterar({ minutos_devolver: Number(t) || 0 })} scale={0} className={campo} />
             <span className={HINT_CLASS}>Conversa com humano volta ao bot após esse tempo sem mensagem de atendente</span>
           </div>
         </div>
@@ -165,6 +182,65 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
             })}
           </div>
           <span className={HINT_CLASS}>Nenhum marcado: entram todos os usuários com perfil Vendedor ativos. Cada lead novo vai para o próximo da lista.</span>
+        </div>
+
+        <div className={FIELD_CLASS}>
+          <span className={LABEL_CLASS}>Menu de departamentos</span>
+          <p className="text-xs text-stone-600 dark:text-stone-300">
+            Na primeira mensagem, o bot manda o menu e o cliente escolhe o departamento (pelo número ou escrevendo). "Bot continua" ligado: a IA segue atendendo
+            sobre o assunto; desligado: a conversa passa direto para quem é do departamento, que recebe uma atividade e um aviso no WhatsApp. Nenhum departamento
+            no menu: o bot atende sem menu.
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_16rem] gap-4 pt-1">
+            <div className="flex flex-col gap-2">
+              <textarea
+                aria-label="Texto de abertura do menu"
+                value={v.menu_texto}
+                onChange={(e) => alterar({ menu_texto: e.target.value })}
+                rows={2}
+                maxLength={500}
+                className={`${campo} resize-y`}
+              />
+              {menu.map((m, i) => (
+                <div key={m.departamento_id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-stone-50 dark:bg-stone-800/60">
+                  <span className="w-5 text-xs font-bold text-stone-500">{i + 1}</span>
+                  <span className="flex-1 min-w-[6rem] truncate text-xs font-semibold text-stone-800 dark:text-stone-100">{nomeDep(m.departamento_id)}</span>
+                  <Toggle
+                    size="sm"
+                    checked={m.bot}
+                    onChange={(bot) => alterar({ menu: menu.map((x, j) => (j === i ? { ...x, bot } : x)) })}
+                    label="Bot continua"
+                  />
+                  <button type="button" onClick={() => mover(i, -1)} disabled={i === 0} title="Subir" className="p-1 text-stone-400 hover:text-stone-700 disabled:opacity-30 cursor-pointer">
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                  <button type="button" onClick={() => mover(i, 1)} disabled={i === menu.length - 1} title="Descer" className="p-1 text-stone-400 hover:text-stone-700 disabled:opacity-30 cursor-pointer">
+                    <ArrowDown className="w-4 h-4" />
+                  </button>
+                  <Toggle size="sm" checked onChange={() => alterar({ menu: menu.filter((_, j) => j !== i) })} label="No menu" />
+                </div>
+              ))}
+              {foraDoMenu.map((d) => (
+                <div key={d.value} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-dashed border-stone-200 dark:border-stone-700">
+                  <span className="w-5" />
+                  <span className="flex-1 min-w-0 truncate text-xs text-stone-500 dark:text-stone-400">{d.label}</span>
+                  <Toggle
+                    size="sm"
+                    checked={false}
+                    onChange={() => alterar({ menu: [...menu, { departamento_id: Number(d.value), bot: false }] })}
+                    label="No menu"
+                  />
+                </div>
+              ))}
+              {!departamentos.length && <span className={HINT_CLASS}>Nenhum departamento: cadastre em Cadastros › Departamentos.</span>}
+            </div>
+            {menu.length > 0 && (
+              <div className="self-start rounded-2xl rounded-bl-md px-3 py-2 bg-white dark:bg-stone-800 shadow-xs border border-stone-200 dark:border-stone-700 text-[13px] leading-snug text-stone-800 dark:text-stone-100 whitespace-pre-wrap">
+                <div className="text-[10px] font-semibold text-stone-400 mb-1">Como o cliente vê</div>
+                {`${v.menu_texto}\n${menu.map((m, i) => `${i + 1} - ${nomeDep(m.departamento_id)}`).join('\n')}`}
+              </div>
+            )}
+          </div>
         </div>
       </fieldset>
 

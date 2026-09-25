@@ -265,7 +265,9 @@ export function createCrmRouter() {
     if (!neg.length) throw erro(404, 'Negócio não encontrado.');
     const [etapas] = await pool.query<any[]>('SELECT id, nome, ordem, probabilidade FROM etapas WHERE funil_id = ? ORDER BY ordem, nome', [neg[0].funil_id]);
     const [atividades] = await pool.query<any[]>(
-      `SELECT * FROM atividades WHERE negocio_id = ? ORDER BY concluida, data_vencimento, COALESCE(hora_vencimento, '00:00:00')`,
+      `SELECT a.*, COALESCE(u.nome, d.nome) AS quem_executa
+         FROM atividades a LEFT JOIN usuarios u ON u.id = a.executor_id LEFT JOIN departamentos d ON d.id = a.departamento_id
+        WHERE a.negocio_id = ? ORDER BY a.concluida, a.data_vencimento, COALESCE(a.hora_vencimento, '00:00:00')`,
       [id],
     );
     const [historico] = await pool.query<any[]>('SELECT * FROM historico_interacoes WHERE negocio_id = ? ORDER BY criado_em DESC', [id]);

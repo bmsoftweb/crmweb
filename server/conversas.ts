@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
-import { chaveTelefone, donoDoTelefone, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp } from './whatsapp.js';
+import { ArquivoEnvio, chaveTelefone, donoDoTelefone, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
-import { atendimentoAtual, mudarAtendimento } from './chatbot.js';
+import { atendimentoAtual, minutosDevolver, mudarAtendimento } from './chatbot.js';
 
 /**
  * Tela de conversas do WhatsApp: uma conversa por telefone (whatsapp_mensagens.telefone, só
@@ -194,25 +194,35 @@ export function createConversasRouter(): Router {
     }
   });
 
-  /** Conversas, da mais recente para a mais antiga, com a última mensagem e as não vistas */
+  /**
+   * Conversas, da mais recente para a mais antiga, com a última mensagem, as não vistas e o
+   * departamento escolhido no menu do chatbot. ?minhas=1: as sem departamento, as do meu departamento
+   * e as que eu assumi.
+   */
   router.get('/whatsapp/conversas', async (req: Request, res: Response) => {
     try {
       const busca = String(req.query.busca ?? '').trim().slice(0, 100);
       const digitos = busca.replace(/\D/g, '');
+      const minhas = req.query.minhas === '1';
+      const eu = res.locals.usuario.id;
       const [rows] = await pool.query<any[]>(
         `SELECT w.telefone, x.pessoa_id, p.nome, x.contato_id, c.nome AS contato_nome, COALESCE(c.departamento, c.cargo) AS contato_setor,
                 ${NOME_CONTATO('w')} AS nome_contato, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao,
-                DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas
+                DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, d.nome AS departamento
            FROM (SELECT telefone, MAX(id) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
                         SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas
                    FROM whatsapp_mensagens WHERE empresa_id = ? GROUP BY telefone) x
            JOIN whatsapp_mensagens w ON w.id = x.ultima
            LEFT JOIN pessoas p ON p.id = x.pessoa_id
            LEFT JOIN pessoas_contatos c ON c.id = x.contato_id
+           LEFT JOIN whatsapp_conversas wc ON wc.empresa_id = w.empresa_id AND wc.telefone = w.telefone
+           LEFT JOIN departamentos d ON d.id = wc.departamento_id
           WHERE (? = '' OR p.nome LIKE ? OR c.nome LIKE ? OR ${NOME_CONTATO('w')} LIKE ? OR (? <> '' AND w.telefone LIKE ?))
+            AND (? = 0 OR wc.departamento_id IS NULL OR wc.atendente_id = ?
+                 OR wc.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?))
           ORDER BY w.data_hora DESC, w.id DESC
           LIMIT 200`,
-        [res.locals.empresaId, busca, `%${busca}%`, `%${busca}%`, `%${busca}%`, digitos, `%${digitos}%`],
+        [res.locals.empresaId, busca, `%${busca}%`, `%${busca}%`, `%${busca}%`, digitos, `%${digitos}%`, minhas ? 1 : 0, eu, eu],
       );
       res.json(rows.map((r) => ({ ...r, nao_vistas: Number(r.nao_vistas) })));
     } catch (err: any) {
@@ -220,10 +230,6 @@ export function createConversasRouter(): Router {
     }
   });
 
-  /**
-   * Mensagens da conversa (as 300 mais recentes, em ordem) e a pessoa. Abrir marca as recebidas
-   * como vistas. Conversa sem pessoa tenta achá-la de novo (ela pode ter sido cadastrada depois).
-   */
   /** Imagem, figurinha, áudio ou vídeo da mensagem, buscado no provedor (o arquivo não fica no CRM) */
   router.get('/whatsapp/mensagens/:id/midia', async (req: Request, res: Response) => {
     try {
@@ -240,6 +246,10 @@ export function createConversasRouter(): Router {
     }
   });
 
+  /**
+   * Mensagens da conversa (as 300 mais recentes, em ordem) e a pessoa. Abrir marca as recebidas
+   * como vistas. Conversa sem pessoa tenta achá-la de novo (ela pode ter sido cadastrada depois).
+   */
   router.get('/whatsapp/conversas/:telefone', async (req: Request, res: Response) => {
     try {
       const emp = res.locals.empresaId;
@@ -277,8 +287,12 @@ export function createConversasRouter(): Router {
         : [[]];
       // Com o chatbot ligado: quem está atendendo (bot ou humano)
       const chatbot: any = await lerConfig(String(emp), 'whatsapp', 'chatbot');
-      const atendimento = chatbot?.ativo ? await atendimentoAtual(emp, telefone, Number(chatbot.horas_devolver) || 4) : null;
-      res.json({ pessoa: pessoa[0] ?? null, contato: contato[0] ?? null, atendimento, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
+      const atendimento = chatbot?.ativo ? await atendimentoAtual(emp, telefone, minutosDevolver(chatbot)) : null;
+      const [dep] = await pool.query<any[]>(
+        'SELECT d.nome FROM whatsapp_conversas c JOIN departamentos d ON d.id = c.departamento_id WHERE c.empresa_id = ? AND c.telefone = ?',
+        [emp, telefone],
+      );
+      res.json({ pessoa: pessoa[0] ?? null, contato: contato[0] ?? null, atendimento, departamento: dep[0]?.nome ?? null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
     } catch (err: any) {
       falha(res, err);
     }
@@ -294,7 +308,18 @@ export function createConversasRouter(): Router {
       const telefone = req.params.telefone;
       if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
       const texto = String(req.body?.texto ?? '').trim();
-      if (!texto) return res.status(400).json({ error: 'Digite a mensagem.' });
+      // Com arquivo, o texto é a legenda (áudio não tem legenda)
+      const a = req.body?.arquivo;
+      let arquivo: ArquivoEnvio | null = null;
+      if (a) {
+        if (!['imagem', 'video', 'audio', 'documento'].includes(a.tipo) || typeof a.base64 !== 'string' || !a.base64) {
+          return res.status(400).json({ error: 'Arquivo inválido.' });
+        }
+        const mimetype = String(a.mimetype || 'application/octet-stream').slice(0, 100);
+        const nome = String(a.nome || 'arquivo').replace(/[\\/]/g, '_').slice(0, 150);
+        arquivo = { tipo: a.tipo, base64: a.base64, mimetype, nome, legenda: a.tipo === 'audio' ? null : texto || null };
+      }
+      if (!texto && !arquivo) return res.status(400).json({ error: 'Digite a mensagem.' });
       if (texto.length > 4000) return res.status(400).json({ error: 'Mensagem grande demais (máximo de 4.000 caracteres).' });
       const [ult] = await pool.query<any[]>(
         'SELECT MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?',
@@ -302,11 +327,8 @@ export function createConversasRouter(): Router {
       );
       // Quem responde pela tela assume a conversa (o chatbot para de responder)
       await mudarAtendimento(emp, telefone, 'humano', res.locals.usuarioId);
-      const numero = await enviarWhatsApp(emp, telefone, texto, {
-        pessoa_id: ult[0]?.pessoa_id ?? null,
-        contato_id: ult[0]?.contato_id ?? null,
-        usuario_id: res.locals.usuarioId,
-      });
+      const reg = { pessoa_id: ult[0]?.pessoa_id ?? null, contato_id: ult[0]?.contato_id ?? null, usuario_id: res.locals.usuarioId };
+      const numero = arquivo ? await enviarMidiaWhatsApp(emp, telefone, arquivo, reg) : await enviarWhatsApp(emp, telefone, texto, reg);
       // Conversa aberta pela atividade WhatsApp: a mensagem enviada conclui a atividade
       let concluida = false;
       const atividadeId = Number(req.body?.atividade_id) || null;

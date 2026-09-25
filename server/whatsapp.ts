@@ -224,6 +224,49 @@ export async function enviarPdfWhatsApp(
   await registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'documento', texto: legenda || null, arquivo_nome: nomeArquivo });
 }
 
+/** Arquivo enviado pela tela de conversas (base64 sem o prefixo data:) */
+export interface ArquivoEnvio {
+  tipo: 'imagem' | 'video' | 'audio' | 'documento';
+  base64: string;
+  mimetype: string;
+  nome: string;
+  legenda: string | null;
+}
+
+/**
+ * Envia imagem, vídeo, documento ou áudio. Áudio vai como mensagem de voz (a Evolution converte
+ * para o formato do WhatsApp); devolve o número da conversa, como enviarWhatsApp.
+ */
+export async function enviarMidiaWhatsApp(empresaId: string | number, telefone: string, a: ArquivoEnvio, reg: Registro = {}): Promise<string> {
+  const resposta = await midiaPara(await credenciais(empresaId), telefone, a);
+  return registrarEnviada(empresaId, telefone, resposta, {
+    ...reg,
+    tipo: a.tipo,
+    texto: a.legenda,
+    arquivo_nome: a.tipo === 'documento' ? a.nome : undefined,
+  });
+}
+
+/** Envio do arquivo no formato de cada provedor; devolve a resposta do provedor */
+async function midiaPara(c: Credenciais, telefone: string, a: ArquivoEnvio): Promise<any> {
+  const dataUrl = `data:${a.mimetype};base64,${a.base64}`;
+  const legenda = a.legenda || undefined;
+  let resposta: any;
+  if (a.tipo === 'audio') {
+    resposta = await enviar(c, { rota: 'send-audio', corpo: { phone: telefone, audio: dataUrl } }, { rota: 'sendWhatsAppAudio', corpo: { number: telefone, audio: a.base64 } });
+  } else {
+    const extensao = a.nome.includes('.') ? a.nome.split('.').pop() : 'bin';
+    const zapi = {
+      imagem: { rota: 'send-image', corpo: { phone: telefone, image: dataUrl, caption: legenda } },
+      video: { rota: 'send-video', corpo: { phone: telefone, video: dataUrl, caption: legenda } },
+      documento: { rota: `send-document/${extensao}`, corpo: { phone: telefone, document: dataUrl, fileName: a.nome, caption: legenda } },
+    }[a.tipo];
+    const mediatype = { imagem: 'image', video: 'video', documento: 'document' }[a.tipo];
+    resposta = await enviar(c, zapi, { rota: 'sendMedia', corpo: { number: telefone, mediatype, mimetype: a.mimetype, media: a.base64, fileName: a.nome, caption: legenda } });
+  }
+  return resposta;
+}
+
 /** Pausa entre mensagens da empresa, em segundos (Configurações › WhatsApp) */
 export async function intervaloWhatsApp(empresaId: string | number): Promise<number> {
   return (await credenciais(empresaId)).intervalo;
@@ -256,11 +299,12 @@ export async function reservarEnvio(empresaId: string | number, origem: string, 
  * Envia a mensagem reservada (texto final). Provedor em falha desfaz a reserva (tenta de novo depois)
  * e lança ErroProvedor; destinatário recusado fica como "falhou", com o motivo.
  */
-export async function enviarReservada(empresaId: string | number, id: number, origem: string, telefone: string, texto: string): Promise<void> {
+export async function enviarReservada(empresaId: string | number, id: number, origem: string, telefone: string, texto: string, midia?: ArquivoEnvio): Promise<void> {
   let resposta: any;
   try {
     const c = await credenciais(empresaId);
-    resposta = await textoPara(c, telefone, texto);
+    resposta = midia ? await midiaPara(c, telefone, midia) : await textoPara(c, telefone, texto);
+    if (midia) await pool.query('UPDATE whatsapp_mensagens SET tipo = ? WHERE id = ?', [midia.tipo, id]);
   } catch (err: any) {
     if (err instanceof ErroProvedor) {
       await pool.query('DELETE FROM whatsapp_mensagens WHERE id = ?', [id]);

@@ -129,6 +129,8 @@ export function listRecords(
     filters?: FiltroAvancado[];
     /** Recurso em árvore: só as raízes */
     arvore?: 'raizes';
+    /** Só as do usuário logado (recurso com filtro "minhas") */
+    minhas?: boolean;
   } = {},
 ): Promise<ListaPaginada> {
   const qs = new URLSearchParams();
@@ -143,6 +145,7 @@ export function listRecords(
   }
   if (params.filters && params.filters.length) qs.set('filters', JSON.stringify(params.filters));
   if (params.arvore) qs.set('arvore', params.arvore);
+  if (params.minhas) qs.set('minhas', '1');
   return get(`/api/crud/${resource}?${qs.toString()}`);
 }
 
@@ -274,6 +277,16 @@ export const fetchConfig = <T = any>(grupo: string, chave: string): Promise<{ va
 
 export const salvarConfig = (grupo: string, chave: string, valor: unknown): Promise<{ success: boolean }> =>
   enviar('PUT', `/api/config/${grupo}/${chave}`, { valor });
+
+/** Imagem do nó "Enviar imagem" da jornada (base64 sem o prefixo data:) */
+export const enviarArquivoJornada = (nome: string, mimetype: string, base64: string): Promise<{ id: number; nome: string }> =>
+  enviar('POST', '/api/jornada/arquivos', { nome, mimetype, base64 });
+/** Imagem da jornada como endereço local (blob:) para mostrar no editor */
+export async function fetchArquivoJornada(id: number): Promise<string> {
+  const res = await fetch(`/api/jornada/arquivos/${id}`, { headers: headers() });
+  if (!res.ok) await parseOrThrow(res);
+  return URL.createObjectURL(await res.blob());
+}
 
 /**
  * Campos personalizados de pessoas, com cache: a definição muda raramente e é lida
@@ -447,6 +460,8 @@ export interface ConversaResumo {
   situacao: string;
   data_hora: string;
   nao_vistas: number;
+  /** Departamento escolhido no menu do chatbot */
+  departamento: string | null;
 }
 
 export interface MensagemWhatsApp {
@@ -467,8 +482,9 @@ export interface MensagemWhatsApp {
   data_hora: string;
 }
 
-export const fetchConversas = (busca = ''): Promise<ConversaResumo[]> =>
-  get(`/api/whatsapp/conversas?busca=${encodeURIComponent(busca)}`);
+/** minhas: as sem departamento, as do meu departamento e as que eu assumi */
+export const fetchConversas = (busca = '', minhas = false): Promise<ConversaResumo[]> =>
+  get(`/api/whatsapp/conversas?busca=${encodeURIComponent(busca)}${minhas ? '&minhas=1' : ''}`);
 /** Mensagens da conversa; abrir marca as recebidas como vistas */
 export const fetchConversa = (
   telefone: string,
@@ -477,17 +493,28 @@ export const fetchConversa = (
   contato: { id: number; nome: string; cargo: string | null; departamento: string | null } | null;
   /** Com o chatbot ligado: quem atende a conversa (null = chatbot desligado) */
   atendimento: 'bot' | 'humano' | null;
+  /** Departamento escolhido no menu do chatbot */
+  departamento: string | null;
   nome_contato: string | null;
   mensagens: MensagemWhatsApp[];
 }> =>
   get(`/api/whatsapp/conversas/${encodeURIComponent(telefone)}`);
 /** Envia pela conversa; com a atividade que a abriu, conclui a atividade. telefone: o número da conversa (pode vir sem o 9) */
+/** Arquivo para enviar na conversa (base64 sem o prefixo data:) */
+export interface ArquivoConversa {
+  tipo: 'imagem' | 'video' | 'audio' | 'documento';
+  base64: string;
+  mimetype: string;
+  nome: string;
+}
+/** Responde a conversa com texto, ou com um arquivo (o texto vira a legenda) */
 export const responderConversa = (
   telefone: string,
   texto: string,
   atividadeId?: number | null,
+  arquivo?: ArquivoConversa | null,
 ): Promise<{ success: boolean; telefone: string; atividade_concluida: boolean }> =>
-  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, { texto, atividade_id: atividadeId ?? null });
+  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, { texto, atividade_id: atividadeId ?? null, arquivo: arquivo ?? undefined });
 /** Conversa de uma atividade WhatsApp: o número do cliente (pessoa da atividade ou do negócio) */
 export const fetchConversaDaAtividade = (
   id: Id,

@@ -9,7 +9,7 @@ import { conferirTrava, contratoDoItem, recalcularContrato } from './contratos.j
 
 /** Metadados enviados ao navegador: a consulta própria dos combos fica só no servidor */
 // O SQL próprio (combos, colunas calculadas) não sai do servidor
-const RESOURCES_PUBLICOS = RESOURCES.map(({ optionsSql, ...r }) => ({ ...r, fields: r.fields.map(({ sql, ...f }) => f) }));
+const RESOURCES_PUBLICOS = RESOURCES.map(({ optionsSql, minhasSql, ...r }) => ({ ...r, minhas: Boolean(minhasSql), fields: r.fields.map(({ sql, ...f }) => f) }));
 
 /** Converte o valor recebido do formulário para o tipo esperado pela coluna do MySQL */
 function coerceValue(field: FieldDef, raw: any): any {
@@ -262,6 +262,12 @@ export function createCrudRouter() {
       if (filterField && filterValue !== undefined && filterValue !== '' && columnNames(resource).includes(filterField)) {
         where.push(`${colunaSql(resource, filterField)} = ?`);
         params.push(filterValue);
+      }
+
+      // Só as minhas (?minhas=1): a condição do recurso, com o usuário logado em cada "?"
+      if (req.query.minhas === '1' && resource.minhasSql) {
+        where.push(resource.minhasSql);
+        for (const _ of resource.minhasSql.match(/\?/g) ?? []) params.push(res.locals.usuario.id);
       }
 
       // Busca avançada: ?filters=[{"field":"status","op":"eq","value":"aberto"}]

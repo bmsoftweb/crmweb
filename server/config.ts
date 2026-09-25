@@ -4,6 +4,7 @@ import { configSmtpPublica, prepararConfigSmtp, testarSmtp } from './email.js';
 import { conferirInstanciaUnica, configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp, ativarRecebimento } from './whatsapp.js';
 import { automaticasPublica, prepararAutomaticas } from './automaticas.js';
 import { chatbotPublica, prepararChatbot, testarChatbot } from './chatbot.js';
+import { jornadaPublica, prepararJornada } from './jornada.js';
 import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign.js';
 
 /**
@@ -19,7 +20,7 @@ import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarCont
 const CHAVES: Record<string, string[]> = {
   pessoas: ['campos_personalizados'],
   email: ['smtp'],
-  whatsapp: ['provedor', 'automaticas', 'chatbot'],
+  whatsapp: ['provedor', 'automaticas', 'chatbot', 'jornada'],
   // { ativo: boolean } — tarefa "Retorno Envio" ao enviar proposta ou pedido (sem configuração: ligado)
   vendas: ['retorno_envio'],
   assinatura: ['d4sign'],
@@ -34,6 +35,8 @@ const COM_SEGREDO: Record<string, { preparar: (valor: any, anterior: any) => any
   'whatsapp.provedor': { preparar: prepararConfigWhats, publica: configWhatsPublica },
   'whatsapp.automaticas': { preparar: prepararAutomaticas, publica: automaticasPublica },
   'whatsapp.chatbot': { preparar: prepararChatbot, publica: chatbotPublica },
+  // Funções chamadas na hora (jornada.ts importa este módulo)
+  'whatsapp.jornada': { preparar: (v, a) => prepararJornada(v, a), publica: (v) => jornadaPublica(v) },
   'assinatura.d4sign': { preparar: prepararConfigD4, publica: configD4Publica },
 };
 export const somenteAdmin = (res: Response) => {

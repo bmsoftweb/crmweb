@@ -5,6 +5,7 @@ import { ConfigEmail } from './ConfigEmail';
 import { ConfigWhatsApp } from './ConfigWhatsApp';
 import { ConfigAutomaticas } from './ConfigAutomaticas';
 import { ConfigChatbot } from './ConfigChatbot';
+import { ConfigJornada } from './ConfigJornada';
 import { ConfigVendas } from './ConfigVendas';
 import { ConfigAssinatura } from './ConfigAssinatura';
 import { ModelosContrato } from './ModelosContrato';
@@ -33,6 +34,11 @@ const ABAS = [
     id: 'chatbot',
     titulo: 'Chatbot',
     descricao: 'Assistente com IA (Gemini) que responde o WhatsApp, cadastra leads para os vendedores e passa para um humano quando precisa.',
+  },
+  {
+    id: 'jornada',
+    titulo: 'Jornada',
+    descricao: 'Fluxo de atendimento do WhatsApp desenhado em nós: menus, perguntas, condições, esperas, chamadas de API, IA e departamentos.',
   },
   {
     id: 'automaticas',
@@ -102,6 +108,7 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
           {aba === 'email' && <ConfigEmail somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'whatsapp' && <ConfigWhatsApp somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'chatbot' && <ConfigChatbot somenteLeitura={somenteLeitura} onToast={onToast} />}
+          {aba === 'jornada' && <ConfigJornada somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'automaticas' && <ConfigAutomaticas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'vendas' && <ConfigVendas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'assinatura' && <ConfigAssinatura somenteLeitura={somenteLeitura} onToast={onToast} />}
