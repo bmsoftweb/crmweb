@@ -180,6 +180,9 @@ export const fetchDocumento = (tipo: TipoDocumento, id: Id): Promise<RegistroCru
   get(`/api/crm/${tipo}/${encodeURIComponent(String(id))}`);
 export const salvarDocumento = (tipo: TipoDocumento, id: Id | null, payload: RegistroCrud): Promise<{ id: string }> =>
   id ? enviar('PUT', `/api/crm/${tipo}/${encodeURIComponent(String(id))}`, payload) : enviar('POST', `/api/crm/${tipo}`, payload);
+/** Link para o cliente aprovar e assinar a proposta (server/aceite.ts) */
+export const linkAceiteProposta = (id: Id): Promise<{ link: string }> =>
+  enviar('POST', `/api/crm/propostas/${encodeURIComponent(String(id))}/link`);
 export const novaVersaoProposta = (id: Id): Promise<{ id: string }> =>
   enviar('POST', `/api/crm/propostas/${encodeURIComponent(String(id))}/versao`);
 /**

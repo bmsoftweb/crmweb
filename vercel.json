@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "/api"
+    },
+    {
+      "source": "/p/:token",
+      "destination": "/index.html"
     }
   ],
   "functions": {

@@ -26,6 +26,7 @@ import { BotaoClonar } from './components/BotaoClonar';
 import { BotaoImprimir } from './components/BotaoImprimir';
 import { AcaoCampanha } from './components/AcoesCampanha';
 import { BotaoEnviar } from './components/BotaoEnviar';
+import { BotaoLinkAceite } from './components/BotaoLinkAceite';
 import { BotaoNovaVersao } from './components/BotaoNovaVersao';
 import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
@@ -364,6 +365,7 @@ export default function App() {
                           onRecarregar={recarregar}
                           onToast={showToast}
                         />
+                        {activeResource.name === 'propostas' && <BotaoLinkAceite registro={row} onToast={showToast} />}
                         {activeResource.name === 'propostas' && (
                           <BotaoNovaVersao registro={row} onAbrir={abrir} onRecarregar={recarregar} onToast={showToast} />
                         )}

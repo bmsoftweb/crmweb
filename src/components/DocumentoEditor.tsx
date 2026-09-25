@@ -65,6 +65,10 @@ function totaisDaTela(itens: ItemDocumento[], descontoAdicional: string) {
   return { bruto, descItens, desconto, total: centavos(bruto - desconto) };
 }
 
+/** CPF 000.000.000-00 / CNPJ 00.000.000/0000-00 */
+const formatarDocumento = (d: string) =>
+  d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+
 export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
   tipo,
   id: idInicial,
@@ -316,6 +320,29 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
                 : status === 'fechada'
                   ? 'Proposta fechada: outra versão desta proposta foi aceita pelo cliente. Ela fica só para consulta.'
                   : 'Proposta aceita: a negociação está fechada e não pode mais ser alterada. Para uma nova negociação, use Clonar na lista de propostas.'}
+            </div>
+          )}
+
+          {/* Resposta do cliente pelo link de aceite (server/aceite.ts) */}
+          {ehProposta && doc?.aceite_em && (
+            <div
+              className={`p-3 rounded-lg border text-xs flex flex-wrap gap-x-6 gap-y-2 items-center ${
+                doc.aceite_assinatura
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-200'
+                  : 'bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-200'
+              }`}
+            >
+              <div className="space-y-0.5">
+                <div className="font-bold">{doc.aceite_assinatura ? 'Aprovada e assinada pelo cliente no link' : 'Recusada pelo cliente no link (motivo no histórico do negócio)'}</div>
+                <div>
+                  {doc.aceite_nome}
+                  {doc.aceite_documento ? ` • ${formatarDocumento(String(doc.aceite_documento))}` : ''} • {formatDateTimeBR(doc.aceite_em)} • IP {doc.aceite_ip || '—'}
+                </div>
+                {doc.aceite_hash && <div className="font-mono text-[10px] opacity-70 break-all">hash {doc.aceite_hash}</div>}
+              </div>
+              {doc.aceite_assinatura && (
+                <img src={String(doc.aceite_assinatura)} alt="Assinatura do cliente" className="h-16 bg-white rounded border border-emerald-200 px-2" />
+              )}
             </div>
           )}
 

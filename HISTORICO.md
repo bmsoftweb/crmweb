@@ -2,6 +2,15 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.23 — 2026-09-25
+
+Aprovação da proposta pelo cliente com assinatura digital. Banco: colunas propostas.aceite_* (token, em, nome, documento, ip, navegador, assinatura, hash).
+
+- Envio da proposta (WhatsApp ou e-mail): além do PDF, a mensagem leva o link único /p/<código> para o cliente aprovar e assinar. Ícone "Copiar link" na lista de propostas para mandar por outro meio.
+- Tela do cliente (sem login, pensada para celular): empresa, número/versão, itens, total, validade, condições e PDF. Aprovar: nome, CPF/CNPJ, assinatura desenhada no quadro e "Li e aprovo". Recusar: nome e motivo. Link de proposta já respondida, vencida, substituída por versão nova ou fechada mostra o aviso correspondente.
+- Aprovação: proposta aceita, demais versões fechadas e pedido gerado (mesma rotina do botão Aprovar); grava data/hora, IP, navegador, a imagem da assinatura e o hash SHA-256 do conteúdo aprovado. Recusa: proposta recusada, motivo no histórico. Nos dois casos o dono do negócio é avisado pelo WhatsApp.
+- Na proposta aberta no CRM, quadro com a resposta do cliente (assinatura, documento, data, IP e hash).
+
 ## 0.0.22 — 2026-09-25
 
 Pesquisa de satisfação do WhatsApp. Banco: tabela avaliacoes.

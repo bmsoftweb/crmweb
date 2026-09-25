@@ -10,6 +10,7 @@ import { enviarPdfWhatsApp, telefoneWhatsApp } from './whatsapp.js';
 import { htmlDocumento } from '../src/utils/imprimirDocumento.js';
 import { lerConfig } from './config.js';
 import { recalcularContrato } from './contratos.js';
+import { linkAceite } from './aceite.js';
 
 /** Envolve a rota: qualquer exceção vira 400 com mensagem legível */
 const rota =
@@ -74,7 +75,7 @@ const DOC = {
  * Documento com itens. "empresa_*" é a empresa logada (quem vende, no cabeçalho da impressão);
  * "pessoa_*" é o cliente.
  */
-async function lerDocumento(tipo: TipoDoc, id: string, empresaId: string) {
+export async function lerDocumento(tipo: TipoDoc, id: string, empresaId: string) {
   const d = DOC[tipo];
   const [cab] = await pool.query<any[]>(
     `SELECT t.*, n.titulo AS negocio_titulo, p.nome AS pessoa_nome, p.email AS pessoa_email, p.telefone AS pessoa_telefone,
@@ -157,7 +158,7 @@ export function controleDaVersao(base: string, versao: number): string {
   return `${raiz}-${String(versao).padStart(2, '0')}`.slice(0, 30);
 }
 
-async function registrarHistorico(
+export async function registrarHistorico(
   conn: any,
   empresaId: string,
   dados: { negocio_id?: Id | null; proposta_id?: Id | null; pedido_id?: Id | null; pessoa_id?: Id | null; tipo?: 'nota' | 'email' | 'whatsapp'; descricao: string },
@@ -167,6 +168,58 @@ async function registrarHistorico(
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [empresaId, dados.negocio_id || null, dados.proposta_id || null, dados.pedido_id || null, dados.pessoa_id || null, dados.tipo || 'nota', dados.descricao],
   );
+}
+
+/**
+ * Aprovação da proposta: passa a aceita, fecha as outras versões do mesmo número e gera o pedido.
+ * Usada pelo botão Aprovar do CRM e pelo aceite do cliente no link (server/aceite.ts).
+ */
+export async function aprovarProposta(emp: string, id: string, como = 'aprovada pelo cliente'): Promise<{ pedidoId: number; numeroPedido: number }> {
+  const p = await lerDocumento('proposta', id, emp);
+  if (p.status === 'aceita') throw new Error('Esta proposta já foi aceita.');
+  if (p.status === 'fechada') throw new Error('Proposta fechada: outra versão desta proposta já foi aceita.');
+  if (!p.itens.length) throw new Error('A proposta não tem itens para gerar o pedido.');
+  const gerado = await transacao(async (conn) => {
+    // Uma versão aceita fecha a negociação: as demais versões da mesma proposta ficam "fechada"
+    const [outras] = await conn.query(
+      'SELECT id, versao, status FROM propostas WHERE empresa_id = ? AND numero_proposta = ? AND id <> ? FOR UPDATE',
+      [emp, p.numero_proposta, p.id],
+    );
+    const jaAceita = (outras as any[]).find((o) => o.status === 'aceita');
+    if (jaAceita) throw new Error(`A versão v${jaAceita.versao} desta proposta já foi aceita.`);
+    await conn.query("UPDATE propostas SET status = 'aceita' WHERE id = ?", [p.id]);
+    const fechadas = (outras as any[]).map((o) => o.versao).sort((a, b) => a - b);
+    if (fechadas.length) {
+      await conn.query(
+        "UPDATE propostas SET status = 'fechada' WHERE empresa_id = ? AND numero_proposta = ? AND id <> ?",
+        [emp, p.numero_proposta, p.id],
+      );
+    }
+    const numeroPedido = await proximoNumero(conn, 'pedidos', 'numero_pedido', emp);
+    const [novo] = await conn.query(
+      `INSERT INTO pedidos (numero_pedido, negocio_id, proposta_id, pessoa_id, empresa_id, status, valor_subtotal, valor_desconto,
+                            valor_total, condicao_pagamento, observacoes, data_emissao)
+       VALUES (?, ?, ?, ?, ?, 'rascunho', ?, ?, ?, ?, ?, NOW())`,
+      [numeroPedido, p.negocio_id, p.id, p.pessoa_id, p.empresa_id, p.valor_subtotal, p.valor_desconto, p.valor_total,
+        p.condicoes_pagamento ? String(p.condicoes_pagamento).slice(0, 100) : null, p.observacoes],
+    );
+    const pedidoId = Number(novo.insertId);
+    await conn.query(
+      `INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unitario, desconto, subtotal, criado_em)
+       SELECT ?, produto_id, quantidade, preco_unitario, desconto, subtotal, criado_em
+         FROM proposta_itens WHERE proposta_id = ?`,
+      [pedidoId, p.id],
+    );
+    await registrarHistorico(conn, emp, {
+      negocio_id: p.negocio_id, proposta_id: p.id, pedido_id: pedidoId, pessoa_id: p.pessoa_id,
+      descricao:
+        `Proposta #${p.numero_proposta} v${p.versao} ${como}. Pedido #${numeroPedido} gerado.` +
+        (fechadas.length ? ` Versões fechadas: ${fechadas.map((v) => `v${v}`).join(', ')}.` : ''),
+    });
+    await sincronizarNegocio(p.negocio_id, conn);
+    return { pedidoId, numeroPedido };
+  });
+  return gerado;
 }
 
 export function createCrmRouter() {
@@ -311,13 +364,19 @@ export function createCrmRouter() {
     const titulo = ehProposta ? p.titulo : p.negocio_titulo;
     const via = canal === 'email' ? 'e-mail' : 'WhatsApp';
 
+    // Proposta ainda em negociação: o link para o cliente aprovar e assinar vai no fim da mensagem
+    const link = ehProposta && !['aceita', 'recusada', 'fechada', 'expirada'].includes(p.status) ? await linkAceite(emp, p.id, req) : null;
+    const corpo = link ? `${mensagem}
+
+Para aprovar e assinar a proposta, acesse:
+${link}` : mensagem;
     const pdf = await gerarPdf(htmlDocumento(p, req.params.tipo as 'propostas' | 'pedidos'));
     const arquivo = ehProposta ? `Proposta ${p.numero_proposta}-v${p.versao}.pdf` : `Pedido ${p.numero_pedido}.pdf`;
     if (canal === 'email') {
       const assunto = ehProposta ? `Proposta nº ${p.numero_proposta}` : `Pedido nº ${p.numero_pedido}`;
-      await enviarEmail(emp, { para: destino, assunto: titulo ? `${assunto} — ${titulo}` : assunto, texto: mensagem, anexos: [{ nome: arquivo, conteudo: pdf }] });
+      await enviarEmail(emp, { para: destino, assunto: titulo ? `${assunto} — ${titulo}` : assunto, texto: corpo, anexos: [{ nome: arquivo, conteudo: pdf }] });
     } else {
-      await enviarPdfWhatsApp(emp, telefone, pdf, arquivo, mensagem, { pessoa_id: p.pessoa_id, usuario_id: res.locals.usuarioId });
+      await enviarPdfWhatsApp(emp, telefone, pdf, arquivo, corpo, { pessoa_id: p.pessoa_id, usuario_id: res.locals.usuarioId });
     }
 
     const status = ehProposta && p.status === 'rascunho' ? 'enviada' : p.status;
@@ -346,7 +405,7 @@ export function createCrmRouter() {
       ],
     );
     await sincronizarNegocio(p.negocio_id);
-    res.json({ success: true, status, statusAlterado: status !== p.status, tarefaRetorno: retorno });
+    res.json({ success: true, status, statusAlterado: status !== p.status, tarefaRetorno: retorno, link });
   }));
 
   /** Inclusão (sem :id) ou alteração da proposta com seus itens */
@@ -528,52 +587,16 @@ export function createCrmRouter() {
     res.json({ success: true, ...contrato });
   }));
 
-  router.post('/crm/propostas/:id/aprovar', rota(async (req, res) => {
+  /** Link de aceite para o cliente (o mesmo que vai no envio), para copiar e mandar por outro meio */
+  router.post('/crm/propostas/:id/link', rota(async (req, res) => {
     const emp = empresaDa(res);
     const p = await lerDocumento('proposta', req.params.id, emp);
-    if (p.status === 'aceita') throw new Error('Esta proposta já foi aceita.');
-    if (p.status === 'fechada') throw new Error('Proposta fechada: outra versão desta proposta já foi aceita.');
-    if (!p.itens.length) throw new Error('A proposta não tem itens para gerar o pedido.');
-    const gerado = await transacao(async (conn) => {
-      // Uma versão aceita fecha a negociação: as demais versões da mesma proposta ficam "fechada"
-      const [outras] = await conn.query(
-        'SELECT id, versao, status FROM propostas WHERE empresa_id = ? AND numero_proposta = ? AND id <> ? FOR UPDATE',
-        [emp, p.numero_proposta, p.id],
-      );
-      const jaAceita = (outras as any[]).find((o) => o.status === 'aceita');
-      if (jaAceita) throw new Error(`A versão v${jaAceita.versao} desta proposta já foi aceita.`);
-      await conn.query("UPDATE propostas SET status = 'aceita' WHERE id = ?", [p.id]);
-      const fechadas = (outras as any[]).map((o) => o.versao).sort((a, b) => a - b);
-      if (fechadas.length) {
-        await conn.query(
-          "UPDATE propostas SET status = 'fechada' WHERE empresa_id = ? AND numero_proposta = ? AND id <> ?",
-          [emp, p.numero_proposta, p.id],
-        );
-      }
-      const numeroPedido = await proximoNumero(conn, 'pedidos', 'numero_pedido', emp);
-      const [novo] = await conn.query(
-        `INSERT INTO pedidos (numero_pedido, negocio_id, proposta_id, pessoa_id, empresa_id, status, valor_subtotal, valor_desconto,
-                              valor_total, condicao_pagamento, observacoes, data_emissao)
-         VALUES (?, ?, ?, ?, ?, 'rascunho', ?, ?, ?, ?, ?, NOW())`,
-        [numeroPedido, p.negocio_id, p.id, p.pessoa_id, p.empresa_id, p.valor_subtotal, p.valor_desconto, p.valor_total,
-          p.condicoes_pagamento ? String(p.condicoes_pagamento).slice(0, 100) : null, p.observacoes],
-      );
-      const pedidoId = Number(novo.insertId);
-      await conn.query(
-        `INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unitario, desconto, subtotal, criado_em)
-         SELECT ?, produto_id, quantidade, preco_unitario, desconto, subtotal, criado_em
-           FROM proposta_itens WHERE proposta_id = ?`,
-        [pedidoId, p.id],
-      );
-      await registrarHistorico(conn, emp, {
-        negocio_id: p.negocio_id, proposta_id: p.id, pedido_id: pedidoId, pessoa_id: p.pessoa_id,
-        descricao:
-          `Proposta #${p.numero_proposta} v${p.versao} aprovada pelo cliente. Pedido #${numeroPedido} gerado.` +
-          (fechadas.length ? ` Versões fechadas: ${fechadas.map((v) => `v${v}`).join(', ')}.` : ''),
-      });
-      await sincronizarNegocio(p.negocio_id, conn);
-      return { pedidoId, numeroPedido };
-    });
+    if (['aceita', 'recusada', 'fechada', 'expirada'].includes(p.status)) throw new Error('Esta proposta não está mais em negociação: o link não serve para ela.');
+    res.json({ link: await linkAceite(emp, p.id, req) });
+  }));
+
+  router.post('/crm/propostas/:id/aprovar', rota(async (req, res) => {
+    const gerado = await aprovarProposta(empresaDa(res), req.params.id);
     res.json({ success: true, id: gerado.pedidoId, numero_pedido: gerado.numeroPedido });
   }));
 

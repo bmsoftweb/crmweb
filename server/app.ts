@@ -18,6 +18,7 @@ import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 import { enviarAutomaticas } from './automaticas.js';
 import { responderComBot } from './chatbot.js';
 import { tratarRespostaPesquisa } from './pesquisa.js';
+import { createAceiteRouter } from './aceite.js';
 import { waitUntil } from '@vercel/functions';
 import { lerPermissoes, prepararPermissoes } from './permissoes.js';
 import { PERFIS } from './schema.js';
@@ -154,6 +155,9 @@ export function createApp() {
 
   // Aviso da D4Sign sobre as assinaturas (público: a D4Sign não tem sessão)
   app.use(createWebhookD4SignRouter());
+
+  // Aceite da proposta pelo link enviado ao cliente (público: o token do link identifica a proposta)
+  app.use(createAceiteRouter());
 
   // Avisos da Evolution (mensagens recebidas, entrega e leitura). Público: o token do endereço
   // identifica a empresa. Processa antes de responder (na Vercel a função congela depois)

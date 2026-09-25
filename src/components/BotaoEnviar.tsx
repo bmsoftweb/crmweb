@@ -121,7 +121,7 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
           <span onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
             <ConfirmDialog
               titulo={`Enviar ${nome} por ${envio.canal === 'email' ? 'e-mail' : 'WhatsApp'}`}
-              mensagem={`O PDF ${ehProposta ? 'da proposta' : 'do pedido'} vai anexo.${ehProposta ? ' Proposta em rascunho passa a Enviada.' : ''} O envio fica no histórico do negócio (com a tarefa "Retorno Envio", se estiver ligada em Configurações › Vendas).`}
+              mensagem={`O PDF ${ehProposta ? 'da proposta' : 'do pedido'} vai anexo.${ehProposta ? ' No fim da mensagem vai o link para o cliente aprovar e assinar a proposta. Proposta em rascunho passa a Enviada.' : ''} O envio fica no histórico do negócio (com a tarefa "Retorno Envio", se estiver ligada em Configurações › Vendas).`}
               confirmar="Enviar"
               tom="normal"
               onConfirmar={async () => {
