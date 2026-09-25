@@ -83,6 +83,9 @@ export default function App() {
     return () => clearInterval(i);
   }, [sessao, atualizarNaoVistas]);
 
+  /** Atividade WhatsApp clicada na ficha do negócio: a tela Conversas abre o número do cliente */
+  const [pedidoConversa, setPedidoConversa] = useState<{ atividadeId: string | number; seq: number } | null>(null);
+
   /** Motivo exibido na tela de login quando a sessão é recusada */
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
 
@@ -91,6 +94,14 @@ export default function App() {
     setCreateToken(0);
     setActiveTab(tab);
   }, []);
+
+  const abrirConversa = useCallback(
+    (atividadeId: string | number) => {
+      setPedidoConversa({ atividadeId, seq: Date.now() });
+      navegar('conversas');
+    },
+    [navegar],
+  );
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -176,7 +187,14 @@ export default function App() {
       if (nome === 'negocios') {
         // Inclusão usa o formulário genérico; um negócio existente abre a ficha completa
         return record ? (
-          <NegocioFicha negocioId={record.id} resource={resourceNegocios} onFechar={fechar} onAlterado={aoGravar} onToast={showToast} />
+          <NegocioFicha
+            negocioId={record.id}
+            resource={resourceNegocios}
+            onFechar={fechar}
+            onAlterado={aoGravar}
+            onToast={showToast}
+            onAbrirConversa={abrirConversa}
+          />
         ) : null;
       }
       if (nome === 'propostas' || nome === 'pedidos') {
@@ -184,7 +202,7 @@ export default function App() {
       }
       return null;
     },
-    [resourceNegocios, showToast],
+    [resourceNegocios, showToast, abrirConversa],
   );
 
   // ----------------------------------------------------------
@@ -261,11 +279,17 @@ export default function App() {
 
         {activeTab === 'kanban' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
-            <Kanban resourceNegocios={resourceNegocios} refreshToken={refreshToken} createToken={createToken} onToast={showToast} />
+            <Kanban
+              resourceNegocios={resourceNegocios}
+              refreshToken={refreshToken}
+              createToken={createToken}
+              onToast={showToast}
+              onAbrirConversa={abrirConversa}
+            />
           </main>
         ) : activeTab === 'conversas' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
-            <ConversasView refreshToken={refreshToken} onVisto={atualizarNaoVistas} />
+            <ConversasView refreshToken={refreshToken} onVisto={atualizarNaoVistas} pedido={pedidoConversa} onToast={showToast} />
           </main>
         ) : activeTab === 'configuracoes' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">

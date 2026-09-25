@@ -69,7 +69,7 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
       const d = await fetchDocumento(tipo, registro.id as number);
       if (ehProposta && d.status === 'fechada') return onToast('Proposta fechada: outra versão desta proposta foi aceita.');
       if (!ehProposta && d.status === 'cancelado') return onToast('Pedido cancelado não pode ser enviado.');
-      setEnvio({ canal, destino: String((canal === 'email' ? d.pessoa_email : d.pessoa_telefone) || ''), mensagem: mensagemPadrao(d, tipo) });
+      setEnvio({ canal, destino: String((canal === 'email' ? d.pessoa_email : d.pessoa_whatsapp || d.pessoa_telefone) || ''), mensagem: mensagemPadrao(d, tipo) });
     } catch (err: any) {
       onToast(err.message || `Não foi possível carregar ${ehProposta ? 'a proposta' : 'o pedido'}.`);
     } finally {

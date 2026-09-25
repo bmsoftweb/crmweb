@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { chaveTelefone, conteudoMensagem, telefoneWhatsApp } from './whatsapp.js';
+import { chaveTelefone, conteudoMensagem, escolherDono, telefoneWhatsApp } from './whatsapp.js';
 
 assert.strictEqual(telefoneWhatsApp('(41) 99901-2223'), '5541999012223');
 assert.strictEqual(telefoneWhatsApp('(41)35238200'), '554135238200');
@@ -39,5 +39,15 @@ assert.deepStrictEqual(
   { tipo: 'texto', texto: 'Gostou?\n• Sim\n• Não', arquivo: null },
 );
 assert.deepStrictEqual(conteudoMensagem({ groupInviteMessage: {} }), { tipo: 'outro', texto: null, arquivo: null });
+
+// Dono do número: WhatsApp da pessoa > WhatsApp do contato > celular do contato > telefones; sem DDD por último
+const k = chaveTelefone('554788489722', true)!;
+const pessoaFixo = { de: 'p' as const, pessoa_id: 1, contato_id: null, whatsapp: null, telefone: '(47) 98848-9722' };
+const contatoWhats = { de: 'c' as const, pessoa_id: 2, contato_id: 20, whatsapp: '47 98848 9722', celular: null, telefone: null };
+assert.deepStrictEqual(escolherDono(k, [pessoaFixo, contatoWhats]), { pessoa_id: 2, contato_id: 20 });
+assert.deepStrictEqual(escolherDono(k, [{ ...pessoaFixo, whatsapp: '(47) 98848-9722' }, contatoWhats]), { pessoa_id: 1, contato_id: null });
+assert.deepStrictEqual(escolherDono(k, [{ de: 'c', pessoa_id: 3, contato_id: 30, whatsapp: null, celular: '47988489722', telefone: null }]), { pessoa_id: 3, contato_id: 30 });
+assert.deepStrictEqual(escolherDono(k, [{ de: 'p', pessoa_id: 4, contato_id: null, whatsapp: null, telefone: '8848-9722' }]), { pessoa_id: 4, contato_id: null });
+assert.deepStrictEqual(escolherDono(k, [{ de: 'p', pessoa_id: 5, contato_id: null, whatsapp: null, telefone: '(41) 98848-9722' }]), { pessoa_id: null, contato_id: null });
 
 console.log('whatsapp: ok');

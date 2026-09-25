@@ -2,6 +2,17 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.7 — 2026-09-25
+
+WhatsApp, etapa 3 (mensagens automáticas), contatos das pessoas e nova conversa. Banco: colunas whatsapp_mensagens.origem, erro, nome_contato e contato_id; atividades.lembrete_para; usuarios.telefone; pessoas.whatsapp; tabela pessoas_contatos.
+
+- Mensagens automáticas (Configurações › Mensagens automáticas): lembrete de atividade (X horas antes), proposta perto de vencer, pedido aprovado/faturado, contrato perto de vencer e assinatura pendente. Texto editável com variáveis, liga/desliga e antecedência por evento. Saem das 8h às 20h, junto com as campanhas (cron da Vercel), com a origem reservada antes do envio: o mesmo aviso nunca sai duas vezes.
+- Lembrete de atividade: campo "Lembrete para" na atividade (cliente, vendedor, os dois, ninguém) e mensagem própria para o vendedor (responsável do negócio). Usuários ganham o campo WhatsApp.
+- Ficha do negócio: atividade do tipo WhatsApp pendente abre a conversa com o cliente; enviar a mensagem por ali conclui a atividade.
+- Contatos das pessoas (quem se fala na empresa-cliente): aba Contatos no painel de detalhes da lista de Pessoas, com incluir, editar e excluir; um principal por pessoa. Pessoa ganha o campo WhatsApp, usado primeiro nas campanhas, mensagens automáticas e no envio de proposta/pedido.
+- Conversas: o número é ligado à pessoa ou ao contato (WhatsApp, celular, telefone); mostra o contato e a empresa, o nome do perfil do WhatsApp de quem não está cadastrado ("não cadastrado") e o número ao lado do nome. Cadastro rápido do número como nova pessoa ou como contato de uma pessoa. Botão "Nova" para abrir conversa com uma pessoa, um contato ou um número digitado. Mensagens automáticas aparecem marcadas; as que falharam mostram o motivo.
+- Tipo de atividade WhatsApp; critério de segmento "Tem WhatsApp cadastrado"; variável {{whatsapp}} nas campanhas.
+
 ## 0.0.6 — 2026-09-24
 
 WhatsApp, etapa 2: tela de conversas.

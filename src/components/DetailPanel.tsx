@@ -143,13 +143,22 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
     return rows.reduce((acc, r) => acc + (Number(r[detail.totalField!]) || 0), 0);
   }, [rows, detail?.totalField]);
 
-  /** No formulário de inclusão a chave do pai já vem preenchida (ex.: o funil da etapa) */
+  /**
+   * No formulário a chave do pai já vem preenchida (ex.: o funil da etapa). Chave sem vínculo
+   * escolhível (ex.: a pessoa do contato, só um número) nem aparece: vem do pai ao incluir.
+   */
+  const fkFixa = Boolean(childResource?.fields.find((f) => f.name === detail?.foreignKey && !f.ref));
   const recursoForm = useMemo(
     () =>
       childResource && detail
-        ? { ...childResource, fields: childResource.fields.map((f) => (f.name === detail.foreignKey ? { ...f, default: parentId } : f)) }
+        ? {
+            ...childResource,
+            fields: childResource.fields
+              .filter((f) => !(fkFixa && f.name === detail.foreignKey))
+              .map((f) => (f.name === detail.foreignKey ? { ...f, default: parentId } : f)),
+          }
         : null,
-    [childResource, detail, parentId],
+    [childResource, detail, parentId, fkFixa],
   );
 
   if (!childResource || !detail) return null;
@@ -370,7 +379,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
               onCancel={() => setEditando(null)}
               onSave={async (payload) => {
                 if (editando.record) await updateRecord(childResource.name, pkFilho(editando.record), payload);
-                else await createRecord(childResource.name, payload);
+                else await createRecord(childResource.name, fkFixa ? { ...payload, [detail.foreignKey]: parentId } : payload);
                 setEditando(null);
                 aposAlterar();
               }}

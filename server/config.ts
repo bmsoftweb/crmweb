@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { configSmtpPublica, prepararConfigSmtp, testarSmtp } from './email.js';
 import { configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp, ativarRecebimento } from './whatsapp.js';
+import { automaticasPublica, prepararAutomaticas } from './automaticas.js';
 import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign.js';
 
 /**
@@ -17,7 +18,7 @@ import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarCont
 const CHAVES: Record<string, string[]> = {
   pessoas: ['campos_personalizados'],
   email: ['smtp'],
-  whatsapp: ['provedor'],
+  whatsapp: ['provedor', 'automaticas'],
   // { ativo: boolean } — tarefa "Retorno Envio" ao enviar proposta ou pedido (sem configuração: ligado)
   vendas: ['retorno_envio'],
   assinatura: ['d4sign'],
@@ -30,6 +31,7 @@ const CHAVES: Record<string, string[]> = {
 const COM_SEGREDO: Record<string, { preparar: (valor: any, anterior: any) => any; publica: (valor: any) => any }> = {
   'email.smtp': { preparar: prepararConfigSmtp, publica: configSmtpPublica },
   'whatsapp.provedor': { preparar: prepararConfigWhats, publica: configWhatsPublica },
+  'whatsapp.automaticas': { preparar: prepararAutomaticas, publica: automaticasPublica },
   'assinatura.d4sign': { preparar: prepararConfigD4, publica: configD4Publica },
 };
 export const somenteAdmin = (res: Response) => {

@@ -369,7 +369,7 @@ export function createCrudRouter() {
       const payload = buildWritePayload(resource, req.body || {}, false);
       validateRequired(resource, payload, false);
       await validarVinculos(resource, payload, empresaId);
-      await antesDeGravar(resource.name, payload);
+      await antesDeGravar(resource.name, payload, empresaId);
       await conferirTrava(resource.name, 'incluir', null, payload);
       const filhos = await filhosDoCorpo(resource, req.body, empresaId);
 
@@ -414,7 +414,7 @@ export function createCrudRouter() {
       const payload = buildWritePayload(resource, req.body || {}, true);
       validateRequired(resource, payload, true);
       await validarVinculos(resource, payload, empresaId);
-      await antesDeGravar(resource.name, payload);
+      await antesDeGravar(resource.name, payload, empresaId);
       await conferirTrava(resource.name, 'alterar', req.params.id, payload);
       const filhos = await filhosDoCorpo(resource, req.body, empresaId);
 

@@ -167,13 +167,15 @@ const textoPara = (c: Credenciais, telefone: string, texto: string) =>
 /** Quem e o quê, para registrar a mensagem enviada na conversa */
 interface Registro {
   pessoa_id?: number | null;
+  contato_id?: number | null;
   usuario_id?: number | null;
   disparo_id?: number | null;
 }
 
-export async function enviarWhatsApp(empresaId: string | number, telefone: string, texto: string, reg: Registro = {}): Promise<void> {
+/** Envia texto; devolve o número da conversa (como o WhatsApp o conhece: às vezes sem o 9) */
+export async function enviarWhatsApp(empresaId: string | number, telefone: string, texto: string, reg: Registro = {}): Promise<string> {
   const resposta = await textoPara(await credenciais(empresaId), telefone, texto);
-  await registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'texto', texto });
+  return registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'texto', texto });
 }
 
 /** Envia um PDF como documento, com legenda */
@@ -192,6 +194,50 @@ export async function enviarPdfWhatsApp(
     { rota: 'sendMedia', corpo: { number: telefone, mediatype: 'document', mimetype: 'application/pdf', media: base64, fileName: nomeArquivo, caption: legenda } },
   );
   await registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'documento', texto: legenda || null, arquivo_nome: nomeArquivo });
+}
+
+/** Pausa entre mensagens da empresa, em segundos (Configurações › WhatsApp) */
+export async function intervaloWhatsApp(empresaId: string | number): Promise<number> {
+  return (await credenciais(empresaId)).intervalo;
+}
+
+/**
+ * Mensagem automática (server/automaticas.ts). A origem (evento:registro:momento) é única na
+ * empresa e fica reservada ANTES do envio: o mesmo aviso nunca sai duas vezes, nem com dois
+ * servidores. Provedor em falha desfaz a reserva (tenta no próximo ciclo) e lança ErroProvedor;
+ * destinatário recusado fica como "falhou", com o motivo. Devolve false se já tinha saído.
+ */
+export async function enviarAutomatica(empresaId: string | number, origem: string, pessoaId: number | null, telefone: string, texto: string): Promise<boolean> {
+  const c = await credenciais(empresaId);
+  const [r] = await pool.query<any>(
+    `INSERT IGNORE INTO whatsapp_mensagens (empresa_id, pessoa_id, telefone, direcao, tipo, texto, situacao, origem, vista, data_hora)
+     VALUES (?, ?, ?, 'enviada', 'texto', ?, 'pendente', ?, 1, NOW())`,
+    [empresaId, pessoaId, telefone, texto, origem],
+  );
+  if (!r.affectedRows) return false;
+  let resposta: any;
+  try {
+    resposta = await textoPara(c, telefone, texto);
+  } catch (err: any) {
+    if (err instanceof ErroProvedor) {
+      await pool.query('DELETE FROM whatsapp_mensagens WHERE id = ?', [r.insertId]);
+      throw err;
+    }
+    await pool.query("UPDATE whatsapp_mensagens SET situacao = 'falhou', erro = ? WHERE id = ?", [String(err?.message || err).slice(0, 255), r.insertId]);
+    return true;
+  }
+  // Já saiu: daqui em diante, falha só vai para o log (nunca pode liberar um novo envio)
+  try {
+    const waId: string | null = resposta?.key?.id ?? resposta?.messageId ?? null;
+    const jid = resposta?.key?.remoteJid;
+    const numero = typeof jid === 'string' && jid.endsWith('@s.whatsapp.net') ? digitosDoJid(jid) : telefone;
+    // O aviso do webhook pode ter gravado a mesma mensagem antes: fica a reserva, que tem a origem
+    if (waId) await pool.query('DELETE FROM whatsapp_mensagens WHERE empresa_id = ? AND wa_id = ? AND id <> ?', [empresaId, waId, r.insertId]);
+    await pool.query("UPDATE whatsapp_mensagens SET wa_id = ?, telefone = ?, situacao = 'enviada' WHERE id = ?", [waId, numero, r.insertId]);
+  } catch (err: any) {
+    console.error(`WhatsApp: mensagem automática ${origem} enviada, mas não registrada: ${err.message}`);
+  }
+  return true;
 }
 
 // ------------------------------------------------------------
@@ -215,19 +261,58 @@ export function chaveTelefone(bruto: string | null | undefined, comDdi = false):
   return t.length === 10 || t.length === 11 ? t.slice(0, 2) + t.slice(-8) : null;
 }
 
-/** Pessoa da empresa com esse telefone (a de menor id, se houver mais de uma) */
-export async function pessoaDoTelefone(empresaId: string | number, telefone: string): Promise<number | null> {
-  const chave = chaveTelefone(telefone, true);
-  if (!chave) return null;
-  const [rows] = await pool.query<any[]>(
-    "SELECT id, telefone FROM pessoas WHERE empresa_id = ? AND RIGHT(REGEXP_REPLACE(telefone, '[^0-9]', ''), 8) = ? ORDER BY id",
-    [empresaId, chave.slice(-8)],
-  );
+/** De quem é o número: a pessoa e, quando for de um contato dela, o contato */
+export interface Dono {
+  pessoa_id: number | null;
+  contato_id: number | null;
+}
+
+/**
+ * Onde procurar o número, na ordem de preferência: o WhatsApp da pessoa, o WhatsApp e o celular
+ * dos contatos (ativos), e por último os telefones (fixos, em geral)
+ */
+const CAMPOS_DONO: { de: 'p' | 'c'; campo: 'whatsapp' | 'celular' | 'telefone' }[] = [
+  { de: 'p', campo: 'whatsapp' },
+  { de: 'c', campo: 'whatsapp' },
+  { de: 'c', campo: 'celular' },
+  { de: 'p', campo: 'telefone' },
+  { de: 'c', campo: 'telefone' },
+];
+
+/** Escolhe o dono entre os cadastros candidatos (ordenados por id), pela ordem de CAMPOS_DONO */
+export function escolherDono(chave: string, candidatos: { de: 'p' | 'c'; pessoa_id: number; contato_id: number | null; whatsapp?: string | null; celular?: string | null; telefone?: string | null }[]): Dono {
+  const dono = (c: (typeof candidatos)[number]): Dono => ({ pessoa_id: c.pessoa_id, contato_id: c.de === 'c' ? c.contato_id : null });
+  for (const { de, campo } of CAMPOS_DONO) {
+    const achado = candidatos.find((c) => c.de === de && chaveTelefone(c[campo]) === chave);
+    if (achado) return dono(achado);
+  }
   // Metade dos cadastros importados não tem DDD: sem um com DDD igual, vale o que bate nos 8 dígitos.
   // ponytail: pode ligar à pessoa errada de outro DDD com o mesmo número; cadastrar o DDD resolve
-  const semDdd = (t: string) => /^\d{8,9}$/.test(String(t).replace(/\D/g, '').replace(/^0+/, ''));
-  const achada = rows.find((p) => chaveTelefone(p.telefone) === chave) ?? (chave.startsWith('+') ? undefined : rows.find((p) => semDdd(p.telefone)));
-  return achada?.id ?? null;
+  if (chave.startsWith('+')) return { pessoa_id: null, contato_id: null };
+  const semDdd = (t: string | null | undefined) => /^\d{8,9}$/.test(String(t ?? '').replace(/\D/g, '').replace(/^0+/, ''));
+  for (const { de, campo } of CAMPOS_DONO) {
+    const achado = candidatos.find((c) => c.de === de && semDdd(c[campo]));
+    if (achado) return dono(achado);
+  }
+  return { pessoa_id: null, contato_id: null };
+}
+
+/** De quem é o número (DDI + DDD + número): pessoa e, se for o caso, o contato dela */
+export async function donoDoTelefone(empresaId: string | number, telefone: string): Promise<Dono> {
+  const chave = chaveTelefone(telefone, true);
+  if (!chave) return { pessoa_id: null, contato_id: null };
+  const oito = (c: string) => `RIGHT(REGEXP_REPLACE(${c}, '[^0-9]', ''), 8) = ?`;
+  const fim = chave.slice(-8);
+  const [rows] = await pool.query<any[]>(
+    `SELECT 'p' AS de, id AS pessoa_id, NULL AS contato_id, whatsapp, NULL AS celular, telefone
+       FROM pessoas WHERE empresa_id = ? AND (${oito('whatsapp')} OR ${oito('telefone')})
+     UNION ALL
+     SELECT 'c', pessoa_id, id, whatsapp, celular, telefone
+       FROM pessoas_contatos WHERE empresa_id = ? AND ativo = 1 AND (${oito('whatsapp')} OR ${oito('celular')} OR ${oito('telefone')})
+     ORDER BY pessoa_id, contato_id`,
+    [empresaId, fim, fim, empresaId, fim, fim, fim],
+  );
+  return escolherDono(chave, rows);
 }
 
 /**
@@ -253,33 +338,35 @@ async function repassarAoDisparo(empresaId: string | number, waId: string) {
 /**
  * Registra a mensagem enviada pelo CRM. O id devolvido pelo provedor liga os avisos de
  * entrega/leitura a ela; o JID da resposta é o número como o WhatsApp o conhece (às vezes sem o 9).
- * Falha aqui não desfaz o envio: só fica no log.
+ * Falha aqui não desfaz o envio: só fica no log. Devolve o número da conversa.
  */
 async function registrarEnviada(
   empresaId: string | number,
   telefone: string,
   resposta: any,
   m: Registro & { tipo: string; texto: string | null; arquivo_nome?: string },
-) {
+): Promise<string> {
+  const jid = resposta?.key?.remoteJid;
+  const numero = typeof jid === 'string' && jid.endsWith('@s.whatsapp.net') ? digitosDoJid(jid) : telefone;
   try {
     const waId: string | null = resposta?.key?.id ?? resposta?.messageId ?? null;
-    const jid = resposta?.key?.remoteJid;
-    const numero = typeof jid === 'string' && jid.endsWith('@s.whatsapp.net') ? digitosDoJid(jid) : telefone;
-    const pessoaId = m.pessoa_id ?? (await pessoaDoTelefone(empresaId, numero));
+    // Sem a pessoa (resposta pela conversa, proposta), procura pelo número; com ela, o contato vem junto se o número for dele
+    const dono = m.pessoa_id ? { pessoa_id: m.pessoa_id, contato_id: m.contato_id ?? null } : await donoDoTelefone(empresaId, numero);
     await pool.query(
       `INSERT INTO whatsapp_mensagens
-         (empresa_id, pessoa_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, situacao, disparo_id, usuario_id, vista, data_hora)
-       VALUES (?, ?, ?, 'enviada', ?, ?, ?, ?, 'enviada', ?, ?, 1, NOW())
-       ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)),
+         (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, situacao, disparo_id, usuario_id, vista, data_hora)
+       VALUES (?, ?, ?, ?, 'enviada', ?, ?, ?, ?, 'enviada', ?, ?, 1, NOW())
+       ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)), contato_id = COALESCE(contato_id, VALUES(contato_id)),
          disparo_id = COALESCE(disparo_id, VALUES(disparo_id)), usuario_id = COALESCE(usuario_id, VALUES(usuario_id)),
          arquivo_nome = COALESCE(arquivo_nome, VALUES(arquivo_nome))`,
-      [empresaId, pessoaId, numero, m.tipo, m.texto, m.arquivo_nome ?? null, waId, m.disparo_id ?? null, m.usuario_id ?? null],
+      [empresaId, dono.pessoa_id, dono.contato_id, numero, m.tipo, m.texto, m.arquivo_nome ?? null, waId, m.disparo_id ?? null, m.usuario_id ?? null],
     );
     // O aviso de entrega pode ter chegado antes deste registro
     if (waId && m.disparo_id) await repassarAoDisparo(empresaId, waId);
   } catch (err: any) {
     console.error(`WhatsApp: mensagem enviada para ${telefone} não registrada: ${err.message}`);
   }
+  return numero;
 }
 
 /** Tipo, texto e arquivo de uma mensagem do WhatsApp (Baileys); null para o que não é conversa */
@@ -336,13 +423,15 @@ async function gravarMensagem(empresaId: string | number, d: any) {
   if (!c) return;
   const telefone = digitosDoJid(jid);
   const recebida = !key.fromMe;
-  const pessoaId = await pessoaDoTelefone(empresaId, telefone);
+  const dono = await donoDoTelefone(empresaId, telefone);
   const ts = Number(d.messageTimestamp) || null;
+  // Nome do perfil no WhatsApp de quem mandou: identifica quem ainda não está em Pessoas
+  const nomeContato = recebida && typeof d.pushName === 'string' && d.pushName.trim() ? d.pushName.trim().slice(0, 150) : null;
   await pool.query(
-    `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, situacao, vista, data_hora)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(FROM_UNIXTIME(?), NOW()))
-     ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id))`,
-    [empresaId, pessoaId, telefone, recebida ? 'recebida' : 'enviada', c.tipo, c.texto, c.arquivo, key.id, recebida ? 'recebida' : 'enviada', recebida ? 0 : 1, ts],
+    `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, nome_contato, direcao, tipo, texto, arquivo_nome, wa_id, situacao, vista, data_hora)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(FROM_UNIXTIME(?), NOW()))
+     ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)), contato_id = COALESCE(contato_id, VALUES(contato_id))`,
+    [empresaId, dono.pessoa_id, dono.contato_id, telefone, nomeContato, recebida ? 'recebida' : 'enviada', c.tipo, c.texto, c.arquivo, key.id, recebida ? 'recebida' : 'enviada', recebida ? 0 : 1, ts],
   );
 }
 
@@ -518,7 +607,7 @@ export async function enviarPendentes(limite = 50, prazoMs = Infinity): Promise<
     try {
       const colunas = Object.entries(VARIAVEIS).map(([k, sql]) => `${sql} AS ${k}`).join(', ');
       const [fila] = await conn.query<any[]>(
-        `SELECT d.id, d.pessoa_id, c.empresa_id, m.assunto, m.corpo, p.telefone AS telefone_destino, ${colunas}
+        `SELECT d.id, d.pessoa_id, c.empresa_id, m.assunto, m.corpo, COALESCE(NULLIF(p.whatsapp, ''), p.telefone) AS telefone_destino, ${colunas}
            FROM disparos_mensagens d
            JOIN campanha_mensagens m ON m.id = d.mensagem_id
            JOIN campanhas c ON c.id = m.campanha_id

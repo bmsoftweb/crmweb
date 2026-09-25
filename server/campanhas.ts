@@ -75,11 +75,12 @@ export const REGRAS: Record<string, { rotulo: string; valor: 'numero' | 'texto' 
   },
   tem_email: { rotulo: 'Tem e-mail', valor: 'sim_nao', sql: `(p.email IS NOT NULL AND p.email <> '')` },
   tem_telefone: { rotulo: 'Tem telefone', valor: 'sim_nao', sql: `(p.telefone IS NOT NULL AND p.telefone <> '')` },
-  // DDD + 9 + 8 dígitos (com ou sem 0/55 na frente); sem DDD não dá para mandar WhatsApp
+  tem_whatsapp: { rotulo: 'Tem WhatsApp cadastrado', valor: 'sim_nao', sql: `(p.whatsapp IS NOT NULL AND p.whatsapp <> '')` },
+  // DDD + 9 + 8 dígitos (com ou sem 0/55 na frente), no WhatsApp ou, sem ele, no telefone; sem DDD não dá para mandar WhatsApp
   tem_celular: {
     rotulo: 'Tem celular (com DDD)',
     valor: 'sim_nao',
-    sql: `(REGEXP_REPLACE(COALESCE(p.telefone, ''), '[^0-9]', '') REGEXP '^0*(55)?[1-9]{2}9[0-9]{8}$')`,
+    sql: `(REGEXP_REPLACE(COALESCE(NULLIF(p.whatsapp, ''), p.telefone, ''), '[^0-9]', '') REGEXP '^0*(55)?[1-9]{2}9[0-9]{8}$')`,
   },
 };
 
@@ -169,6 +170,7 @@ export const VARIAVEIS: Record<string, string> = {
   primeiro_nome: "SUBSTRING_INDEX(TRIM(p.nome), ' ', 1)",
   email: 'p.email',
   telefone: 'p.telefone',
+  whatsapp: "COALESCE(NULLIF(p.whatsapp, ''), p.telefone)",
   cidade: `(SELECT e.cidade FROM pessoas_enderecos e WHERE e.pessoa_id = p.id ORDER BY e.principal DESC, e.id LIMIT 1)`,
   ultima_compra: `(SELECT DATE_FORMAT(MAX(pd.data_emissao), '%d/%m/%Y') FROM pedidos pd WHERE pd.pessoa_id = p.id AND pd.status <> 'cancelado')`,
   empresa: '(SELECT nome FROM empresas WHERE id = p.empresa_id)',
@@ -204,7 +206,7 @@ export function personalizar(texto: string | null | undefined, dados: Record<str
 const CONTATO_DO_CANAL: Record<string, string> = {
   email: "AND p.email IS NOT NULL AND p.email <> ''",
   sms: "AND p.telefone IS NOT NULL AND p.telefone <> ''",
-  whatsapp: "AND p.telefone IS NOT NULL AND p.telefone <> ''",
+  whatsapp: "AND COALESCE(NULLIF(p.whatsapp, ''), p.telefone) <> ''",
 };
 
 export function createCampanhasRouter() {

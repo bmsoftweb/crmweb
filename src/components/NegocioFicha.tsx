@@ -43,12 +43,14 @@ interface NegocioFichaProps {
   /** Algo mudou (etapa, status, atividades...): quem abriu recarrega a lista/Kanban */
   onAlterado: () => void;
   onToast: (msg: string) => void;
+  /** Atividade WhatsApp pendente: abre a tela Conversas no número do cliente */
+  onAbrirConversa?: (atividadeId: Id) => void;
 }
 
 type Aba = 'atividades' | 'historico' | 'propostas' | 'pedidos';
 type Visao = { tipo: 'ficha' } | { tipo: 'propostas' | 'pedidos'; id: Id | null };
 
-export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource, onFechar, onAlterado, onToast }) => {
+export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource, onFechar, onAlterado, onToast, onAbrirConversa }) => {
   const [ficha, setFicha] = useState<FichaNegocio | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba>('atividades');
@@ -318,6 +320,8 @@ export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource,
               const feita = Boolean(Number(a.concluida));
               const Icone = iconeAtividade(a.tipo);
               const cor = feita ? '' : COR_SEMAFORO[semaforoFollowup(a.data_vencimento, a.hora_vencimento)].texto;
+              // Atividade WhatsApp pendente: o clique abre a conversa com o cliente
+              const conversa = a.tipo === 'whatsapp' && !feita && Boolean(onAbrirConversa);
               return (
                 <div key={a.id} className="flex items-start gap-3 p-3 rounded-xl border border-stone-200 dark:border-stone-800 group">
                   <button
@@ -333,8 +337,15 @@ export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource,
                     <Check className="w-3 h-3" />
                   </button>
                   <Icone className="w-4 h-4 mt-0.5 text-stone-400 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-semibold ${feita ? 'line-through text-stone-400' : 'text-stone-800 dark:text-stone-100'}`}>{a.assunto}</div>
+                  <div
+                    className={`flex-1 min-w-0 ${conversa ? 'cursor-pointer rounded-lg -m-1 p-1 hover:bg-emerald-50 dark:hover:bg-emerald-950/30' : ''}`}
+                    onClick={conversa ? () => onAbrirConversa!(a.id) : undefined}
+                    title={conversa ? 'Abrir a conversa no WhatsApp (enviar a mensagem conclui a atividade)' : undefined}
+                  >
+                    <div className={`text-xs font-semibold ${feita ? 'line-through text-stone-400' : 'text-stone-800 dark:text-stone-100'}`}>
+                      {a.assunto}
+                      {conversa && <span className="ml-2 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Abrir conversa ›</span>}
+                    </div>
                     <div className={`text-[11px] ${cor || 'text-stone-400'}`}>
                       {quando(a.data_vencimento, a.hora_vencimento)}
                       {feita && a.concluida_em && ` • concluída em ${formatDateTimeBR(a.concluida_em)}`}

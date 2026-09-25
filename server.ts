@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { createApp } from './server/app.js';
 import { iniciarEnvioWhatsApp } from './server/whatsapp.js';
 import { iniciarRotinaContratos } from './server/contratos.js';
+import { iniciarAutomaticas } from './server/automaticas.js';
 
 /** Entrada para execução local (npm run dev / start). Na Vercel quem serve as rotas é api/index.ts */
 const PORT = Number(process.env.PORT) || 3000;
@@ -30,6 +31,7 @@ async function startServer() {
     console.log(`CRM Web rodando em http://0.0.0.0:${PORT}`);
     console.log(`MySQL: ${process.env.MYSQL_HOST} / ${process.env.MYSQL_DATABASE || 'crmweb'}`);
     iniciarEnvioWhatsApp();
+    iniciarAutomaticas();
     iniciarRotinaContratos();
   });
 }

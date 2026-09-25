@@ -77,7 +77,7 @@ async function lerDocumento(tipo: TipoDoc, id: string, empresaId: string) {
   const d = DOC[tipo];
   const [cab] = await pool.query<any[]>(
     `SELECT t.*, n.titulo AS negocio_titulo, p.nome AS pessoa_nome, p.email AS pessoa_email, p.telefone AS pessoa_telefone,
-            p.cpf AS pessoa_cpf, e.nome AS empresa_nome, e.cnpj AS empresa_cnpj, e.endereco AS empresa_endereco, e.logo AS empresa_logo
+            p.whatsapp AS pessoa_whatsapp, p.cpf AS pessoa_cpf, e.nome AS empresa_nome, e.cnpj AS empresa_cnpj, e.endereco AS empresa_endereco, e.logo AS empresa_logo
        FROM ${d.tabela} t
        LEFT JOIN negocios n ON n.id = t.negocio_id
        LEFT JOIN pessoas p ON p.id = t.pessoa_id

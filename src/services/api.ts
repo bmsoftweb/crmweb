@@ -434,6 +434,12 @@ export interface ConversaResumo {
   telefone: string;
   pessoa_id: number | null;
   nome: string | null;
+  /** Contato da pessoa dono do número (pessoas_contatos), com departamento ou cargo */
+  contato_id: number | null;
+  contato_nome: string | null;
+  contato_setor: string | null;
+  /** Nome do perfil no WhatsApp (quem não está em Pessoas) */
+  nome_contato: string | null;
   direcao: 'recebida' | 'enviada';
   tipo: string;
   texto: string | null;
@@ -452,14 +458,52 @@ export interface MensagemWhatsApp {
   situacao: 'pendente' | 'enviada' | 'entregue' | 'lida' | 'falhou' | 'recebida';
   usuario_nome: string | null;
   campanha: boolean;
+  /** Mensagem automática (Configurações › Mensagens automáticas) */
+  automatica: boolean;
+  /** Motivo, quando não saiu */
+  erro: string | null;
   data_hora: string;
 }
 
 export const fetchConversas = (busca = ''): Promise<ConversaResumo[]> =>
   get(`/api/whatsapp/conversas?busca=${encodeURIComponent(busca)}`);
 /** Mensagens da conversa; abrir marca as recebidas como vistas */
-export const fetchConversa = (telefone: string): Promise<{ pessoa: { id: number; nome: string } | null; mensagens: MensagemWhatsApp[] }> =>
+export const fetchConversa = (
+  telefone: string,
+): Promise<{
+  pessoa: { id: number; nome: string } | null;
+  contato: { id: number; nome: string; cargo: string | null; departamento: string | null } | null;
+  nome_contato: string | null;
+  mensagens: MensagemWhatsApp[];
+}> =>
   get(`/api/whatsapp/conversas/${encodeURIComponent(telefone)}`);
-export const responderConversa = (telefone: string, texto: string): Promise<{ success: boolean }> =>
-  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, { texto });
+/** Envia pela conversa; com a atividade que a abriu, conclui a atividade. telefone: o número da conversa (pode vir sem o 9) */
+export const responderConversa = (
+  telefone: string,
+  texto: string,
+  atividadeId?: number | null,
+): Promise<{ success: boolean; telefone: string; atividade_concluida: boolean }> =>
+  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, { texto, atividade_id: atividadeId ?? null });
+/** Conversa de uma atividade WhatsApp: o número do cliente (pessoa da atividade ou do negócio) */
+export const fetchConversaDaAtividade = (
+  id: Id,
+): Promise<{ telefone: string; nome: string | null; atividade: { id: number; assunto: string; concluida: boolean } }> =>
+  get(`/api/whatsapp/atividades/${encodeURIComponent(String(id))}/conversa`);
 export const fetchNaoVistas = (): Promise<{ total: number }> => get('/api/whatsapp/nao-vistas');
+
+/** Para quem dá para abrir uma conversa: pessoa, contato ou o número digitado */
+export interface DestinoConversa {
+  tipo: 'pessoa' | 'contato' | 'numero';
+  pessoa_id: number | null;
+  contato_id: number | null;
+  nome: string;
+  /** Contato: setor e a pessoa (empresa-cliente) */
+  detalhe: string | null;
+  /** Como está no cadastro */
+  fone: string | null;
+  /** Número da conversa; null quando não dá para mandar (aviso diz o motivo) */
+  telefone: string | null;
+  aviso: string | null;
+}
+export const fetchDestinosConversa = (busca: string): Promise<DestinoConversa[]> =>
+  get(`/api/whatsapp/destinos?busca=${encodeURIComponent(busca)}`);

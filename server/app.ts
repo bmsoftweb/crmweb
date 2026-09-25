@@ -14,6 +14,7 @@ import { createCampanhasRouter } from './campanhas.js';
 import { createConversasRouter } from './conversas.js';
 import { createContratosRouter, createWebhookD4SignRouter, rotinaContratos } from './contratos.js';
 import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
+import { enviarAutomaticas } from './automaticas.js';
 
 // ==========================================================
 // Sessão: token "usuarioId.expiracao.assinatura" (HMAC-SHA256)
@@ -173,8 +174,8 @@ export function createApp() {
       res.status(500).json({ error: err.message });
     }
   };
-  // A função tem até 60 s: o envio para em 45 s e o resto fica para o minuto seguinte
-  app.get('/api/cron/whatsapp', cron(() => enviarPendentes(50, 45_000)));
+  // A função tem até 60 s: campanhas até 25 s, automáticas até 20 s; o resto fica para o minuto seguinte
+  app.get('/api/cron/whatsapp', cron(async () => ({ campanhas: await enviarPendentes(50, 25_000), automaticas: await enviarAutomaticas(20_000) })));
   app.get('/api/cron/contratos', cron(rotinaContratos));
 
   // ==========================================================

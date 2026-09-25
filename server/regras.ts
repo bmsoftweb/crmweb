@@ -38,7 +38,12 @@ export async function sincronizarNegocio(negocioId: string | null | undefined, d
  * Ajustes no que vai ser gravado. Negócio: o funil vem sempre da etapa escolhida,
  * para que funil e etapa nunca fiquem desencontrados.
  */
-export async function antesDeGravar(recurso: string, payload: Record<string, any>) {
+export async function antesDeGravar(recurso: string, payload: Record<string, any>, empresaId?: string) {
+  // Contato: a pessoa precisa ser da empresa logada (o campo não é um vínculo escolhido na tela)
+  if (recurso === 'pessoas_contatos' && payload.pessoa_id != null) {
+    const [rows] = await pool.query<any[]>('SELECT 1 FROM pessoas WHERE id = ? AND empresa_id = ?', [payload.pessoa_id, empresaId]);
+    if (!rows.length) throw new Error('A pessoa do contato não existe nesta empresa.');
+  }
   if (recurso === 'negocios' && payload.etapa_id) {
     const [rows] = await pool.query<any[]>('SELECT funil_id FROM etapas WHERE id = ?', [payload.etapa_id]);
     if (!rows.length) throw new Error('A etapa escolhida não existe.');
@@ -91,6 +96,22 @@ export async function aposGravar(recurso: string, id: string | null, negociosAnt
   // (importação do bmsoft, por exemplo) já chega com o código do sistema de origem
   if (recurso === 'pessoas' && id) {
     await db.query("UPDATE pessoas SET cod_integracao = CONCAT('CRMWEB-', id) WHERE id = ? AND cod_integracao IS NULL", [id]);
+  }
+
+  // Contato: um principal só por pessoa, e ativo (sem nenhum marcado, o primeiro ativo assume)
+  if (recurso === 'pessoas_contatos' && id) {
+    const [rows] = await db.query<any[]>('SELECT pessoa_id, principal, ativo FROM pessoas_contatos WHERE id = ?', [id]);
+    const c = rows[0];
+    if (c) {
+      if (Number(c.principal) && !Number(c.ativo)) await db.query('UPDATE pessoas_contatos SET principal = 0 WHERE id = ?', [id]);
+      else if (Number(c.principal)) await db.query('UPDATE pessoas_contatos SET principal = 0 WHERE pessoa_id = ? AND id <> ?', [c.pessoa_id, id]);
+      await db.query(
+        `UPDATE pessoas_contatos SET principal = 1
+          WHERE id = (SELECT id FROM (SELECT id FROM pessoas_contatos WHERE pessoa_id = ? AND ativo = 1 ORDER BY id LIMIT 1) primeiro)
+            AND NOT EXISTS (SELECT 1 FROM (SELECT id FROM pessoas_contatos WHERE pessoa_id = ? AND principal = 1 AND ativo = 1) marcado)`,
+        [c.pessoa_id, c.pessoa_id],
+      );
+    }
   }
 
   if (recurso === 'negocios' && id) {

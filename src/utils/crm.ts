@@ -21,6 +21,14 @@ export const TIPOS_ATIVIDADE: { value: string; label: string; icon: LucideIcon }
   { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
 ];
 
+/** Para quem vai o lembrete automático da atividade (o mesmo de server/schema.ts) */
+export const LEMBRETE_PARA = [
+  { value: 'cliente', label: 'Cliente' },
+  { value: 'vendedor', label: 'Vendedor' },
+  { value: 'ambos', label: 'Cliente e vendedor' },
+  { value: 'nenhum', label: 'Ninguém' },
+];
+
 export const TIPOS_INTERACAO: { value: string; label: string; icon: LucideIcon }[] = [
   { value: 'nota', label: 'Nota', icon: StickyNote },
   { value: 'ligacao', label: 'Ligação', icon: Phone },

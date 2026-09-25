@@ -31,6 +31,8 @@ interface KanbanProps {
   /** Botão "Novo" do Header */
   createToken: number;
   onToast: (msg: string) => void;
+  /** Atividade WhatsApp na ficha do negócio: abre a tela Conversas */
+  onAbrirConversa?: (atividadeId: Id) => void;
 }
 
 const CHAVE_FUNIL = 'crmweb_funil_atual';
@@ -42,7 +44,7 @@ const lerFunilSalvo = () => {
   }
 };
 
-export const Kanban: React.FC<KanbanProps> = ({ resourceNegocios, refreshToken, createToken, onToast }) => {
+export const Kanban: React.FC<KanbanProps> = ({ resourceNegocios, refreshToken, createToken, onToast, onAbrirConversa }) => {
   const [funis, setFunis] = useState<Funil[] | null>(null);
   const [funilId, setFunilId] = useState<Id | null>(lerFunilSalvo);
   const [cards, setCards] = useState<CardNegocio[]>([]);
@@ -226,6 +228,7 @@ export const Kanban: React.FC<KanbanProps> = ({ resourceNegocios, refreshToken, 
             onFechar={() => setFichaId(null)}
             onAlterado={carregarCards}
             onToast={onToast}
+            onAbrirConversa={onAbrirConversa}
           />
         </div>
       </div>

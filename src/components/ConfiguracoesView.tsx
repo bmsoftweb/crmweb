@@ -3,6 +3,7 @@ import { Usuario } from '../types';
 import { CamposPersonalizados } from './CamposPersonalizados';
 import { ConfigEmail } from './ConfigEmail';
 import { ConfigWhatsApp } from './ConfigWhatsApp';
+import { ConfigAutomaticas } from './ConfigAutomaticas';
 import { ConfigVendas } from './ConfigVendas';
 import { ConfigAssinatura } from './ConfigAssinatura';
 import { ModelosContrato } from './ModelosContrato';
@@ -26,6 +27,11 @@ const ABAS = [
     id: 'whatsapp',
     titulo: 'WhatsApp',
     descricao: 'Provedor usado para enviar propostas e as mensagens das campanhas.',
+  },
+  {
+    id: 'automaticas',
+    titulo: 'Mensagens automáticas',
+    descricao: 'WhatsApp enviado ao cliente quando algo acontece no CRM: lembrete de atividade, proposta e contrato perto de vencer, pedido aprovado ou faturado.',
   },
   {
     id: 'vendas',
@@ -89,6 +95,7 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
           {aba === 'pessoas' && <CamposPersonalizados somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'email' && <ConfigEmail somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'whatsapp' && <ConfigWhatsApp somenteLeitura={somenteLeitura} onToast={onToast} />}
+          {aba === 'automaticas' && <ConfigAutomaticas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'vendas' && <ConfigVendas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'assinatura' && <ConfigAssinatura somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'modelos_contrato' && <ModelosContrato somenteLeitura={somenteLeitura} onToast={onToast} />}

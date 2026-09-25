@@ -4,7 +4,7 @@ import { createRecord } from '../services/api';
 import { Id } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
-import { TIPOS_ATIVIDADE } from '../utils/crm';
+import { LEMBRETE_PARA, TIPOS_ATIVIDADE } from '../utils/crm';
 import { DateField } from './DateField';
 import { Toggle } from './Toggle';
 import { AvisoErro } from './AvisoErro';
@@ -26,6 +26,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
   const [data, setData] = useState(hojeIso());
   const [hora, setHora] = useState('');
   const [duracao, setDuracao] = useState('00:15');
+  const [lembretePara, setLembretePara] = useState('cliente');
   const [observacao, setObservacao] = useState('');
   const [concluida, setConcluida] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -43,6 +44,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
         data_vencimento: data,
         hora_vencimento: hora || null,
         duracao: duracao || null,
+        lembrete_para: lembretePara,
         observacao: observacao || null,
         concluida: concluida ? 1 : 0,
         negocio_id: negocioId || null,
@@ -121,6 +123,17 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
               <label htmlFor="atv-duracao" className={LABEL_CLASS}>Duração</label>
               <input id="atv-duracao" type="time" value={duracao} onChange={(e) => setDuracao(e.target.value)} className={`${INPUT_CLASS} w-full`} />
             </div>
+          </div>
+
+          <div className={FIELD_CLASS}>
+            <label htmlFor="atv-lembrete" className={LABEL_CLASS}>Lembrete por WhatsApp para</label>
+            <select id="atv-lembrete" value={lembretePara} onChange={(e) => setLembretePara(e.target.value)} className={`${INPUT_CLASS} w-full sm:w-1/2 cursor-pointer`}>
+              {LEMBRETE_PARA.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className={FIELD_CLASS}>

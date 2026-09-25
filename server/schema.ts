@@ -143,6 +143,24 @@ export const TIPOS_ATIVIDADE = [
   { value: 'whatsapp', label: 'WhatsApp' },
 ];
 
+/** Papel do contato na venda */
+export const PAPEIS_CONTATO = [
+  { value: 'decisor', label: 'Decisor' },
+  { value: 'influenciador', label: 'Influenciador' },
+  { value: 'usuario', label: 'Usuário' },
+  { value: 'financeiro', label: 'Financeiro' },
+  { value: 'tecnico', label: 'Técnico' },
+  { value: 'outro', label: 'Outro' },
+];
+
+/** Para quem vai o lembrete automático da atividade (Configurações › Mensagens automáticas) */
+export const LEMBRETE_PARA = [
+  { value: 'cliente', label: 'Cliente' },
+  { value: 'vendedor', label: 'Vendedor' },
+  { value: 'ambos', label: 'Cliente e vendedor' },
+  { value: 'nenhum', label: 'Ninguém' },
+];
+
 export const TIPOS_PESSOA = [
   { value: 'lead', label: 'Lead' },
   { value: 'cliente', label: 'Cliente' },
@@ -358,6 +376,15 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'data_vencimento', label: 'Vencimento', type: 'date', required: true, listed: true, filterable: true },
       { name: 'hora_vencimento', label: 'Hora', type: 'time', listed: true },
       { name: 'duracao', label: 'Duração', type: 'time', default: '00:15' },
+      {
+        name: 'lembrete_para',
+        label: 'Lembrete para',
+        type: 'enum',
+        required: true,
+        options: LEMBRETE_PARA,
+        default: 'cliente',
+        hint: 'WhatsApp automático antes da atividade, se ligado em Configurações › Mensagens automáticas. Vendedor = responsável do negócio.',
+      },
       { name: 'negocio_id', label: 'Negócio', type: 'text', listed: true, filterable: true, ref: { resource: 'negocios', labelField: 'titulo' } },
       { name: 'pessoa_id', label: 'Contato', type: 'text', listed: true, ref: { resource: 'pessoas', labelField: 'nome' } },
       { name: 'concluida', label: 'Concluída', type: 'boolean', listed: true, filterable: true },
@@ -681,6 +708,7 @@ export const RESOURCES: ResourceDef[] = [
     details: [
       { resource: 'negocios', foreignKey: 'pessoa_id', label: 'Negócios', totalField: 'valor' },
       { resource: 'atividades', foreignKey: 'pessoa_id', label: 'Atividades' },
+      { resource: 'pessoas_contatos', foreignKey: 'pessoa_id', label: 'Contatos', editavel: true },
       { resource: 'pessoas_enderecos', foreignKey: 'pessoa_id', label: 'Endereços' },
     ],
     fields: [
@@ -691,6 +719,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'segmento_id', label: 'Segmento', type: 'text', listed: true, filterable: true, ref: { resource: 'segmentos', labelField: 'nome' } },
       { name: 'email', label: 'E-mail', type: 'text', listed: true, searchable: true, maxLength: 255 },
       { name: 'telefone', label: 'Telefone', type: 'text', listed: true, searchable: true, maxLength: 50 },
+      { name: 'whatsapp', label: 'WhatsApp', type: 'text', listed: true, searchable: true, maxLength: 20, hint: 'Com DDD. Usado nas campanhas e mensagens automáticas (sem ele, vale o telefone)' },
       { name: 'cpf', label: 'CPF', type: 'text', searchable: true, maxLength: 14, placeholder: '000.000.000-00' },
       { name: 'obs', label: 'Observação', type: 'textarea' },
       { name: 'personalizados', label: 'Campos Personalizados', type: 'personalizados' },
@@ -707,6 +736,48 @@ export const RESOURCES: ResourceDef[] = [
         sql: `(SELECT NULLIF(CONCAT_WS(' / ', e.cidade, e.uf), '') FROM pessoas_enderecos e
                 WHERE e.pessoa_id = t.id ORDER BY e.principal DESC, e.id LIMIT 1)`,
       },
+      ...CRIADO_ATUALIZADO,
+    ],
+  },
+  {
+    // Contatos da pessoa: quem se fala dentro da empresa-cliente. Mantidos no detalhe da pessoa
+    name: 'pessoas_contatos',
+    table: 'pessoas_contatos',
+    tenantColumn: 'empresa_id',
+    scopeSql: 't.empresa_id = ?',
+    label: 'Contatos',
+    labelSingular: 'Contato',
+    description: 'Contatos das pessoas (quem se fala na empresa-cliente)',
+    icon: 'Users',
+    group: 'cadastros',
+    oculto: true,
+    pk: ['id'],
+    autoIncrement: true,
+    labelField: 'nome',
+    defaultSort: { field: 'principal', dir: 'desc' },
+    canCreate: true,
+    canUpdate: true,
+    canDelete: true,
+    fields: [
+      ID,
+      // sem ref: o painel já está na pessoa (o servidor confere que ela é da empresa)
+      { name: 'pessoa_id', label: 'Pessoa', type: 'number', required: true },
+      { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 150, span: 2 },
+      { name: 'cargo', label: 'Cargo', type: 'text', listed: true, maxLength: 100 },
+      { name: 'departamento', label: 'Departamento', type: 'text', listed: true, maxLength: 100 },
+      { name: 'papel', label: 'Papel na venda', type: 'enum', listed: true, options: PAPEIS_CONTATO },
+      { name: 'whatsapp', label: 'WhatsApp', type: 'text', listed: true, maxLength: 20, placeholder: '(00) 00000-0000' },
+      { name: 'celular', label: 'Celular', type: 'text', listed: true, maxLength: 20, placeholder: '(00) 00000-0000' },
+      { name: 'telefone', label: 'Telefone', type: 'text', maxLength: 20 },
+      { name: 'ramal', label: 'Ramal', type: 'text', maxLength: 10 },
+      { name: 'email', label: 'E-mail', type: 'text', listed: true, maxLength: 255, span: 2 },
+      { name: 'data_nascimento', label: 'Nascimento', type: 'date' },
+      { name: 'linkedin', label: 'LinkedIn', type: 'text', maxLength: 255, placeholder: 'https://www.linkedin.com/in/...' },
+      { name: 'principal', label: 'Principal', type: 'boolean', listed: true, hint: 'Um só por pessoa: marcar este desmarca o anterior' },
+      { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, default: true, hint: 'Desligue quando sair da empresa-cliente: fica no histórico, mas não recebe mensagens' },
+      { name: 'aceita_whatsapp', label: 'Aceita WhatsApp', type: 'boolean', default: true },
+      { name: 'aceita_email', label: 'Aceita e-mail', type: 'boolean', default: true },
+      { name: 'obs', label: 'Observação', type: 'textarea' },
       ...CRIADO_ATUALIZADO,
     ],
   },
@@ -1103,6 +1174,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'id', label: 'ID', type: 'number', readOnly: true, listed: true, width: 'xs' },
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 150 },
       { name: 'email', label: 'E-mail', type: 'text', required: true, listed: true, searchable: true, maxLength: 150 },
+      { name: 'telefone', label: 'WhatsApp', type: 'text', listed: true, maxLength: 20, hint: 'Com DDD: recebe os lembretes das atividades dos negócios dele' },
       { name: 'senha_hash', label: 'Senha', type: 'password', hint: 'Em branco na inclusão: a senha é definida no primeiro acesso' },
       { name: 'cargo', label: 'Cargo', type: 'text', listed: true, maxLength: 80 },
       { name: 'tipo', label: 'Perfil', type: 'enum', required: true, listed: true, options: [{ value: 'admin', label: 'Administrador' }, { value: 'client', label: 'Vendedor' }], default: 'client' },
