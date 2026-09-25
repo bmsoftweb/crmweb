@@ -152,17 +152,20 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
             (SELECT MAX(w.data_hora) FROM whatsapp_mensagens w
               WHERE w.empresa_id = c.empresa_id AND w.telefone = c.telefone AND w.direcao = 'enviada'
                 AND w.origem IS NULL AND w.disparo_id IS NULL) > NOW() - INTERVAL ? MINUTE AS humano_recente,
-            GREATEST(COALESCE(c.humano_desde, '1000-01-01'),
+            DATE_FORMAT(GREATEST(COALESCE(c.humano_desde, '1000-01-01'),
                      COALESCE((SELECT MAX(w.data_hora) FROM whatsapp_mensagens w
                                 WHERE w.empresa_id = c.empresa_id AND w.telefone = c.telefone AND w.direcao = 'enviada'
-                                  AND w.origem IS NULL AND w.disparo_id IS NULL), '1000-01-01')) < NOW() - INTERVAL ? MINUTE AS parado
+                                  AND w.origem IS NULL AND w.disparo_id IS NULL), '1000-01-01')) + INTERVAL ? MINUTE, '%Y-%m-%d %H:%i:%s') AS esgotou_em
        FROM whatsapp_conversas c WHERE c.empresa_id = ? AND c.telefone = ?`,
     [minutosDevolver, minutosDevolver, empresaId, telefone],
   );
   const c = rows[0];
   if (c.atendimento === 'humano') {
-    if (!Number(c.parado)) return 'humano';
+    const [agora] = await pool.query<any[]>("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS agora");
+    if (c.esgotou_em > agora[0].agora) return 'humano';
     await encerrarAtendimento(empresaId, telefone);
+    // A linha fica no momento em que o tempo acabou (antes da mensagem que fez perceber)
+    await marcarEncerramento(empresaId, telefone, null, c.esgotou_em);
     return 'bot';
   }
   // Com o bot, mas um atendente respondeu (tela ou celular) depois disso: passa a ser dele
@@ -171,6 +174,29 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
     return 'humano';
   }
   return 'bot';
+}
+
+/**
+ * Linha "Atendimento encerrado" na conversa (tipo 'encerramento'): não vai para o WhatsApp; a origem
+ * preenchida impede que conte como resposta de atendente. Botão Encerrar: com quem encerrou, agora;
+ * tempo esgotado: sem usuário, no momento em que o tempo acabou
+ */
+export async function marcarEncerramento(empresaId: string | number, telefone: string, usuarioId: number | null, quando: string | null = null) {
+  await pool.query(
+    `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, usuario_id, vista, data_hora)
+     SELECT ?, MAX(pessoa_id), MAX(contato_id), ?, 'enviada', 'encerramento', ?, 'enviada', ?, ?, 1, COALESCE(?, NOW())
+       FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`,
+    [
+      empresaId,
+      telefone,
+      usuarioId ? 'Atendimento encerrado' : 'Atendimento encerrado pelo tempo, sem resposta de atendente',
+      `${usuarioId ? 'encerrado' : 'encerrado-tempo'}:${telefone}:${Date.now()}`,
+      usuarioId,
+      quando,
+      empresaId,
+      telefone,
+    ],
+  );
 }
 
 /**
@@ -555,10 +581,11 @@ async function historico(ctx: Contexto): Promise<Content[]> {
     `SELECT direcao, tipo, texto FROM (
        SELECT id, direcao, tipo, texto FROM whatsapp_mensagens
         WHERE empresa_id = ? AND telefone = ? AND situacao <> 'falhou' AND (texto <> '' OR tipo <> 'texto') AND tipo <> 'encerramento'
-          AND id > COALESCE((SELECT MAX(e.id) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento'), 0)
+          AND id > COALESCE((SELECT MAX(e.id) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento' AND e.usuario_id IS NOT NULL), 0)
+          AND data_hora > COALESCE((SELECT MAX(e.data_hora) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento' AND e.usuario_id IS NULL), '1000-01-01')
         ORDER BY id DESC LIMIT ?) m
      ORDER BY m.id`,
-    [ctx.empresaId, ctx.telefone, ctx.empresaId, ctx.telefone, HISTORICO],
+    [ctx.empresaId, ctx.telefone, ctx.empresaId, ctx.telefone, ctx.empresaId, ctx.telefone, HISTORICO],
   );
   const contents: Content[] = [];
   for (const r of rows) {

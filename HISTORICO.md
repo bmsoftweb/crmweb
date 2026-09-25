@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.17 — 2026-09-25
+
+- Conversas: linha "Atendimento encerrado pelo tempo, sem resposta de atendente" quando a conversa volta ao bot pelo tempo, com a hora em que o tempo acabou; a IA também recomeça depois dela.
+- Conversas: a barra de gravação de áudio tem a mesma altura do campo de texto (os botões não achatam mais).
+
 ## 0.0.16 — 2026-09-25
 
 - Conversas: Encerrar deixa uma linha na conversa ("Atendimento encerrado por Luis · 14:01"), que não vai para o cliente; a IA passa a considerar só as mensagens depois do último encerramento.

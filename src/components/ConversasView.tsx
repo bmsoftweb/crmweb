@@ -603,7 +603,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             <span className="flex-1 border-t border-stone-300 dark:border-stone-700" />
                             <span className="flex items-center gap-1.5 shrink-0">
                               <CircleCheck className="w-3.5 h-3.5" />
-                              Atendimento encerrado{m.usuario_nome ? ` por ${m.usuario_nome}` : ''} · {m.data_hora.slice(11, 16)}
+                              {m.texto || 'Atendimento encerrado'}
+                              {m.usuario_nome ? ` por ${m.usuario_nome}` : ''} · {m.data_hora.slice(11, 16)}
                             </span>
                             <span className="flex-1 border-t border-stone-300 dark:border-stone-700" />
                           </div>
@@ -687,7 +688,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
             )}
             <div className="shrink-0 p-3 border-t border-stone-200 dark:border-stone-800 flex items-stretch gap-2">
               {gravando !== null ? (
-                <div className="flex-1 flex items-center gap-2 px-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-xs font-semibold">
+                // Mesma altura do campo de texto que ela substitui (senão os botões vizinhos achatam)
+                <div className="flex-1 min-h-[33px] flex items-center gap-2 px-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-xs font-semibold">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                   Gravando {Math.floor(gravando / 60)}:{String(gravando % 60).padStart(2, '0')}
                   <button onClick={() => setDescartar('gravacao')} className="ml-auto flex items-center gap-1 hover:underline cursor-pointer">

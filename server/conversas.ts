@@ -3,7 +3,7 @@ import { pool } from './db.js';
 import { ArquivoEnvio, chaveTelefone, donoDoTelefone, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
-import { atendimentoAtual, encerrarAtendimento, minutosDevolver, mudarAtendimento } from './chatbot.js';
+import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, minutosDevolver, mudarAtendimento } from './chatbot.js';
 import { jornadaDoNumero } from './jornada.js';
 
 /**
@@ -176,14 +176,7 @@ export function createConversasRouter(): Router {
       if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
       const emp = res.locals.empresaId;
       await encerrarAtendimento(emp, telefone);
-      // Marcador na conversa (a tela mostra uma linha): não vai para o WhatsApp; origem preenchida para
-      // não contar como resposta de atendente
-      await pool.query(
-        `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, usuario_id, vista, data_hora)
-         SELECT ?, MAX(pessoa_id), MAX(contato_id), ?, 'enviada', 'encerramento', 'Atendimento encerrado', 'enviada', ?, ?, 1, NOW()
-           FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`,
-        [emp, telefone, `encerrado:${telefone}:${Date.now()}`, res.locals.usuarioId, emp, telefone],
-      );
+      await marcarEncerramento(emp, telefone, res.locals.usuarioId);
       res.json({ success: true });
     } catch (err: any) {
       falha(res, err);
