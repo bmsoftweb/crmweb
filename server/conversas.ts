@@ -55,6 +55,13 @@ async function conferirTrava(res: Response, telefone: string, adminPode: boolean
   throw Object.assign(new Error(`Esta conversa está em atendimento com ${dono.nome}: só ele(a) pode responder ou mudar o atendimento.`), { status: 403 });
 }
 
+/**
+ * Há o que encerrar: alguém atendendo, aguardando atendente, com departamento ou no meio da jornada.
+ * Depois de encerrada, a conversa fica sem nada disso até o cliente escrever de novo
+ */
+const ENCERRAVEL = `(c.atendente_id IS NOT NULL OR c.atendimento = 'humano' OR c.departamento_id IS NOT NULL
+  OR (c.no_atual IS NOT NULL AND c.no_atual <> '__fim') OR c.retomar_em IS NOT NULL)`;
+
 /** Pega a conversa para o usuário (trava para ele); registra a linha na conversa */
 async function atender(res: Response, telefone: string, anterior: { id: number; nome: string } | null) {
   const emp = res.locals.empresaId;
@@ -209,6 +216,9 @@ export function createConversasRouter(): Router {
       if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
       const emp = res.locals.empresaId;
       await conferirTrava(res, telefone, true);
+      // Clique repetido (ou conversa já encerrada): não grava outra linha
+      const [ok] = await pool.query<any[]>(`SELECT 1 FROM whatsapp_conversas c WHERE c.empresa_id = ? AND c.telefone = ? AND ${ENCERRAVEL}`, [emp, telefone]);
+      if (!ok.length) return res.status(400).json({ error: 'Não há atendimento em andamento para encerrar.' });
       await encerrarAtendimento(emp, telefone);
       await marcarEncerramento(emp, telefone, res.locals.usuarioId);
       res.json({ success: true });
@@ -422,7 +432,7 @@ export function createConversasRouter(): Router {
       const atendimento = await atendimentoAtual(emp, telefone, minutosDevolver(chatbot), comBot);
       const [cv] = await pool.query<any[]>(
         `SELECT d.nome AS departamento, c.atendente_id, u.nome AS atendente_nome, DATE_FORMAT(c.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
-                DATE_FORMAT(c.humano_desde, '%Y-%m-%d %H:%i:%s') AS aguardando_desde
+                DATE_FORMAT(c.humano_desde, '%Y-%m-%d %H:%i:%s') AS aguardando_desde, ${ENCERRAVEL} AS encerravel
            FROM whatsapp_conversas c LEFT JOIN departamentos d ON d.id = c.departamento_id LEFT JOIN usuarios u ON u.id = c.atendente_id
           WHERE c.empresa_id = ? AND c.telefone = ?`,
         [emp, telefone],
@@ -440,6 +450,7 @@ export function createConversasRouter(): Router {
         eu_atendo: Boolean(c.atendente_id) && Number(c.atendente_id) === Number(res.locals.usuarioId),
         sou_admin: res.locals.usuario?.tipo === 'admin',
         com_bot: comBot,
+        encerravel: Boolean(Number(c.encerravel)),
         departamento: c.departamento ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
     } catch (err: any) {
       falha(res, err);

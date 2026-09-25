@@ -390,8 +390,13 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   /** Em atendimento com outro usuário: só vê (o administrador pode assumir) */
   const travada = conversa?.estado === 'atendimento' && !conversa.eu_atendo;
   const podeMexer = Boolean(conversa) && (!travada || Boolean(conversa?.sou_admin));
+  /** Pode transferir: quem está atendendo, ou o administrador numa conversa de outro */
+  const podeTransferir = conversa?.estado === 'atendimento' && (conversa.eu_atendo || conversa.sou_admin);
+  /** Ação de atendimento em andamento: os botões ficam desabilitados (sem clique repetido) */
+  const [ocupadoAtendimento, setOcupadoAtendimento] = useState(false);
   const acaoAtendimento = async (fn: () => Promise<unknown>, aviso: string) => {
-    if (!aberta) return;
+    if (!aberta || ocupadoAtendimento) return;
+    setOcupadoAtendimento(true);
     try {
       await fn();
       onToast(aviso);
@@ -399,6 +404,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
       await carregarLista();
     } catch (err: any) {
       setErro(err.message);
+    } finally {
+      setOcupadoAtendimento(false);
     }
   };
 
@@ -591,6 +598,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   )}
                   {(conversa.estado !== 'atendimento' || (!conversa.eu_atendo && conversa.sou_admin)) && (
                     <button
+                      disabled={ocupadoAtendimento}
                       onClick={() =>
                         acaoAtendimento(
                           () => atenderConversa(aberta),
@@ -598,33 +606,35 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                         )
                       }
                       title={conversa.estado === 'atendimento' ? 'Tomar o atendimento (administrador)' : 'Pegar a conversa: o bot para e só você responde'}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-default"
                     >
                       <Hand className="w-4 h-4" />
                       {conversa.estado === 'atendimento' ? 'Assumir' : 'Atender'}
                     </button>
                   )}
-                  {podeMexer && (
-                    <button onClick={() => setTransferir('')} title="Passar para outro atendente ou para um departamento" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer">
+                  {podeTransferir && (
+                    <button onClick={() => setTransferir('')} disabled={ocupadoAtendimento} title="Passar para outro atendente ou para um departamento" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-default">
                       <ArrowRightLeft className="w-4 h-4" />
                       Transferir
                     </button>
                   )}
                   {podeMexer && conversa.com_bot && conversa.estado !== 'bot' && (
                     <button
+                      disabled={ocupadoAtendimento}
                       onClick={() => acaoAtendimento(() => mudarAtendimentoConversa(aberta, 'bot'), 'Conversa devolvida ao bot.')}
                       title="O bot volta a responder esta conversa (mesma sessão)"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-default"
                     >
                       <Bot className="w-4 h-4" />
                       Devolver ao bot
                     </button>
                   )}
-                  {podeMexer && (
+                  {podeMexer && conversa.encerravel && (
                     <button
+                      disabled={ocupadoAtendimento}
                       onClick={() => acaoAtendimento(() => encerrarConversa(aberta), 'Atendimento encerrado: a próxima mensagem do cliente começa um atendimento novo.')}
                       title="Encerra esta sessão, como se o tempo de devolver ao bot tivesse passado: sai do departamento e a próxima mensagem do cliente recomeça (menu ou jornada)"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-default"
                     >
                       <CircleCheck className="w-4 h-4" />
                       Encerrar

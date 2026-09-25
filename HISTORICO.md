@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.19 — 2026-09-25
+
+- Conversas: Encerrar só aparece com atendimento em andamento (e o servidor recusa encerrar de novo); Transferir só para quem está atendendo (ou o administrador); botões desabilitados enquanto a ação é gravada.
+
 ## 0.0.18 — 2026-09-25
 
 Conversas: atender, travar e transferir. Banco: coluna whatsapp_conversas.atendido_em.

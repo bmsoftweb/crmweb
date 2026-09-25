@@ -512,6 +512,8 @@ export const fetchConversa = (
   sou_admin: boolean;
   /** Bot ou jornada atendem este número (há para onde devolver) */
   com_bot: boolean;
+  /** Há atendimento em andamento (o botão Encerrar aparece) */
+  encerravel: boolean;
   nome_contato: string | null;
   mensagens: MensagemWhatsApp[];
 }> =>
