@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.8 — 2026-09-25
+
+- Ícone do WhatsApp na lista de Pessoas e na aba Contatos do painel de detalhes: abre a conversa com o WhatsApp da pessoa (sem ele, o telefone) ou do contato (WhatsApp, celular, telefone). Sem número, o ícone fica apagado; sem DDD, avisa para corrigir o cadastro.
+- Configurações › WhatsApp: uma instância só pode ser usada por uma empresa (o mesmo servidor + nome na Evolution, ou o mesmo ID na Z-API). Outra empresa com a mesma instância recebe "nome da instância inválido".
+
 ## 0.0.7 — 2026-09-25
 
 WhatsApp, etapa 3 (mensagens automáticas), contatos das pessoas e nova conversa. Banco: colunas whatsapp_mensagens.origem, erro, nome_contato e contato_id; atividades.lembrete_para; usuarios.telefone; pessoas.whatsapp; tabela pessoas_contatos.

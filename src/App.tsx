@@ -29,7 +29,8 @@ import { BotaoNovaVersao } from './components/BotaoNovaVersao';
 import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
-import { ConversasView } from './components/ConversasView';
+import { ConversasView, PedidoConversa } from './components/ConversasView';
+import { BotaoWhatsApp } from './components/BotaoWhatsApp';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { Sessao, lerSessao, salvarSessao, limparSessao } from './utils/session';
 
@@ -84,7 +85,7 @@ export default function App() {
   }, [sessao, atualizarNaoVistas]);
 
   /** Atividade WhatsApp clicada na ficha do negócio: a tela Conversas abre o número do cliente */
-  const [pedidoConversa, setPedidoConversa] = useState<{ atividadeId: string | number; seq: number } | null>(null);
+  const [pedidoConversa, setPedidoConversa] = useState<PedidoConversa | null>(null);
 
   /** Motivo exibido na tela de login quando a sessão é recusada */
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
@@ -95,13 +96,15 @@ export default function App() {
     setActiveTab(tab);
   }, []);
 
-  const abrirConversa = useCallback(
-    (atividadeId: string | number) => {
-      setPedidoConversa({ atividadeId, seq: Date.now() });
+  /** Abre a tela Conversas no número de uma atividade WhatsApp, de uma pessoa ou de um contato */
+  const pedirConversa = useCallback(
+    (de: Omit<PedidoConversa, 'seq'>) => {
+      setPedidoConversa({ ...de, seq: Date.now() });
       navegar('conversas');
     },
     [navegar],
   );
+  const abrirConversa = useCallback((atividadeId: string | number) => pedirConversa({ atividadeId }), [pedirConversa]);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -358,7 +361,14 @@ export default function App() {
                           onToast={showToast}
                         />
                       )
-                    : undefined
+                    : activeResource.name === 'pessoas'
+                      ? (row) => <BotaoWhatsApp temNumero={Boolean(row.whatsapp || row.telefone)} onAbrir={() => pedirConversa({ pessoaId: row.id as string })} />
+                      : undefined
+              }
+              acoesDetalhe={(recurso, row) =>
+                recurso === 'pessoas_contatos' ? (
+                  <BotaoWhatsApp temNumero={Boolean(row.whatsapp || row.celular || row.telefone)} onAbrir={() => pedirConversa({ contatoId: row.id as string })} />
+                ) : null
               }
             />
           </main>

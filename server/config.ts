@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { configSmtpPublica, prepararConfigSmtp, testarSmtp } from './email.js';
-import { configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp, ativarRecebimento } from './whatsapp.js';
+import { conferirInstanciaUnica, configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp, ativarRecebimento } from './whatsapp.js';
 import { automaticasPublica, prepararAutomaticas } from './automaticas.js';
 import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign.js';
 
@@ -86,6 +86,7 @@ export function createConfigRouter(): Router {
       const empresaId = String(res.locals.empresaId);
       const segredo = COM_SEGREDO[`${grupo}.${chave}`];
       const valor = segredo ? segredo.preparar(req.body?.valor, await lerConfig(empresaId, grupo, chave)) : req.body?.valor;
+      if (grupo === 'whatsapp' && chave === 'provedor') await conferirInstanciaUnica(empresaId, valor);
       const texto = JSON.stringify(valor ?? null);
       if (texto.length > TAMANHO_MAX) {
         return res.status(413).json({ error: 'Configuração grande demais.' });

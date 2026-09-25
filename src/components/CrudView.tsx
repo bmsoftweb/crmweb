@@ -61,6 +61,8 @@ interface CrudViewProps {
   acoesLista?: (recarregar: () => void) => React.ReactNode;
   /** Botões extras da coluna Ações de cada linha (ex.: Clonar proposta) */
   acoesLinha?: (row: RegistroCrud, ctx: { abrir: (row: RegistroCrud) => void; recarregar: () => void }) => React.ReactNode;
+  /** Botões extras nas linhas do painel de detalhes (ex.: WhatsApp do contato), por recurso filho */
+  acoesDetalhe?: (recurso: string, row: RegistroCrud) => React.ReactNode;
 }
 
 /** Uma aba aberta sobre um registro (inclusão ou edição) */
@@ -103,6 +105,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
   renderEditor,
   acoesLista,
   acoesLinha,
+  acoesDetalhe,
 }) => {
   /**
    * Campos personalizados marcados como "na lista" viram colunas virtuais: o valor
@@ -1267,6 +1270,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
             setSelecionado(null);
           }}
           onOpenResource={onNavigate}
+          acoesLinha={acoesDetalhe}
         />
       )}
 

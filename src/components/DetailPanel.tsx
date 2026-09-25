@@ -23,6 +23,8 @@ interface DetailPanelProps {
   onClose: () => void;
   /** Navega para a tela própria do recurso filho */
   onOpenResource: (resourceName: string) => void;
+  /** Botões extras na linha (ex.: WhatsApp do contato); null quando o recurso não tem */
+  acoesLinha?: (recurso: string, row: RegistroCrud) => React.ReactNode;
 }
 
 const DETAIL_LIMIT = 200;
@@ -36,6 +38,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
   refreshToken,
   onClose,
   onOpenResource,
+  acoesLinha,
 }) => {
   const [activeDetail, setActiveDetail] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -167,6 +170,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
   const podeEditar = editavel && childResource.canUpdate;
   const podeExcluir = editavel && childResource.canDelete;
   const pkFilho = (r: RegistroCrud) => r[childResource.pk[0]] as string | number;
+  /** O recurso tem botões extras nas linhas (a coluna Ações aparece mesmo sem editar/excluir) */
+  const extras = Boolean(rows.length && acoesLinha?.(childResource.name, rows[0]));
   const aposAlterar = () => {
     invalidateOptions(childResource.name); // combos que usam o filho (ex.: etapa do negócio)
     load();
@@ -309,9 +314,10 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
                           <CellValue field={f} row={row} refOptions={refOptions} />
                         </td>
                       ))}
-                      {(podeEditar || podeExcluir) && (
+                      {(podeEditar || podeExcluir || extras) && (
                         <td className="px-3 py-1 text-center whitespace-nowrap border-b border-stone-100 dark:border-stone-800/60">
                           <div className="inline-flex items-center gap-1">
+                            {acoesLinha?.(childResource.name, row)}
                             {podeEditar && (
                               <button
                                 onClick={() => setEditando({ record: row })}

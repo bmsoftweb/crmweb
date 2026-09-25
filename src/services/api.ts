@@ -505,5 +505,8 @@ export interface DestinoConversa {
   telefone: string | null;
   aviso: string | null;
 }
+/** Número da conversa de uma pessoa ou de um contato (ícone do WhatsApp nas listas) */
+export const fetchNumeroConversa = (de: { pessoaId?: Id; contatoId?: Id }): Promise<{ telefone: string; nome: string }> =>
+  get(`/api/whatsapp/numero?${de.contatoId ? `contato_id=${encodeURIComponent(String(de.contatoId))}` : `pessoa_id=${encodeURIComponent(String(de.pessoaId))}`}`);
 export const fetchDestinosConversa = (busca: string): Promise<DestinoConversa[]> =>
   get(`/api/whatsapp/destinos?busca=${encodeURIComponent(busca)}`);

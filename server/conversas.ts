@@ -64,6 +64,40 @@ export function createConversasRouter(): Router {
   });
 
   /**
+   * Conversa de uma pessoa (WhatsApp; sem ele, telefone) ou de um contato (WhatsApp, celular,
+   * telefone): ícone do WhatsApp nas listas de Pessoas e de Contatos
+   */
+  router.get('/whatsapp/numero', async (req: Request, res: Response) => {
+    try {
+      const emp = String(res.locals.empresaId);
+      const contatoId = Number(req.query.contato_id) || null;
+      const pessoaId = Number(req.query.pessoa_id) || null;
+      const [rows] = contatoId
+        ? await pool.query<any[]>(
+            `SELECT nome, COALESCE(NULLIF(whatsapp, ''), NULLIF(celular, ''), NULLIF(telefone, '')) AS fone
+               FROM pessoas_contatos WHERE id = ? AND empresa_id = ?`,
+            [contatoId, emp],
+          )
+        : await pool.query<any[]>(
+            "SELECT nome, COALESCE(NULLIF(whatsapp, ''), NULLIF(telefone, '')) AS fone FROM pessoas WHERE id = ? AND empresa_id = ?",
+            [pessoaId, emp],
+          );
+      const r = rows[0];
+      if (!r) return res.status(404).json({ error: contatoId ? 'Contato não encontrado.' : 'Pessoa não encontrada.' });
+      if (!r.fone) return res.status(400).json({ error: `${r.nome} não tem WhatsApp nem telefone cadastrado.` });
+      let numero: string;
+      try {
+        numero = telefoneWhatsApp(r.fone);
+      } catch {
+        return res.status(400).json({ error: `O telefone de ${r.nome} (${r.fone}) não tem DDD: corrija o cadastro para conversar pelo WhatsApp.` });
+      }
+      res.json({ telefone: await numeroDaConversa(emp, numero), nome: r.nome });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
+  /**
    * Nova conversa: pessoas e contatos (ativos) pelo nome ou pelo número. Cada um vem com o número
    * da conversa (WhatsApp; sem ele, telefone/celular) ou o motivo de não ter como mandar.
    * Busca só com dígitos (10 ou mais) oferece também o número digitado.

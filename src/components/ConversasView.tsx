@@ -1,18 +1,28 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Building2, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
-import { ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchNumeroConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
 import { SelectBusca } from './SelectBusca';
 import { AvisoErro } from './AvisoErro';
 
+/** Quem pediu para abrir uma conversa (seq muda a cada clique) */
+export interface PedidoConversa {
+  /** Atividade WhatsApp da ficha do negócio: enviar a mensagem a conclui */
+  atividadeId?: string | number;
+  /** Ícone do WhatsApp nas listas de Pessoas e de Contatos */
+  pessoaId?: string | number;
+  contatoId?: string | number;
+  seq: number;
+}
+
 interface Props {
   refreshToken: number;
   /** Mensagens foram vistas: o menu recalcula a etiqueta de não vistas */
   onVisto: () => void;
-  /** Aberta pela atividade WhatsApp da ficha do negócio (seq muda a cada clique) */
-  pedido?: { atividadeId: string | number; seq: number } | null;
+  /** Aberta pela atividade WhatsApp da ficha do negócio, ou por uma pessoa/contato das listas */
+  pedido?: PedidoConversa | null;
   onToast: (msg: string) => void;
 }
 
@@ -108,6 +118,15 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   // Clique na atividade WhatsApp da ficha do negócio: abre o número do cliente
   useEffect(() => {
     if (!pedido) return;
+    if (!pedido.atividadeId) {
+      fetchNumeroConversa({ pessoaId: pedido.pessoaId, contatoId: pedido.contatoId })
+        .then((r) => {
+          setEscolhido({ telefone: r.telefone, nome: r.nome });
+          setAberta(r.telefone);
+        })
+        .catch((err) => setErro(err.message));
+      return;
+    }
     fetchConversaDaAtividade(pedido.atividadeId)
       .then((r) => {
         setAberta(r.telefone);

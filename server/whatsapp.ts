@@ -88,6 +88,34 @@ export function prepararConfigWhats(valor: any, anterior: ConfigWhats | null): C
   return cfg;
 }
 
+/** Identifica a instância no provedor: Evolution = servidor + nome; Z-API = ID (sem diferenciar maiúsculas) */
+const idInstancia = (c: { provedor: string; url?: string; instancia: string }) =>
+  [c.provedor, (c.url ?? '').trim().replace(/\/+$/, '').toLowerCase(), c.instancia.trim().toLowerCase()].join('|');
+
+/**
+ * Uma instância é de uma empresa só: recebe um endereço de aviso só (as mensagens iriam para uma
+ * empresa apenas) e as duas enviariam pelo mesmo número. O erro não diz de quem ela é.
+ */
+export async function conferirInstanciaUnica(empresaId: string, cfg: ConfigWhats | null) {
+  if (!cfg?.provedor) return;
+  const [rows] = await pool.query<any[]>(
+    "SELECT valor FROM config WHERE grupo = 'whatsapp' AND chave = 'provedor' AND empresa_id <> ?",
+    [empresaId],
+  );
+  const minha = idInstancia(cfg);
+  for (const r of rows) {
+    let outra: ConfigWhats | null = null;
+    try {
+      outra = JSON.parse(r.valor);
+    } catch {
+      continue;
+    }
+    if (outra?.provedor && idInstancia(outra) === minha) {
+      throw new Error(`WhatsApp: nome da instância "${cfg.instancia}" inválido.`);
+    }
+  }
+}
+
 /** Valor do banco → o que a tela recebe (sem os tokens) */
 export function configWhatsPublica(cfg: ConfigWhats | null) {
   if (!cfg) return null;
