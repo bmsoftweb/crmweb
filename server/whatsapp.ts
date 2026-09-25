@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { pool } from './db.js';
 import { VARIAVEIS, personalizar } from './campanhas.js';
 import { lerConfig } from './config.js';
@@ -37,6 +38,10 @@ interface ConfigWhats {
   token_cifrado?: string;
   /** Z-API: token de segurança da conta */
   client_token_cifrado?: string;
+  /** Recebimento (webhook da Evolution): token do endereço, que nunca volta para a tela */
+  webhook_token?: string;
+  /** Recebimento ativado: endereço público do CRM usado e quando */
+  webhook?: { origem: string; em: string };
 }
 
 /** Credenciais prontas para usar, já decifradas */
@@ -77,13 +82,16 @@ export function prepararConfigWhats(valor: any, anterior: ConfigWhats | null): C
     const client = segredo(valor?.client_token, mesmo?.client_token_cifrado);
     if (client) cfg.client_token_cifrado = client;
   }
+  // O recebimento continua valendo enquanto servidor e instância forem os mesmos
+  if (mesmo?.webhook_token) cfg.webhook_token = mesmo.webhook_token;
+  if (mesmo?.webhook && mesmo.url === cfg.url && mesmo.instancia === cfg.instancia) cfg.webhook = mesmo.webhook;
   return cfg;
 }
 
 /** Valor do banco → o que a tela recebe (sem os tokens) */
 export function configWhatsPublica(cfg: ConfigWhats | null) {
   if (!cfg) return null;
-  const { token_cifrado, client_token_cifrado, ...resto } = cfg;
+  const { token_cifrado, client_token_cifrado, webhook_token, ...resto } = cfg;
   return { ...resto, token_definido: Boolean(token_cifrado), client_token_definido: Boolean(client_token_cifrado) };
 }
 
@@ -143,30 +151,278 @@ async function requisitar(url: string, init: RequestInit): Promise<Response> {
 }
 
 /** Envio: cada provedor tem o próprio endereço e formato, passados aqui já montados */
-async function enviar(c: Credenciais, zapi: { rota: string; corpo: unknown }, evolution: { rota: string; corpo: unknown }) {
+async function enviar(c: Credenciais, zapi: { rota: string; corpo: unknown }, evolution: { rota: string; corpo: unknown }): Promise<any> {
   const { url, headers } = endereco(c, { zapi: zapi.rota, evolution: `message/${evolution.rota}` });
-  await requisitar(url, {
+  const r = await requisitar(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(c.provedor === 'zapi' ? zapi.corpo : evolution.corpo),
   });
+  return r.json().catch(() => ({}));
 }
 
 const textoPara = (c: Credenciais, telefone: string, texto: string) =>
   enviar(c, { rota: 'send-text', corpo: { phone: telefone, message: texto } }, { rota: 'sendText', corpo: { number: telefone, text: texto } });
 
-export async function enviarWhatsApp(empresaId: string | number, telefone: string, texto: string): Promise<void> {
-  await textoPara(await credenciais(empresaId), telefone, texto);
+/** Quem e o quê, para registrar a mensagem enviada na conversa */
+interface Registro {
+  pessoa_id?: number | null;
+  usuario_id?: number | null;
+  disparo_id?: number | null;
+}
+
+export async function enviarWhatsApp(empresaId: string | number, telefone: string, texto: string, reg: Registro = {}): Promise<void> {
+  const resposta = await textoPara(await credenciais(empresaId), telefone, texto);
+  await registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'texto', texto });
 }
 
 /** Envia um PDF como documento, com legenda */
-export async function enviarPdfWhatsApp(empresaId: string | number, telefone: string, pdf: Buffer, nomeArquivo: string, legenda: string): Promise<void> {
+export async function enviarPdfWhatsApp(
+  empresaId: string | number,
+  telefone: string,
+  pdf: Buffer,
+  nomeArquivo: string,
+  legenda: string,
+  reg: Registro = {},
+): Promise<void> {
   const base64 = pdf.toString('base64');
-  await enviar(
+  const resposta = await enviar(
     await credenciais(empresaId),
     { rota: 'send-document/pdf', corpo: { phone: telefone, document: `data:application/pdf;base64,${base64}`, fileName: nomeArquivo, caption: legenda } },
     { rota: 'sendMedia', corpo: { number: telefone, mediatype: 'document', mimetype: 'application/pdf', media: base64, fileName: nomeArquivo, caption: legenda } },
   );
+  await registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'documento', texto: legenda || null, arquivo_nome: nomeArquivo });
+}
+
+// ------------------------------------------------------------
+// Conversas: mensagens enviadas e recebidas (tabela whatsapp_mensagens)
+// ------------------------------------------------------------
+
+/** Só os dígitos do JID do WhatsApp (5547...@s.whatsapp.net, ou com :dispositivo) */
+const digitosDoJid = (jid: string) => jid.split('@')[0].split(':')[0].replace(/\D/g, '');
+
+/**
+ * Chave para achar a pessoa pelo telefone: DDD + 8 últimos dígitos. Iguala o número com e sem
+ * o 9 (o WhatsApp costuma omiti-lo) e com ou sem DDI 55. comDdi: o número já vem com DDI
+ * (JID do WhatsApp). Número de fora do Brasil vale inteiro. null quando não dá para comparar.
+ */
+export function chaveTelefone(bruto: string | null | undefined, comDdi = false): string | null {
+  let t = String(bruto ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  if (comDdi || t.length >= 12) {
+    if (!t.startsWith('55')) return t.length >= 8 ? `+${t}` : null;
+    t = t.slice(2);
+  }
+  return t.length === 10 || t.length === 11 ? t.slice(0, 2) + t.slice(-8) : null;
+}
+
+/** Pessoa da empresa com esse telefone (a de menor id, se houver mais de uma) */
+async function pessoaDoTelefone(empresaId: string | number, telefone: string): Promise<number | null> {
+  const chave = chaveTelefone(telefone, true);
+  if (!chave) return null;
+  const [rows] = await pool.query<any[]>(
+    "SELECT id, telefone FROM pessoas WHERE empresa_id = ? AND RIGHT(REGEXP_REPLACE(telefone, '[^0-9]', ''), 8) = ? ORDER BY id",
+    [empresaId, chave.slice(-8)],
+  );
+  // Metade dos cadastros importados não tem DDD: sem um com DDD igual, vale o que bate nos 8 dígitos.
+  // ponytail: pode ligar à pessoa errada de outro DDD com o mesmo número; cadastrar o DDD resolve
+  const semDdd = (t: string) => /^\d{8,9}$/.test(String(t).replace(/\D/g, '').replace(/^0+/, ''));
+  const achada = rows.find((p) => chaveTelefone(p.telefone) === chave) ?? (chave.startsWith('+') ? undefined : rows.find((p) => semDdd(p.telefone)));
+  return achada?.id ?? null;
+}
+
+/**
+ * Passa ao disparo da campanha o que o WhatsApp informou da mensagem: entregue, lida ou falhou.
+ * Nunca volta atrás (lido não vira entregue).
+ */
+async function repassarAoDisparo(empresaId: string | number, waId: string) {
+  await pool.query(
+    `UPDATE disparos_mensagens d JOIN whatsapp_mensagens w ON w.disparo_id = d.id
+        SET d.mensagem_erro = IF(w.situacao = 'falhou' AND d.situacao = 'enviado', 'O WhatsApp não entregou a mensagem.', d.mensagem_erro),
+            d.entregue_em = IF(w.situacao IN ('entregue', 'lida'), COALESCE(d.entregue_em, NOW()), d.entregue_em),
+            d.lido_em = IF(w.situacao = 'lida', COALESCE(d.lido_em, NOW()), d.lido_em),
+            d.situacao = CASE
+              WHEN w.situacao = 'lida' THEN 'lido'
+              WHEN w.situacao = 'entregue' AND d.situacao = 'enviado' THEN 'entregue'
+              WHEN w.situacao = 'falhou' AND d.situacao = 'enviado' THEN 'falhou'
+              ELSE d.situacao END
+      WHERE w.empresa_id = ? AND w.wa_id = ? AND d.situacao IN ('enviado', 'entregue')`,
+    [empresaId, waId],
+  );
+}
+
+/**
+ * Registra a mensagem enviada pelo CRM. O id devolvido pelo provedor liga os avisos de
+ * entrega/leitura a ela; o JID da resposta é o número como o WhatsApp o conhece (às vezes sem o 9).
+ * Falha aqui não desfaz o envio: só fica no log.
+ */
+async function registrarEnviada(
+  empresaId: string | number,
+  telefone: string,
+  resposta: any,
+  m: Registro & { tipo: string; texto: string | null; arquivo_nome?: string },
+) {
+  try {
+    const waId: string | null = resposta?.key?.id ?? resposta?.messageId ?? null;
+    const jid = resposta?.key?.remoteJid;
+    const numero = typeof jid === 'string' && jid.endsWith('@s.whatsapp.net') ? digitosDoJid(jid) : telefone;
+    const pessoaId = m.pessoa_id ?? (await pessoaDoTelefone(empresaId, numero));
+    await pool.query(
+      `INSERT INTO whatsapp_mensagens
+         (empresa_id, pessoa_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, situacao, disparo_id, usuario_id, vista, data_hora)
+       VALUES (?, ?, ?, 'enviada', ?, ?, ?, ?, 'enviada', ?, ?, 1, NOW())
+       ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)),
+         disparo_id = COALESCE(disparo_id, VALUES(disparo_id)), usuario_id = COALESCE(usuario_id, VALUES(usuario_id)),
+         arquivo_nome = COALESCE(arquivo_nome, VALUES(arquivo_nome))`,
+      [empresaId, pessoaId, numero, m.tipo, m.texto, m.arquivo_nome ?? null, waId, m.disparo_id ?? null, m.usuario_id ?? null],
+    );
+    // O aviso de entrega pode ter chegado antes deste registro
+    if (waId && m.disparo_id) await repassarAoDisparo(empresaId, waId);
+  } catch (err: any) {
+    console.error(`WhatsApp: mensagem enviada para ${telefone} não registrada: ${err.message}`);
+  }
+}
+
+/** Tipo, texto e arquivo de uma mensagem do WhatsApp (Baileys); null para o que não é conversa */
+export function conteudoMensagem(m: any): { tipo: string; texto: string | null; arquivo: string | null } | null {
+  if (!m || typeof m !== 'object') return null;
+  // Mensagem temporária / visualização única / documento com legenda: o conteúdo vem embrulhado
+  const dentro = m.ephemeralMessage?.message ?? m.viewOnceMessage?.message ?? m.viewOnceMessageV2?.message ?? m.documentWithCaptionMessage?.message;
+  if (dentro) return conteudoMensagem(dentro);
+  const txt = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
+  if (m.conversation) return { tipo: 'texto', texto: txt(m.conversation), arquivo: null };
+  if (m.extendedTextMessage) return { tipo: 'texto', texto: txt(m.extendedTextMessage.text), arquivo: null };
+  if (m.imageMessage) return { tipo: 'imagem', texto: txt(m.imageMessage.caption), arquivo: null };
+  if (m.videoMessage) return { tipo: 'video', texto: txt(m.videoMessage.caption), arquivo: null };
+  if (m.audioMessage) return { tipo: 'audio', texto: null, arquivo: null };
+  if (m.documentMessage) return { tipo: 'documento', texto: txt(m.documentMessage.caption), arquivo: txt(m.documentMessage.fileName ?? m.documentMessage.title) };
+  if (m.stickerMessage) return { tipo: 'figurinha', texto: null, arquivo: null };
+  if (m.locationMessage || m.liveLocationMessage) {
+    const l = m.locationMessage ?? m.liveLocationMessage;
+    return { tipo: 'localizacao', texto: txt([l.name, l.address].filter(Boolean).join(' — ')) ?? `${l.degreesLatitude}, ${l.degreesLongitude}`, arquivo: null };
+  }
+  if (m.contactMessage) return { tipo: 'contato', texto: txt(m.contactMessage.displayName), arquivo: null };
+  if (m.contactsArrayMessage) return { tipo: 'contato', texto: txt(m.contactsArrayMessage.displayName), arquivo: null };
+  // Reação, apagar, edição, chaves de criptografia: não são mensagens da conversa
+  const ignorar = ['reactionMessage', 'protocolMessage', 'senderKeyDistributionMessage', 'messageContextInfo', 'editedMessage', 'pollUpdateMessage'];
+  return Object.keys(m).some((k) => !ignorar.includes(k)) ? { tipo: 'outro', texto: null, arquivo: null } : null;
+}
+
+/** Aviso de mensagem nova (recebida, ou enviada pelo celular/pelo CRM) */
+async function gravarMensagem(empresaId: string | number, d: any) {
+  const key = d?.key ?? {};
+  // Com o endereçamento novo (LID), o número vem no remoteJidAlt/senderPn
+  const jid = [key.remoteJid, key.remoteJidAlt, key.senderPn].find((j) => typeof j === 'string' && j.endsWith('@s.whatsapp.net'));
+  if (!jid || !key.id) return; // grupo, status, canal
+  const c = conteudoMensagem(d.message);
+  if (!c) return;
+  const telefone = digitosDoJid(jid);
+  const recebida = !key.fromMe;
+  const pessoaId = await pessoaDoTelefone(empresaId, telefone);
+  const ts = Number(d.messageTimestamp) || null;
+  await pool.query(
+    `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, situacao, vista, data_hora)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(FROM_UNIXTIME(?), NOW()))
+     ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id))`,
+    [empresaId, pessoaId, telefone, recebida ? 'recebida' : 'enviada', c.tipo, c.texto, c.arquivo, key.id, recebida ? 'recebida' : 'enviada', recebida ? 0 : 1, ts],
+  );
+}
+
+/** Situação que a Evolution informa (texto, ou o número do Baileys) → a da tabela */
+const SITUACOES: Record<string, string> = {
+  SERVER_ACK: 'enviada',
+  '2': 'enviada',
+  DELIVERY_ACK: 'entregue',
+  '3': 'entregue',
+  READ: 'lida',
+  '4': 'lida',
+  PLAYED: 'lida',
+  '5': 'lida',
+  ERROR: 'falhou',
+  '0': 'falhou',
+};
+
+/** Aviso de entrega/leitura de uma mensagem enviada. Só avança (lida não volta a entregue) */
+async function atualizarSituacao(empresaId: string | number, d: any) {
+  const waId = d?.keyId ?? d?.key?.id ?? d?.id;
+  const situacao = SITUACOES[String(d?.status ?? d?.update?.status ?? '')];
+  if (!waId || !situacao) return;
+  const [r] = await pool.query<any>(
+    `UPDATE whatsapp_mensagens SET situacao = ?
+      WHERE empresa_id = ? AND wa_id = ? AND direcao = 'enviada'
+        AND (? = 'falhou' OR FIELD(situacao, 'pendente', 'enviada', 'entregue', 'lida') < FIELD(?, 'pendente', 'enviada', 'entregue', 'lida'))`,
+    [situacao, empresaId, waId, situacao, situacao],
+  );
+  if (r.affectedRows) await repassarAoDisparo(empresaId, waId);
+}
+
+/** Empresa dona do token do endereço do webhook */
+async function empresaDoToken(token: string): Promise<{ empresaId: number; cfg: ConfigWhats } | null> {
+  if (!/^[0-9a-f]{48}$/.test(token)) return null;
+  const [rows] = await pool.query<any[]>("SELECT empresa_id, valor FROM config WHERE grupo = 'whatsapp' AND chave = 'provedor' AND empresa_id IS NOT NULL");
+  for (const r of rows) {
+    let cfg: ConfigWhats | null = null;
+    try {
+      cfg = JSON.parse(r.valor);
+    } catch {
+      continue;
+    }
+    if (cfg?.webhook_token?.length === token.length && crypto.timingSafeEqual(Buffer.from(cfg.webhook_token), Buffer.from(token))) {
+      return { empresaId: r.empresa_id, cfg };
+    }
+  }
+  return null;
+}
+
+/**
+ * Aviso da Evolution (webhook, rota pública): mensagens novas e mudanças de situação.
+ * O token do endereço identifica a empresa; aviso de outra instância é ignorado.
+ */
+export async function receberAvisoEvolution(token: string, corpo: any): Promise<void> {
+  const dono = await empresaDoToken(token);
+  if (!dono) throw Object.assign(new Error('Endereço de recebimento desconhecido.'), { status: 404 });
+  if (corpo?.instance && corpo.instance !== dono.cfg.instancia) return;
+  const evento = String(corpo?.event ?? '').toLowerCase().replace(/_/g, '.');
+  const itens = Array.isArray(corpo?.data) ? corpo.data : [corpo?.data];
+  for (const d of itens) {
+    if (evento === 'messages.upsert' || evento === 'send.message') await gravarMensagem(dono.empresaId, d);
+    else if (evento === 'messages.update') await atualizarSituacao(dono.empresaId, d);
+  }
+}
+
+/**
+ * Liga o recebimento: cadastra na Evolution o endereço do CRM (origem = endereço público de
+ * onde a tela foi aberta) para os avisos de mensagens novas e de entrega/leitura.
+ */
+export async function ativarRecebimento(empresaId: string, origem: string): Promise<{ origem: string; em: string }> {
+  const cfg: ConfigWhats | null = await lerConfig(empresaId, 'whatsapp', 'provedor');
+  if (!cfg?.provedor) throw new Error(`WhatsApp: grave o provedor em ${ONDE} antes de ativar o recebimento.`);
+  if (cfg.provedor !== 'evolution') throw new Error('WhatsApp: por enquanto o recebimento de mensagens só funciona com a Evolution API.');
+  let base: URL;
+  try {
+    base = new URL(String(origem));
+  } catch {
+    throw new Error('WhatsApp: endereço do CRM inválido.');
+  }
+  if (['localhost', '127.0.0.1', '[::1]'].includes(base.hostname) || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(base.hostname)) {
+    throw new Error('WhatsApp: a Evolution não alcança este endereço (rede local). Abra o CRM pelo endereço público (o da Vercel) e ative o recebimento de lá.');
+  }
+  const c = await credenciais(empresaId);
+  const token = cfg.webhook_token || crypto.randomBytes(24).toString('hex');
+  const url = `${base.origin}/api/webhooks/evolution/${token}`;
+  await requisitar(`${c.url}/webhook/set/${encodeURIComponent(c.instancia)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: c.token },
+    body: JSON.stringify({
+      webhook: { enabled: true, url, byEvents: false, base64: false, events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE'] },
+    }),
+  });
+  const [agora] = await pool.query<any[]>("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS em");
+  const webhook = { origem: base.origin, em: agora[0].em };
+  await pool.query("UPDATE config SET valor = ? WHERE empresa_id = ? AND grupo = 'whatsapp' AND chave = 'provedor'", [
+    JSON.stringify({ ...cfg, webhook_token: token, webhook }),
+    empresaId,
+  ]);
+  return webhook;
 }
 
 /**
@@ -243,7 +499,7 @@ export async function enviarPendentes(limite = 50, prazoMs = Infinity): Promise<
     try {
       const colunas = Object.entries(VARIAVEIS).map(([k, sql]) => `${sql} AS ${k}`).join(', ');
       const [fila] = await conn.query<any[]>(
-        `SELECT d.id, c.empresa_id, m.assunto, m.corpo, p.telefone AS telefone_destino, ${colunas}
+        `SELECT d.id, d.pessoa_id, c.empresa_id, m.assunto, m.corpo, p.telefone AS telefone_destino, ${colunas}
            FROM disparos_mensagens d
            JOIN campanha_mensagens m ON m.id = d.mensagem_id
            JOIN campanhas c ON c.id = m.campanha_id
@@ -267,11 +523,14 @@ export async function enviarPendentes(limite = 50, prazoMs = Infinity): Promise<
           if (Date.now() + c.intervalo * 1000 + 10_000 > fim) break; // pausa + envio não cabem mais no prazo
           if (processados) await esperar(c.intervalo * 1000);
           const assunto = personalizar(d.assunto, d).trim();
-          await textoPara(c, telefoneWhatsApp(d.telefone_destino), (assunto ? `*${assunto}*\n\n` : '') + personalizar(d.corpo, d));
+          const telefone = telefoneWhatsApp(d.telefone_destino);
+          const texto = (assunto ? `*${assunto}*\n\n` : '') + personalizar(d.corpo, d);
+          const resposta = await textoPara(c, telefone, texto);
           await conn.query(
             "UPDATE disparos_mensagens SET situacao = 'enviado', enviado_em = NOW(), mensagem_erro = NULL WHERE id = ? AND situacao = 'pendente'",
             [d.id],
           );
+          await registrarEnviada(d.empresa_id, telefone, resposta, { tipo: 'texto', texto, pessoa_id: d.pessoa_id, disparo_id: d.id });
           processados++;
         } catch (err: any) {
           if (err instanceof ErroProvedor || /SESSION_SECRET/.test(err?.message)) {

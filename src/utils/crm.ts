@@ -18,6 +18,7 @@ export const TIPOS_ATIVIDADE: { value: string; label: string; icon: LucideIcon }
   { value: 'prazo', label: 'Prazo', icon: Flag },
   { value: 'email', label: 'E-mail', icon: Mail },
   { value: 'almoco', label: 'Almoço', icon: Utensils },
+  { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
 ];
 
 export const TIPOS_INTERACAO: { value: string; label: string; icon: LucideIcon }[] = [

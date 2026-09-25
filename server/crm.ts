@@ -314,7 +314,7 @@ export function createCrmRouter() {
       const assunto = ehProposta ? `Proposta nº ${p.numero_proposta}` : `Pedido nº ${p.numero_pedido}`;
       await enviarEmail(emp, { para: destino, assunto: titulo ? `${assunto} — ${titulo}` : assunto, texto: mensagem, anexos: [{ nome: arquivo, conteudo: pdf }] });
     } else {
-      await enviarPdfWhatsApp(emp, telefone, pdf, arquivo, mensagem);
+      await enviarPdfWhatsApp(emp, telefone, pdf, arquivo, mensagem, { pessoa_id: p.pessoa_id, usuario_id: res.locals.usuarioId });
     }
 
     const status = ehProposta && p.status === 'rascunho' ? 'enviada' : p.status;

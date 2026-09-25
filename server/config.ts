@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { configSmtpPublica, prepararConfigSmtp, testarSmtp } from './email.js';
-import { configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp } from './whatsapp.js';
+import { configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp, ativarRecebimento } from './whatsapp.js';
 import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign.js';
 
 /**
@@ -155,6 +155,16 @@ export function createConfigRouter(): Router {
     try {
       somenteAdmin(res);
       res.json({ success: true, ...(await conectarWhatsApp(String(res.locals.empresaId))) });
+    } catch (err: any) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  /** Cadastra na Evolution o endereço do CRM para receber mensagens e avisos de entrega/leitura */
+  router.post('/config/whatsapp/provedor/receber', async (req: Request, res: Response) => {
+    try {
+      somenteAdmin(res);
+      res.json({ success: true, ...(await ativarRecebimento(String(res.locals.empresaId), String(req.body?.origem ?? ''))) });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message });
     }

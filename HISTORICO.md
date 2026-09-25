@@ -2,6 +2,16 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.5 — 2026-09-24
+
+WhatsApp, etapa 1: receber mensagens e status de entrega (Evolution API). Tabela nova whatsapp_mensagens.
+
+- Recebimento: a Evolution avisa o CRM em /api/webhooks/evolution/<token> (o token identifica a empresa). Mensagens recebidas e as enviadas pelo celular são gravadas e ligadas à pessoa pelo telefone (com ou sem o 9, com ou sem DDI, endereçamento LID; cadastro sem DDD liga pelos 8 últimos dígitos). Grupos, reações e outras instâncias são ignorados.
+- Mensagens enviadas pelo CRM (campanhas, proposta/pedido em PDF) ficam registradas com o id do WhatsApp, a pessoa e o usuário.
+- Status de entrega: entregue/lida atualizam a mensagem e o disparo da campanha (entregue_em, lido_em), sem voltar atrás.
+- Configurações › WhatsApp: quadro "Recebimento de mensagens" com o botão "Ativar recebimento", que cadastra o endereço na Evolution (recusa endereço local: ativar pela Vercel).
+- Atividades: novo tipo WhatsApp.
+
 ## 0.0.4 — 2026-09-24
 
 - WhatsApp: o botão "Desconectar" só fica liberado quando o número está comprovadamente conectado. Com a situação desconhecida (instância inexistente, chave recusada), ele ficava liberado e devolvia erro do provedor; nesses casos o "Testar conexão" mostra a causa.

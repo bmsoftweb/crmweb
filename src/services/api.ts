@@ -336,6 +336,10 @@ export const testarWhatsApp = (): Promise<{ conectado: boolean; mensagem: string
 /** QR Code para conectar o número do WhatsApp gravado; conectado: true se já estiver */
 export const conectarWhatsApp = (): Promise<{ conectado: boolean; qrcode?: string }> => enviar('POST', '/api/config/whatsapp/provedor/conectar');
 
+/** Liga o recebimento de mensagens: a Evolution passa a avisar o CRM neste endereço (origem) */
+export const ativarRecebimentoWhatsApp = (origem: string): Promise<{ origem: string; em: string }> =>
+  enviar('POST', '/api/config/whatsapp/provedor/receber', { origem });
+
 /** Desconecta o número do WhatsApp gravado (depois é preciso ler outro QR Code) */
 export const desconectarWhatsApp = (): Promise<{ success: boolean }> => enviar('POST', '/api/config/whatsapp/provedor/desconectar');
 

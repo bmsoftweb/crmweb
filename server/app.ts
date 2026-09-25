@@ -12,7 +12,7 @@ import { createEnderecosRouter } from './enderecos.js';
 import { createParticipantesRouter } from './participantes.js';
 import { createCampanhasRouter } from './campanhas.js';
 import { createContratosRouter, createWebhookD4SignRouter, rotinaContratos } from './contratos.js';
-import { enviarPendentes } from './whatsapp.js';
+import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 
 // ==========================================================
 // Sessão: token "usuarioId.expiracao.assinatura" (HMAC-SHA256)
@@ -143,6 +143,18 @@ export function createApp() {
 
   // Aviso da D4Sign sobre as assinaturas (público: a D4Sign não tem sessão)
   app.use(createWebhookD4SignRouter());
+
+  // Avisos da Evolution (mensagens recebidas, entrega e leitura). Público: o token do endereço
+  // identifica a empresa. Processa antes de responder (na Vercel a função congela depois)
+  app.post('/api/webhooks/evolution/:token', async (req: Request, res: Response) => {
+    try {
+      await receberAvisoEvolution(req.params.token, req.body);
+      res.json({ ok: true });
+    } catch (err: any) {
+      if (!err.status) console.error(`Evolution webhook: ${err.message}`);
+      res.status(err.status || 500).json({ error: err.message });
+    }
+  });
 
   // Rotinas chamadas pelo cron da Vercel (vercel.json), que envia "Authorization: Bearer CRON_SECRET".
   // Fora da Vercel elas rodam pelo setInterval do server.ts.

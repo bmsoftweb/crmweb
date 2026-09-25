@@ -140,6 +140,7 @@ export const TIPOS_ATIVIDADE = [
   { value: 'prazo', label: 'Prazo' },
   { value: 'email', label: 'E-mail' },
   { value: 'almoco', label: 'Almoço' },
+  { value: 'whatsapp', label: 'WhatsApp' },
 ];
 
 export const TIPOS_PESSOA = [

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, PlugZap, QrCode, Save, Unplug, X } from 'lucide-react';
-import { conectarWhatsApp, desconectarWhatsApp, fetchConfig, salvarConfig, testarWhatsApp } from '../services/api';
+import { Loader2, PlugZap, QrCode, Save, Unplug, Webhook, X } from 'lucide-react';
+import { ativarRecebimentoWhatsApp, conectarWhatsApp, desconectarWhatsApp, fetchConfig, salvarConfig, testarWhatsApp } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { NumberField } from './NumberField';
 import { AvisoErro } from './AvisoErro';
@@ -30,13 +30,15 @@ interface Props {
 export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => {
   const [v, setV] = useState<Whats | null>(null);
   const [definidos, setDefinidos] = useState({ token: false, client: false, provedor: '' });
-  const [ocupado, setOcupado] = useState<'salvar' | 'testar' | null>(null);
+  const [ocupado, setOcupado] = useState<'salvar' | 'testar' | 'receber' | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   /** Painel do QR Code: aberto enquanto não é null; '' = carregando */
   const [qrcode, setQrcode] = useState<string | null>(null);
   const [desconectando, setDesconectando] = useState(false);
   /** Situação do número no provedor; null = não se sabe (sem configuração ou provedor com falha) */
   const [conectado, setConectado] = useState<boolean | null>(null);
+  /** Recebimento de mensagens ativado (webhook na Evolution): endereço do CRM e quando */
+  const [recebimento, setRecebimento] = useState<{ origem: string; em: string } | null>(null);
 
   const consultarSituacao = () =>
     testarWhatsApp()
@@ -49,6 +51,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
       .then(({ valor }) => {
         setV(valor ? { ...VAZIO, provedor: valor.provedor, url: valor.url || '', instancia: valor.instancia || '', intervalo: String(valor.intervalo ?? 5) } : VAZIO);
         setDefinidos({ token: Boolean(valor?.token_definido), client: Boolean(valor?.client_token_definido), provedor: valor?.provedor || '' });
+        setRecebimento(valor?.webhook ?? null);
       })
       .catch((e) => setErro(e.message));
   }, []);
@@ -114,6 +117,10 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
       });
       setV({ ...v, token: '', client_token: '' });
       consultarSituacao();
+      // Trocar servidor ou instância desfaz o recebimento (o servidor decide)
+      fetchConfig<any>('whatsapp', 'provedor')
+        .then(({ valor }) => setRecebimento(valor?.webhook ?? null))
+        .catch(() => {});
       onToast(ativo ? 'Configuração do WhatsApp gravada.' : 'Configuração do WhatsApp removida: vale a do servidor (.env).');
     } catch (err: any) {
       setErro(err.message);
@@ -134,6 +141,20 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
       setOcupado(null);
     }
   };
+
+  const ativarRecebimento = async () => {
+    setOcupado('receber');
+    try {
+      setRecebimento(await ativarRecebimentoWhatsApp(window.location.origin));
+      onToast('Recebimento de mensagens ativado na Evolution.');
+    } catch (err: any) {
+      setErro(err.message);
+    } finally {
+      setOcupado(null);
+    }
+  };
+  // O recebimento usa a configuração gravada
+  const podeReceber = definidos.provedor === 'evolution' && definidos.token;
 
   const campo = `${INPUT_CLASS} w-full`;
   const ehZapi = v.provedor === 'zapi';
@@ -198,6 +219,29 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
                   placeholder={clientGravado ? 'Gravado — deixe em branco para manter' : 'Client-Token (Segurança, no painel da Z-API)'}
                   className={campo}
                 />
+              </div>
+            )}
+            {!ehZapi && (
+              <div className="sm:col-span-4 flex flex-wrap items-center gap-3 p-3 rounded-lg bg-stone-50 dark:bg-stone-950/60 border border-stone-200 dark:border-stone-800">
+                <div className="flex-1 min-w-64 text-xs text-stone-600 dark:text-stone-300">
+                  <b>Recebimento de mensagens</b>: a Evolution avisa o CRM das mensagens recebidas e da entrega e leitura das enviadas. Ative
+                  pelo endereço público do CRM (o da Vercel): a Evolution não alcança o computador local.
+                  <div className={`mt-1 font-semibold ${recebimento ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-500'}`}>
+                    {recebimento
+                      ? `Ativo desde ${recebimento.em.slice(8, 10)}/${recebimento.em.slice(5, 7)}/${recebimento.em.slice(0, 4)} ${recebimento.em.slice(11, 16)}, em ${recebimento.origem}`
+                      : 'Não ativado.'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={ativarRecebimento}
+                  disabled={somenteLeitura || !podeReceber || ocupado !== null}
+                  title={podeReceber ? `Cadastra na Evolution o endereço ${window.location.origin}` : 'Grave a configuração da Evolution antes'}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-default shrink-0"
+                >
+                  {ocupado === 'receber' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Webhook className="w-4 h-4" />}
+                  {recebimento ? 'Ativar de novo' : 'Ativar recebimento'}
+                </button>
               </div>
             )}
           </>
