@@ -11,7 +11,6 @@ import {
   escolhaPelaIa,
   gerarRespostaIa,
   lerChatbot,
-  minutosDevolver,
   mudarAtendimento,
   registrarLead,
   telefoneCadastro,
@@ -701,14 +700,7 @@ export async function executarJornada(nova: MensagemNova, jornada: Jornada, bot:
     const atual = exec.no(estado.no);
     try {
       if (!atual || estado.no === FIM) {
-        // Depois do Fim, só recomeça se a conversa estava parada (senão um "obrigado" traria o menu de novo)
-        if (estado.no === FIM) {
-          const [ant] = await pool.query<any[]>(
-            'SELECT MAX(data_hora) < NOW() - INTERVAL ? MINUTE AS parada FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ? AND id < ?',
-            [minutosDevolver(bot), nova.empresaId, nova.telefone, nova.id],
-          );
-          if (!Number(ant[0]?.parada)) return;
-        }
+        // Sem ponto na jornada, ou depois do Fim (ou de uma saída sem ligação): recomeça do Início
         estado.retomar = 'limpar';
         await exec.percorrer(inicio);
       } else {

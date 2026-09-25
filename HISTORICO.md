@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.15 — 2026-09-25
+
+- Jornada: depois do Fim (ou de uma saída sem ligação), a próxima mensagem do cliente recomeça a jornada do Início (antes só recomeçava depois dos minutos de devolver ao bot).
+
 ## 0.0.14 — 2026-09-25
 
 - Conversas: resposta do bot ainda sendo escrita aparece como "digitando..." (não mais um balão vazio com relógio); as respostas do bot aparecem com o nome do assistente ("Eloisa (bot)").
