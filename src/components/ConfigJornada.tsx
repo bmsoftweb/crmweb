@@ -23,6 +23,7 @@ import { OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import {
   CORES,
+  GRUPOS_NO,
   OPERADORES,
   TIPOS_NO,
   avisosJornada,
@@ -189,14 +190,17 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     [setEdges, setNodes],
   );
 
-  const adicionar = (tipo: TipoNo) => {
+  /** Nó novo: onde foi solto (arrastar da barra) ou no centro do quadro (clique) */
+  const adicionar = (tipo: TipoNo, solto?: { x: number; y: number }) => {
     const r = quadroRef.current?.getBoundingClientRect();
-    const centro = r ? rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 }) : { x: 0, y: 0 };
+    const posicao = solto
+      ? { x: solto.x - 120, y: solto.y - 20 }
+      : (() => {
+          const centro = r ? rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 }) : { x: 0, y: 0 };
+          return { x: centro.x - 120 + Math.random() * 40, y: centro.y - 40 + Math.random() * 40 };
+        })();
     const id = novoId();
-    setNodes((ns) => [
-      ...ns.map((n) => ({ ...n, selected: false })),
-      { id, type: 'no', position: { x: centro.x - 120 + Math.random() * 40, y: centro.y - 40 + Math.random() * 40 }, selected: true, data: { tipo, dados: dadosPadrao(tipo) } },
-    ]);
+    setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), { id, type: 'no', position: posicao, selected: true, data: { tipo, dados: dadosPadrao(tipo) } }]);
     setSelecionado(id);
   };
 
@@ -331,30 +335,38 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
           )}
         </fieldset>
 
-        {!somenteLeitura && (
-          <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(TIPOS_NO) as TipoNo[])
-              .filter((t) => t !== 'inicio')
-              .map((t) => {
-                const Icone = TIPOS_NO[t].icone;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => adicionar(t)}
-                    title={TIPOS_NO[t].ajuda}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border cursor-pointer hover:shadow-xs ${CORES[TIPOS_NO[t].cor].borda} ${CORES[TIPOS_NO[t].cor].fundo} ${CORES[TIPOS_NO[t].cor].texto}`}
-                  >
-                    <Plus className="w-3 h-3" />
-                    <Icone className="w-3.5 h-3.5" />
-                    {TIPOS_NO[t].nome}
-                  </button>
-                );
-              })}
-          </div>
-        )}
-
         <div className="flex gap-3 h-[70vh] min-h-[480px]">
+          {!somenteLeitura && (
+            <nav aria-label="Tipos de nó" className="w-44 shrink-0 overflow-y-auto rounded-xl border border-stone-200 dark:border-stone-800 py-2">
+              {GRUPOS_NO.map((g) => (
+                <div key={g.titulo} className="mb-2">
+                  <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">{g.titulo}</div>
+                  {g.tipos.map((t) => {
+                    const Icone = TIPOS_NO[t].icone;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('application/x-jornada-no', t);
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onClick={() => adicionar(t)}
+                        title={`${TIPOS_NO[t].ajuda} Clique para incluir no centro ou arraste até o quadro.`}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-grab"
+                      >
+                        <span className={`flex items-center justify-center w-6 h-6 rounded-md ${CORES[TIPOS_NO[t].cor].fundo}`}>
+                          <Icone className={`w-3.5 h-3.5 ${CORES[TIPOS_NO[t].cor].texto}`} />
+                        </span>
+                        <span className="truncate">{TIPOS_NO[t].nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
+          )}
           <div ref={quadroRef} className="flex-1 min-w-0 rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden">
             <ReactFlow
               nodes={nodes}
@@ -365,6 +377,17 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
               onConnect={onConnect}
               isValidConnection={ligacaoValida}
               onBeforeDelete={antesDeExcluir}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes('application/x-jornada-no')) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={(e) => {
+                const tipo = e.dataTransfer.getData('application/x-jornada-no') as TipoNo;
+                if (!tipo || !TIPOS_NO[tipo]) return;
+                e.preventDefault();
+                adicionar(tipo, rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+              }}
               onSelectionChange={({ nodes: ns }) => setSelecionado(ns.length === 1 ? ns[0].id : null)}
               nodesDraggable={!somenteLeitura}
               nodesConnectable={!somenteLeitura}

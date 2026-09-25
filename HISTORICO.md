@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.13 — 2026-09-25
+
+- Jornada: os tipos de nó ficam numa barra lateral à esquerda do quadro, agrupados (Conversa, Lógica, Integrações, CRM, Encerrar). Clique inclui no centro do quadro; arrastar até o quadro inclui onde for solto.
+
 ## 0.0.12 — 2026-09-25
 
 - Conversas: botão Encerrar — fim da sessão, como se o tempo de devolver ao bot tivesse passado (sai do departamento e da jornada; a próxima mensagem do cliente recomeça). "Devolver ao bot" agora continua a mesma sessão (mantém o departamento). Os botões aparecem também nas conversas atendidas pela jornada.

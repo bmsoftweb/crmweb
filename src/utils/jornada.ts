@@ -54,6 +54,15 @@ export const TIPOS_NO: Record<TipoNo, { nome: string; icone: LucideIcon; cor: st
   fim: { nome: 'Fim', icone: Flag, cor: 'rose', ajuda: 'Encerra a jornada (com uma mensagem opcional).' },
 };
 
+/** Grupos da barra de nós do editor, na ordem (nó novo: incluir o tipo no grupo certo) */
+export const GRUPOS_NO: { titulo: string; tipos: TipoNo[] }[] = [
+  { titulo: 'Conversa', tipos: ['mensagem', 'imagem', 'menu', 'pergunta'] },
+  { titulo: 'Lógica', tipos: ['condicao', 'case', 'esperar'] },
+  { titulo: 'Integrações', tipos: ['api', 'ia'] },
+  { titulo: 'CRM', tipos: ['lead', 'departamento'] },
+  { titulo: 'Encerrar', tipos: ['fim'] },
+];
+
 /** Classes por cor (escritas por extenso para o Tailwind encontrar) */
 export const CORES: Record<string, { borda: string; fundo: string; texto: string }> = {
   emerald: { borda: 'border-emerald-400', fundo: 'bg-emerald-50 dark:bg-emerald-950/40', texto: 'text-emerald-700 dark:text-emerald-300' },
