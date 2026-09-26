@@ -988,6 +988,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'preco_tabela', label: 'Preço de Tabela', type: 'decimal', scale: 2, required: true, listed: true, filterable: true },
       { name: 'unidade_medida', label: 'Unidade', type: 'text', maxLength: 10, listed: true, default: 'UN', width: 'xs' },
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true },
+      { name: 'cod_integracao', label: 'Cód.Integração', type: 'text', readOnly: true, filterable: true, searchable: true, hint: 'Preenchido pela importação do bmsoft (PRODUTOSPRINCIPAL.ID)' },
       ...CRIADO_ATUALIZADO,
     ],
   },

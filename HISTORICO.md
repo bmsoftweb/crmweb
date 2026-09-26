@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.26 — 2026-09-26
+
+Importação do bmsoft pelo token da bmAPI e importação de produtos. Banco: coluna produtos.cod_integracao (única por empresa).
+
+- Importar BM: pede o token da bmAPI (X-API-Key) no lugar do número do servidor. O CRM acha o servidor dono do token em bmapi.servidores (endereço, porta e identificação, mostrada ao lado do campo enquanto se digita) e grava o token cifrado na configuração da empresa: nas próximas vezes não precisa digitar ("Trocar token" para mudar). O token não volta ao navegador; a busca pelo número do servidor saiu.
+- Produtos › Importar BM: importa PRODUTOSPRINCIPAL (ID → cód. integração BM-<id> e SKU, Descricao → nome, Texto → descrição, PrecoVenda1 → preço de tabela, UNVenda → unidade, Ativo → ativo). Entram os ativos; os já importados são atualizados, inclusive desativados quando ficam inativos no bmsoft.
+
 ## 0.0.25 — 2026-09-25
 
 Menu lateral recolhível e ajustes na tela de aprovação da proposta.

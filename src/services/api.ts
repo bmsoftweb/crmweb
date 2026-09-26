@@ -225,15 +225,17 @@ export function invalidateOptions(resource?: string) {
 // ------------------------------------------------------------
 // Importação do bmsoft (bmAPI)
 // ------------------------------------------------------------
-/** Importa a tabela PESSOAS do bmsoft para o CRM, casando por PESSOAS.ID = cod_integracao */
-export function importarPessoasBM(servidor: number): Promise<{
+/** Importa do bmsoft para o CRM (PESSOAS ou PRODUTOSPRINCIPAL), casando o ID com cod_integracao */
+export function importarBM(tipo: 'pessoas' | 'produtos'): Promise<{
   servidor: string;
   lidos: number;
   inseridos: number;
   atualizados: number;
   inalterados: number;
+  /** Produtos: inativos no bmsoft que nunca vieram (não entram) */
+  inativos?: number;
 }> {
-  return enviar('POST', '/api/import-bm/pessoas', { servidor });
+  return enviar('POST', `/api/import-bm/${tipo}`);
 }
 
 /** Importação de pessoas de arquivo: linhas já no formato dos campos do CRM, em lotes */
@@ -267,10 +269,17 @@ export const fetchEnderecos = (pessoaId: Id): Promise<Endereco[]> =>
     return l;
   });
 
-/** Identificação do servidor da bmAPI, para conferir o número digitado */
-export function buscarServidorBM(numero: number): Promise<{ numero: number; identificacao: string }> {
-  return get(`/api/import-bm/servidores/${numero}`);
+/** Token da bmAPI da empresa: se já foi informado e de qual servidor ele é (o token não volta) */
+export interface CredencialBM {
+  definido: boolean;
+  servidor?: string;
+  erro?: string;
 }
+export const credencialBM = (): Promise<CredencialBM> => get('/api/import-bm/credencial');
+/** Servidor da bmAPI dono do token digitado (sem gravar) */
+export const conferirTokenBM = (token: string): Promise<{ servidor: string }> => enviar('POST', '/api/import-bm/credencial/conferir', { token });
+/** Grava o token da bmAPI (o servidor confere de qual servidor ele é) */
+export const gravarTokenBM = (token: string): Promise<CredencialBM> => enviar('PUT', '/api/import-bm/credencial', { token });
 
 // ------------------------------------------------------------
 // Configurações da empresa (tabela config)

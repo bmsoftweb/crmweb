@@ -345,10 +345,12 @@ export default function App() {
                   ? (recarregar) => (
                       <>
                         <BotaoImportarArquivo onImportado={recarregar} />
-                        <BotaoImportarBM onImportado={recarregar} />
+                        <BotaoImportarBM tipo="pessoas" onImportado={recarregar} />
                       </>
                     )
-                  : undefined
+                  : activeResource.name === 'produtos'
+                    ? (recarregar) => <BotaoImportarBM tipo="produtos" onImportado={recarregar} />
+                    : undefined
               }
               acoesEmMenu={activeResource.name === 'propostas' || activeResource.name === 'pedidos'}
               acoesLinha={
