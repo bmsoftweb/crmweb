@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.25 — 2026-09-25
+
+Menu lateral recolhível e ajustes na tela de aprovação da proposta.
+
+- Menu lateral: alça fina com chevron, centralizada na borda, recolhe o menu para uma faixa só com os ícones (nome no tooltip; conversas não vistas como ponto vermelho) e abre de novo. A escolha fica guardada no navegador. No celular continua a gaveta.
+- Aprovação da proposta pelo link: no lugar dos botões Aprovar/Recusar, o título "Para aprovar preencha abaixo:" com o formulário de aprovação; embaixo de "Aprovar e assinar", o botão "Recusar a Proposta", que abre o motivo da recusa com Voltar e Confirmar recusa.
+
 ## 0.0.24 — 2026-09-25
 
 Jornada: nó "IA (Gemini) Ex"; ações das listas em menu "...".

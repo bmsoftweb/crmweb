@@ -120,12 +120,12 @@ const MENSAGENS: Record<Exclude<Situacao, 'aberta'>, { titulo: string; texto: st
 export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
   const [p, setP] = useState<PropostaPublica | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
-  const [modo, setModo] = useState<'aprovar' | 'recusar'>('aprovar');
   const [nome, setNome] = useState('');
   const [documento, setDocumento] = useState('');
+  const [recusando, setRecusando] = useState(false);
+  const [motivo, setMotivo] = useState('');
   const [assinatura, setAssinatura] = useState<string | null>(null);
   const [concordo, setConcordo] = useState(false);
-  const [motivo, setMotivo] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -142,13 +142,12 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
     carregar();
   }, [token]);
 
-  const enviar = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const enviar = async (acao: 'aceitar' | 'recusar') => {
     setErro(null);
     setEnviando(true);
     try {
-      if (modo === 'aprovar') await postar(api(token, '/aceitar'), { nome, documento, assinatura, concordo });
-      else await postar(api(token, '/recusar'), { nome, motivo });
+      if (acao === 'recusar') await postar(api(token, '/recusar'), { nome, motivo });
+      else await postar(api(token, '/aceitar'), { nome, documento, assinatura, concordo });
       await carregar();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
@@ -277,83 +276,93 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
 
         {/* Resposta */}
         {p.situacao === 'aberta' && (
-          <form onSubmit={enviar} className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
-            <div className="flex gap-2">
-              {(['aprovar', 'recusar'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => {
-                    setModo(m);
-                    setErro(null);
-                  }}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold cursor-pointer border ${
-                    modo === m
-                      ? m === 'aprovar'
-                        ? 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'bg-rose-600 border-rose-600 text-white'
-                      : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
-                  }`}
-                >
-                  {m === 'aprovar' ? 'Aprovar a proposta' : 'Recusar'}
-                </button>
-              ))}
-            </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              enviar('aceitar');
+            }}
+            className="bg-white rounded-2xl shadow-sm p-5 space-y-4"
+          >
+            <h2 className="text-base font-bold text-stone-900">Para aprovar preencha abaixo:</h2>
 
             <div className={FIELD_CLASS}>
               <label htmlFor="ac-nome" className={LABEL_CLASS}>Seu nome completo</label>
               <input id="ac-nome" required value={nome} onChange={(e) => setNome(e.target.value)} maxLength={150} autoComplete="name" className={`${INPUT_CLASS_LG} w-full`} />
             </div>
-
-            {modo === 'aprovar' ? (
-              <>
-                <div className={FIELD_CLASS}>
-                  <label htmlFor="ac-doc" className={LABEL_CLASS}>CPF ou CNPJ</label>
-                  <input
-                    id="ac-doc"
-                    required
-                    inputMode="numeric"
-                    value={documento}
-                    onChange={(e) => setDocumento(e.target.value.replace(/\D/g, '').slice(0, 14))}
-                    placeholder="Só os números"
-                    className={`${INPUT_CLASS_LG} w-full`}
-                  />
-                </div>
-                <div className={FIELD_CLASS}>
-                  <span className={LABEL_CLASS}>Assinatura</span>
-                  <QuadroAssinatura onMudar={setAssinatura} />
-                </div>
-                <Toggle
-                  checked={concordo}
-                  onChange={setConcordo}
-                  label={
-                    <span className="text-sm text-stone-700">
-                      Li e aprovo a proposta nº {p.numero} (versão {p.versao}), no valor de {formatMoeda(p.valor_total)}.
-                    </span>
-                  }
-                />
-              </>
-            ) : (
-              <div className={FIELD_CLASS}>
-                <label htmlFor="ac-motivo" className={LABEL_CLASS}>Motivo da recusa</label>
-                <textarea id="ac-motivo" required value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} maxLength={1000} className={`${INPUT_CLASS_LG} w-full resize-y`} />
-              </div>
-            )}
+            <div className={FIELD_CLASS}>
+              <label htmlFor="ac-doc" className={LABEL_CLASS}>CPF ou CNPJ</label>
+              <input
+                id="ac-doc"
+                required
+                inputMode="numeric"
+                value={documento}
+                onChange={(e) => setDocumento(e.target.value.replace(/\D/g, '').slice(0, 14))}
+                placeholder="Só os números"
+                className={`${INPUT_CLASS_LG} w-full`}
+              />
+            </div>
+            <div className={FIELD_CLASS}>
+              <span className={LABEL_CLASS}>Assinatura</span>
+              <QuadroAssinatura onMudar={setAssinatura} />
+            </div>
+            <Toggle
+              checked={concordo}
+              onChange={setConcordo}
+              label={
+                <span className="text-sm text-stone-700">
+                  Li e aprovo a proposta nº {p.numero} (versão {p.versao}), no valor de {formatMoeda(p.valor_total)}.
+                </span>
+              }
+            />
 
             {erro && <div className="p-3 rounded-lg bg-rose-50 text-rose-800 text-sm">{erro}</div>}
 
             <button
               type="submit"
-              disabled={enviando || (modo === 'aprovar' ? !podeAprovar : nome.trim().length < 3 || !motivo.trim())}
-              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                modo === 'aprovar' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
-              }`}
+              disabled={enviando || !podeAprovar}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
             >
               {enviando && <Loader2 className="w-4 h-4 animate-spin" />}
-              {modo === 'aprovar' ? 'Aprovar e assinar' : 'Confirmar recusa'}
+              Aprovar e assinar
             </button>
+
+            {/* Recusa: pede o motivo (o nome é o de cima) */}
+            {!recusando ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setRecusando(true);
+                  setErro(null);
+                }}
+                className="w-full py-3 rounded-xl border border-rose-200 text-rose-700 font-semibold hover:bg-rose-50 cursor-pointer"
+              >
+                Recusar a Proposta
+              </button>
+            ) : (
+              <div className="p-3 rounded-xl border border-rose-200 bg-rose-50/50 space-y-3">
+                <div className={FIELD_CLASS}>
+                  <label htmlFor="ac-motivo" className={LABEL_CLASS}>Motivo da recusa</label>
+                  <textarea id="ac-motivo" autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} maxLength={1000} className={`${INPUT_CLASS_LG} w-full resize-y`} />
+                  <span className="text-[11px] text-stone-400">Informe também o seu nome, no início do formulário.</span>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setRecusando(false)} className="flex-1 py-2.5 rounded-xl border border-stone-200 bg-white text-stone-600 text-sm font-semibold hover:bg-stone-50 cursor-pointer">
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={enviando || nome.trim().length < 3 || !motivo.trim()}
+                    onClick={() => enviar('recusar')}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {enviando && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Confirmar recusa
+                  </button>
+                </div>
+              </div>
+            )}
             <p className="text-[11px] text-stone-400 text-center">
-              Ao {modo === 'aprovar' ? 'aprovar' : 'recusar'}, registramos a data e a hora, o seu IP e o navegador, como comprovante desta resposta.
+              Ao aprovar ou recusar, registramos a data e a hora, o seu IP e o navegador, como comprovante desta resposta.
             </p>
           </form>
         )}
