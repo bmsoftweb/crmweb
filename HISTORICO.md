@@ -2,6 +2,17 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.27 — 2026-09-26
+
+Chamados de suporte, suporte pelo site, fotos de produtos e a Automação no lugar do Chatbot. Banco: tabelas chamados, chamado_mensagens e chamado_categorias; colunas chamados.contato_nome/contato_telefone/contato_documento e produtos.fotos. Vercel: Blob ligado ao projeto (BLOB_READ_WRITE_TOKEN).
+
+- Suporte › Fila de Chamados: chamados aguardando, em ordem de chegada (posição, cliente, categoria, prioridade, espera, SLA vencido) e Assumir; etiqueta com a quantidade no menu.
+- Suporte › Chamados Ativos: lista com filtros rápidos (Meus, Todos, Aguardando, Em andamento, Encerrados) e busca; chamado aberto com a linha do tempo, resposta ao cliente (vai pelo WhatsApp da pessoa) ou nota interna, Assumir, Transferir (usuário ou departamento, que devolve à fila) e Encerrar. Novo Chamado com busca do cliente, categoria (SLA em horas), prioridade, canal e "Atender agora". Cadastros › Categorias de Chamado. As duas telas entram nas Permissões.
+- Suporte pelo site: widget.js (botão flutuante + painel) abre /suporte, onde o cliente abre o chamado (CNPJ/CPF, nome, WhatsApp, assunto e descrição), vê a posição na fila, conversa com a equipe e avalia de 1 a 5 no fim. O acesso ao chamado é pelo token assinado guardado no navegador que abriu.
+- Produtos: até 4 fotos (do computador ou da internet), reduzidas a 400 px no lado maior e gravadas no Vercel Blob no padrão do b2b (produtos/<empresa>/<id 9 dígitos>-<posição>.jpg, ?v=<md5>); saem do storage ao remover e ao excluir o produto.
+- Listas: o nome do registro ligado (produto do item de pedido, pessoa do negócio...) vem do servidor; não aparece mais "…" em cadastros com mais de 5.000 registros.
+- Configurações: a aba Jornada virou Automação e é quem atende o WhatsApp; o Chatbot ficou só com chave, modelo, nome, tempo para devolver ao bot, revezamento e pesquisa. O nó IA (Gemini) ganhou texto-base próprio (sem ele, usa o texto-base antigo). Saíram o bot sem automação e o menu de departamentos do Chatbot.
+
 ## 0.0.26 — 2026-09-26
 
 Importação do bmsoft pelo token da bmAPI e importação de produtos. Banco: coluna produtos.cod_integracao (única por empresa).

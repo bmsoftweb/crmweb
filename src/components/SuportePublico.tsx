@@ -1,0 +1,354 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Headset, Loader2, Send, Star } from 'lucide-react';
+import { formatDateTimeBR } from '../utils/formatters';
+import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
+
+/**
+ * Página pública /suporte?e=<empresa> (dentro do painel do widget.js, no site do cliente): abre o
+ * chamado e conversa com a equipe (server/suporte.ts). O token do chamado fica neste navegador:
+ * voltando ao site, a conversa continua de onde parou.
+ */
+
+interface Chamado {
+  numero: number;
+  titulo: string;
+  status: string;
+  atendente: string | null;
+  posicao: number | null;
+  avaliado: boolean;
+  mensagens: { id: number; autor: 'cliente' | 'equipe'; texto: string; criado_em: string; usuario_nome: string | null }[];
+}
+
+const api = async (url: string, corpo?: unknown) => {
+  const r = await fetch(url, corpo === undefined ? undefined : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Não foi possível concluir agora. Tente de novo.');
+  return d;
+};
+
+/** O storage pode estar bloqueado (iframe de outro site, modo privado): sem ele, vale só enquanto a página está aberta */
+const ler = (k: string) => {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+};
+const gravar = (k: string, v: string | null) => {
+  try {
+    if (v === null) localStorage.removeItem(k);
+    else localStorage.setItem(k, v);
+  } catch {
+    // sem storage
+  }
+};
+
+const soDigitos = (v: string, max: number) => v.replace(/\D/g, '').slice(0, max);
+
+export const SuportePublico: React.FC<{ empresa: string; cnpj: string }> = ({ empresa, cnpj }) => {
+  const chaveToken = `crmweb_suporte_${empresa}`;
+  const chaveDados = `crmweb_suporte_dados_${empresa}`;
+  const [info, setInfo] = useState<{ empresa: { nome: string; logo: string | null }; categorias: { id: number; nome: string }[] } | null>(null);
+  const [token, setToken] = useState<string | null>(() => ler(chaveToken));
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    api(`/api/publico/suporte/${encodeURIComponent(empresa)}`)
+      .then(setInfo)
+      .catch((e) => setErro(e.message));
+  }, [empresa]);
+
+  const trocarToken = (t: string | null) => {
+    gravar(chaveToken, t);
+    setToken(t);
+  };
+
+  if (!info) {
+    return <div className="h-screen flex items-center justify-center text-sm text-stone-500 p-4">{erro ?? <Loader2 className="w-6 h-6 animate-spin text-stone-400" />}</div>;
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-stone-50 text-stone-800">
+      <header className="px-4 py-3 bg-blue-600 text-white flex items-center gap-3 shrink-0">
+        {info.empresa.logo ? (
+          <img src={info.empresa.logo} alt="" className="h-8 w-8 rounded-full bg-white object-contain p-0.5" />
+        ) : (
+          <Headset className="w-7 h-7" />
+        )}
+        <div className="min-w-0">
+          <div className="text-sm font-bold truncate">Suporte {info.empresa.nome}</div>
+          <div className="text-[11px] text-blue-100">Fale com a nossa equipe</div>
+        </div>
+      </header>
+      {token ? (
+        <Conversa token={token} onNovo={() => trocarToken(null)} />
+      ) : (
+        <Abrir empresa={empresa} cnpj={cnpj} categorias={info.categorias} chaveDados={chaveDados} onAberto={trocarToken} />
+      )}
+    </div>
+  );
+};
+
+const Abrir: React.FC<{
+  empresa: string;
+  cnpj: string;
+  categorias: { id: number; nome: string }[];
+  chaveDados: string;
+  onAberto: (token: string) => void;
+}> = ({ empresa, cnpj, categorias, chaveDados, onAberto }) => {
+  // Nome, WhatsApp e CNPJ da última vez vêm preenchidos
+  const salvos = (() => {
+    try {
+      return JSON.parse(ler(chaveDados) || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const [v, setV] = useState({
+    documento: soDigitos(cnpj || salvos.documento || '', 14),
+    nome: salvos.nome || '',
+    telefone: salvos.telefone || '',
+    categoria_id: '',
+    descricao: '',
+  });
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const alterar = (m: Partial<typeof v>) => setV({ ...v, ...m });
+
+  const enviar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEnviando(true);
+    setErro(null);
+    try {
+      const r = await api(`/api/publico/suporte/${encodeURIComponent(empresa)}/chamados`, { ...v, categoria_id: Number(v.categoria_id) || null });
+      gravar(chaveDados, JSON.stringify({ documento: v.documento, nome: v.nome, telefone: v.telefone }));
+      onAberto(r.token);
+    } catch (err: any) {
+      setErro(err.message);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  // Foco no primeiro campo vazio
+  const primeiroVazio = !v.documento ? 'sp-doc' : !v.nome ? 'sp-nome' : !v.telefone ? 'sp-tel' : categorias.length ? 'sp-cat' : 'sp-desc';
+  const campo = `${INPUT_CLASS} w-full`;
+
+  return (
+    <form onSubmit={enviar} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+      <p className="text-xs text-stone-600">Conte o que está acontecendo. O primeiro atendente livre continua a conversa por aqui.</p>
+      <div className={FIELD_CLASS}>
+        <label htmlFor="sp-doc" className={LABEL_CLASS}>CNPJ da empresa (ou CPF)</label>
+        <input id="sp-doc" autoFocus={primeiroVazio === 'sp-doc'} inputMode="numeric" value={v.documento} onChange={(e) => alterar({ documento: soDigitos(e.target.value, 14) })} onFocus={(e) => e.target.select()} placeholder="Só os números" className={campo} />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className={FIELD_CLASS}>
+          <label htmlFor="sp-nome" className={LABEL_CLASS}>Seu nome</label>
+          <input id="sp-nome" autoFocus={primeiroVazio === 'sp-nome'} value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} maxLength={120} autoComplete="name" className={campo} />
+        </div>
+        <div className={FIELD_CLASS}>
+          <label htmlFor="sp-tel" className={LABEL_CLASS}>WhatsApp</label>
+          <input id="sp-tel" autoFocus={primeiroVazio === 'sp-tel'} inputMode="tel" value={v.telefone} onChange={(e) => alterar({ telefone: soDigitos(e.target.value, 13) })} onFocus={(e) => e.target.select()} placeholder="DDD + número" className={campo} />
+        </div>
+      </div>
+      {categorias.length > 0 && (
+        <div className={FIELD_CLASS}>
+          <label htmlFor="sp-cat" className={LABEL_CLASS}>Assunto</label>
+          <select id="sp-cat" autoFocus={primeiroVazio === 'sp-cat'} value={v.categoria_id} onChange={(e) => alterar({ categoria_id: e.target.value })} className={`${campo} cursor-pointer`}>
+            <option value="">Escolha...</option>
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div className={FIELD_CLASS}>
+        <label htmlFor="sp-desc" className={LABEL_CLASS}>Como podemos ajudar?</label>
+        <textarea id="sp-desc" autoFocus={primeiroVazio === 'sp-desc'} value={v.descricao} onChange={(e) => alterar({ descricao: e.target.value })} rows={5} maxLength={4000} className={`${campo} resize-none`} />
+      </div>
+      {erro && <div className="p-2.5 rounded-lg bg-rose-50 text-rose-800 text-xs">{erro}</div>}
+      <button type="submit" disabled={enviando} className="flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-50">
+        {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        Iniciar atendimento
+      </button>
+    </form>
+  );
+};
+
+const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNovo }) => {
+  const [c, setC] = useState<Chamado | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [texto, setTexto] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const fim = useRef<HTMLDivElement>(null);
+  const qtd = useRef(0);
+  const url = `/api/publico/suporte/chamado/${encodeURIComponent(token)}`;
+  const onNovoRef = useRef(onNovo);
+  onNovoRef.current = onNovo;
+
+  const carregar = useCallback(() => {
+    api(url)
+      .then((d) => {
+        setC(d);
+        setErro(null);
+      })
+      .catch((e) => {
+        // Token que não vale mais (chamado excluído): volta ao formulário
+        if (/não encontrado/i.test(e.message)) onNovoRef.current();
+        else setErro(e.message);
+      });
+  }, [url]);
+  // Atualiza a cada 4 s (resposta da equipe, posição na fila)
+  useEffect(() => {
+    carregar();
+    const i = setInterval(carregar, 4000);
+    return () => clearInterval(i);
+  }, [carregar]);
+  useEffect(() => {
+    if (c && c.mensagens.length !== qtd.current) {
+      qtd.current = c.mensagens.length;
+      fim.current?.scrollIntoView({ block: 'end' });
+    }
+  }, [c]);
+
+  if (!c) return <div className="flex-1 flex items-center justify-center">{erro ?? <Loader2 className="w-6 h-6 animate-spin text-stone-400" />}</div>;
+
+  const encerrado = ['encerrado', 'cancelado'].includes(c.status);
+  const enviar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!texto.trim()) return;
+    setEnviando(true);
+    try {
+      await api(`${url}/mensagens`, { texto: texto.trim() });
+      setTexto('');
+      carregar();
+    } catch (err: any) {
+      setErro(err.message);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="px-4 py-2 bg-white border-b border-stone-200 text-xs shrink-0">
+        <div className="font-semibold text-stone-800 truncate">
+          Atendimento nº {c.numero} • {c.titulo}
+        </div>
+        <div className="text-stone-500">
+          {encerrado
+            ? 'Atendimento encerrado.'
+            : c.posicao
+              ? `Você é o ${c.posicao}º da fila. Um atendente já vai falar com você.`
+              : c.atendente
+                ? `Em atendimento com ${c.atendente}.`
+                : 'Aguardando um atendente.'}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+        {c.mensagens.map((m) => (
+          <div
+            key={m.id}
+            className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${
+              m.autor === 'cliente' ? 'self-end bg-blue-600 text-white rounded-br-md' : 'self-start bg-white border border-stone-200 rounded-bl-md'
+            }`}
+          >
+            {m.autor === 'equipe' && <div className="text-[10px] font-semibold text-blue-600 mb-0.5">{m.usuario_nome || 'Suporte'}</div>}
+            {m.texto}
+            <div className={`text-[10px] mt-0.5 text-right ${m.autor === 'cliente' ? 'text-blue-100' : 'text-stone-400'}`}>{formatDateTimeBR(m.criado_em)}</div>
+          </div>
+        ))}
+        {!c.mensagens.length && <p className="text-xs text-stone-500 text-center mt-4">Recebemos o seu pedido. Se quiser, mande mais detalhes por aqui.</p>}
+        <div ref={fim} />
+      </div>
+
+      {erro && <div className="mx-4 mb-2 p-2 rounded-lg bg-rose-50 text-rose-800 text-xs">{erro}</div>}
+
+      {encerrado ? (
+        <Avaliar url={url} avaliado={c.avaliado} onFeito={carregar} onNovo={onNovo} />
+      ) : (
+        <form onSubmit={enviar} className="p-3 bg-white border-t border-stone-200 flex items-end gap-2 shrink-0">
+          <textarea
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                (e.currentTarget.form as HTMLFormElement).requestSubmit();
+              }
+            }}
+            disabled={enviando}
+            rows={1}
+            maxLength={4000}
+            placeholder={enviando ? 'Enviando...' : 'Escreva a sua mensagem'}
+            aria-label="Mensagem"
+            className={`${INPUT_CLASS} flex-1 resize-none text-sm`}
+          />
+          <button type="submit" disabled={enviando || !texto.trim()} title="Enviar" className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-40">
+            {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </form>
+      )}
+    </>
+  );
+};
+
+const Avaliar: React.FC<{ url: string; avaliado: boolean; onFeito: () => void; onNovo: () => void }> = ({ url, avaliado, onFeito, onNovo }) => {
+  const [nota, setNota] = useState(0);
+  const [comentario, setComentario] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const novo = (
+    <button type="button" onClick={onNovo} className="w-full py-2.5 rounded-lg border border-stone-300 text-sm font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer">
+      Novo atendimento
+    </button>
+  );
+  if (avaliado) {
+    return (
+      <div className="p-4 bg-white border-t border-stone-200 flex flex-col gap-3 shrink-0">
+        <p className="text-sm text-emerald-700 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" /> Obrigado pela avaliação!
+        </p>
+        {novo}
+      </div>
+    );
+  }
+  return (
+    <div className="p-4 bg-white border-t border-stone-200 flex flex-col gap-2 shrink-0">
+      <p className="text-sm font-semibold text-stone-800">Como foi o atendimento?</p>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} type="button" onClick={() => setNota(n)} aria-label={`${n} estrela(s)`} className="p-1 cursor-pointer">
+            <Star className={`w-7 h-7 ${n <= nota ? 'fill-amber-400 text-amber-400' : 'text-stone-300'}`} />
+          </button>
+        ))}
+      </div>
+      {nota > 0 && nota <= 3 && (
+        <textarea value={comentario} onChange={(e) => setComentario(e.target.value)} rows={2} maxLength={2000} placeholder="O que podemos melhorar?" aria-label="Comentário" className={`${INPUT_CLASS} w-full resize-none text-sm`} />
+      )}
+      {erro && <div className="p-2 rounded-lg bg-rose-50 text-rose-800 text-xs">{erro}</div>}
+      <button
+        type="button"
+        disabled={!nota || enviando}
+        onClick={async () => {
+          setEnviando(true);
+          try {
+            await api(`${url}/avaliar`, { nota, comentario });
+            onFeito();
+          } catch (e: any) {
+            setErro(e.message);
+          } finally {
+            setEnviando(false);
+          }
+        }}
+        className="py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-40"
+      >
+        Enviar avaliação
+      </button>
+      {novo}
+    </div>
+  );
+};

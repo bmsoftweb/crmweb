@@ -269,6 +269,12 @@ export const fetchEnderecos = (pessoaId: Id): Promise<Endereco[]> =>
     return l;
   });
 
+/** Grava no Vercel Blob a foto do produto já reduzida (JPEG) na posição 1 a 4 e devolve o endereço */
+export const enviarFotoProduto = (produtoId: Id, posicao: number, imagem: string): Promise<{ url: string }> =>
+  enviar('POST', `/api/produtos/${encodeURIComponent(String(produtoId))}/fotos/${posicao}`, { imagem });
+/** Baixa pelo servidor uma imagem da internet (o navegador não lê imagem de outro site) */
+export const buscarFotoInternet = (url: string): Promise<{ imagem: string }> => enviar('POST', '/api/produtos/fotos/buscar', { url });
+
 /** Token da bmAPI da empresa: se já foi informado e de qual servidor ele é (o token não volta) */
 export interface CredencialBM {
   definido: boolean;
@@ -601,3 +607,75 @@ export const fetchNumeroConversa = (de: { pessoaId?: Id; contatoId?: Id }): Prom
   get(`/api/whatsapp/numero?${de.contatoId ? `contato_id=${encodeURIComponent(String(de.contatoId))}` : `pessoa_id=${encodeURIComponent(String(de.pessoaId))}`}`);
 export const fetchDestinosConversa = (busca: string): Promise<DestinoConversa[]> =>
   get(`/api/whatsapp/destinos?busca=${encodeURIComponent(busca)}`);
+
+// ------------------------------------------------------------
+// Chamados de suporte (server/chamados.ts)
+// ------------------------------------------------------------
+
+export interface ChamadoResumo {
+  id: number;
+  numero: number;
+  titulo: string;
+  status: 'aguardando' | 'em_andamento' | 'pendente_cliente' | 'encerrado' | 'cancelado';
+  prioridade: 'baixa' | 'normal' | 'alta' | 'urgente';
+  canal: string;
+  pessoa_id: number | null;
+  pessoa_nome: string | null;
+  categoria_nome: string | null;
+  categoria_cor: string | null;
+  atendente_id: number | null;
+  atendente_nome: string | null;
+  departamento_nome: string | null;
+  criado_em: string;
+  assumido_em: string | null;
+  encerrado_em: string | null;
+  sla_prazo: string | null;
+  espera_min: number;
+  sla_vencido: boolean;
+  ultima: string | null;
+  /** Só na fila */
+  posicao?: number;
+}
+
+export interface ChamadoMensagem {
+  id: number;
+  autor: 'equipe' | 'cliente' | 'sistema';
+  texto: string;
+  interna: boolean;
+  criado_em: string;
+  usuario_nome: string | null;
+}
+
+export interface ChamadoDetalhe extends ChamadoResumo {
+  descricao: string | null;
+  aberto_por_nome: string | null;
+  pessoa_telefone: string | null;
+  eu_atendo: boolean;
+  sou_admin: boolean;
+  mensagens: ChamadoMensagem[];
+}
+
+export type FiltroChamados = 'meus' | 'todos' | 'aguardando' | 'andamento' | 'encerrados';
+
+export const fetchFilaChamados = (): Promise<ChamadoResumo[]> => get('/api/chamados/fila');
+export const fetchContagemChamados = (): Promise<{ fila: number }> => get('/api/chamados/contagem');
+export const fetchChamados = (filtro: FiltroChamados, q = ''): Promise<ChamadoResumo[]> =>
+  get(`/api/chamados?filtro=${filtro}${q ? `&q=${encodeURIComponent(q)}` : ''}`);
+export const fetchChamado = (id: number): Promise<ChamadoDetalhe> => get(`/api/chamados/${id}`);
+export const buscarPessoasChamado = (q: string): Promise<{ id: number; nome: string; telefone: string | null }[]> =>
+  get(`/api/chamados/pessoas?q=${encodeURIComponent(q)}`);
+export const criarChamado = (dados: {
+  titulo: string;
+  descricao: string;
+  pessoa_id: number | null;
+  categoria_id: number | null;
+  prioridade: string;
+  canal: string;
+  atender: boolean;
+}): Promise<{ id: number; numero: number }> => enviar('POST', '/api/chamados', dados);
+export const assumirChamado = (id: number) => enviar('POST', `/api/chamados/${id}/assumir`);
+export const encerrarChamado = (id: number) => enviar('POST', `/api/chamados/${id}/encerrar`);
+export const transferirChamado = (id: number, destino: { usuario_id?: number; departamento_id?: number; observacao?: string }) =>
+  enviar('POST', `/api/chamados/${id}/transferir`, destino);
+export const enviarMensagemChamado = (id: number, texto: string, interna: boolean): Promise<{ success: boolean; aviso: string | null }> =>
+  enviar('POST', `/api/chamados/${id}/mensagens`, { texto, interna });

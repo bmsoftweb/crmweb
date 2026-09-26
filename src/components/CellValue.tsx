@@ -35,7 +35,9 @@ export const CellValue: React.FC<CellValueProps> = ({ field, row, refOptions }) 
       return <span className="text-stone-400">—</span>;
     }
     const opt = refOptions[field.name]?.find((o) => o.value === String(value));
-    return <span className="truncate">{opt ? opt.label : '…'}</span>;
+    // Fora dos combos (cadastro grande): o nome que a lista já traz do servidor
+    const rotulo = row[`${field.name}__rotulo`];
+    return <span className="truncate">{opt ? opt.label : rotulo != null ? String(rotulo) : '…'}</span>;
   }
 
   if (field.type === 'enum' && value) {

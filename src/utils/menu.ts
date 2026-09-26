@@ -23,6 +23,8 @@ import {
   Send,
   Star,
   Settings,
+  Inbox,
+  Headset,
   Database,
   type LucideIcon,
 } from 'lucide-react';
@@ -80,6 +82,13 @@ export function gruposDoMenu(resources: ResourceDef[]): { titulo: string; itens:
         { id: 'dashboard', label: 'Painel de Vendas', descricao: 'Indicadores do funil', icone: LayoutDashboard },
         { id: 'kanban', label: 'Funil de Vendas', descricao: 'Kanban dos negócios', icone: KanbanSquare },
         { id: 'conversas', label: 'Conversas', descricao: 'Mensagens do WhatsApp', icone: MessageCircle },
+      ],
+    },
+    {
+      titulo: 'Suporte',
+      itens: [
+        { id: 'chamados_fila', label: 'Fila de Chamados', descricao: 'Chamados aguardando atendimento', icone: Inbox },
+        { id: 'chamados_ativos', label: 'Chamados Ativos', descricao: 'Atendimento dos chamados', icone: Headset },
       ],
     },
     ...GROUP_ORDER.map((group) => ({

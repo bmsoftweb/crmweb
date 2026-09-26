@@ -35,14 +35,16 @@ const modeloDe = (cfg: { modelo?: string }) => (MODELOS_GEMINI.some((m) => m.val
 
 /** Como fica no banco. A chave só cifrada, e nunca volta para a tela */
 export interface ConfigChatbot {
-  ativo: boolean;
   chave_cifrada?: string;
   /** Modelo do Gemini (um de MODELOS_GEMINI) */
   modelo: string;
   /** Nome com que o assistente se apresenta */
   nome: string;
-  /** O que o bot sabe da empresa: produtos, preços, horários, políticas */
-  texto_base: string;
+  /**
+   * Texto-base da empresa da versão antiga (bot sem Automação). Não é mais editado: só vale para o
+   * nó IA (Gemini) da Automação que ainda não tem texto-base próprio
+   */
+  texto_base?: string;
   /** Conversa com humano volta ao bot depois de X minutos sem mensagem de atendente */
   minutos_devolver: number;
   /** Versão antiga (em horas): lida só para converter, ver minutosDevolver */
@@ -51,40 +53,25 @@ export interface ConfigChatbot {
   vendedores?: number[];
   /** Último que recebeu um lead: o próximo do revezamento vem depois dele */
   ultimo_vendedor_id?: number | null;
-  /** Menu de departamentos (vazio = sem menu): abertura e opções, na ordem */
-  menu_texto: string;
-  /** bot: o bot continua atendendo depois da escolha; senão passa direto para as pessoas do departamento */
-  menu: { departamento_id: number; bot: boolean }[];
 }
 
 const PADRAO: Omit<ConfigChatbot, 'chave_cifrada'> = {
-  ativo: false,
   modelo: 'gemini-3.8-flash',
   nome: 'Assistente',
-  texto_base: '',
   minutos_devolver: 240,
   ultimo_vendedor_id: null,
-  menu_texto: 'Olá! Para agilizar seu atendimento, escolha uma opção:',
-  menu: [],
 };
 
 /** Valor que veio da tela → o que vai para o banco. Chave em branco mantém a gravada */
 export function prepararChatbot(valor: any, anterior: ConfigChatbot | null): ConfigChatbot {
   const cfg: ConfigChatbot = {
-    ativo: Boolean(valor?.ativo),
     modelo: String(valor?.modelo ?? '').trim() || PADRAO.modelo,
     nome: textoConfig(valor?.nome, 60, 'Chatbot: nome do assistente') || PADRAO.nome,
-    texto_base: String(valor?.texto_base ?? '').trim().slice(0, 50_000),
     minutos_devolver: Number(valor?.minutos_devolver ?? PADRAO.minutos_devolver),
     ultimo_vendedor_id: anterior?.ultimo_vendedor_id ?? null,
-    menu_texto: textoConfig(valor?.menu_texto, 500, 'Chatbot: texto do menu') || PADRAO.menu_texto,
-    menu: [],
   };
-  for (const o of Array.isArray(valor?.menu) ? valor.menu : []) {
-    const id = Number(o?.departamento_id);
-    if (Number.isInteger(id) && id > 0 && !cfg.menu.some((m) => m.departamento_id === id)) cfg.menu.push({ departamento_id: id, bot: Boolean(o?.bot) });
-  }
-  if (cfg.menu.length > 9) throw new Error('Chatbot: o menu aceita no máximo 9 departamentos.');
+  // Texto-base antigo: fica como estava (o nó IA sem texto-base próprio ainda usa)
+  if (anterior?.texto_base) cfg.texto_base = anterior.texto_base;
   if (!MODELOS_GEMINI.some((m) => m.value === cfg.modelo)) throw new Error(`Chatbot: modelo "${cfg.modelo}" não está na lista.`);
   if (!Number.isInteger(cfg.minutos_devolver) || cfg.minutos_devolver < 1 || cfg.minutos_devolver > 43_200) {
     throw new Error('Chatbot: os minutos para devolver a conversa ao bot devem ser de 1 a 43.200 (30 dias).');
@@ -93,8 +80,6 @@ export function prepararChatbot(valor: any, anterior: ConfigChatbot | null): Con
   if (chave.length > 500) throw new Error('Chatbot: chave grande demais.');
   const cifrada = chave ? cifrar(chave) : anterior?.chave_cifrada;
   if (cifrada) cfg.chave_cifrada = cifrada;
-  if (cfg.ativo && !cfg.chave_cifrada) throw new Error('Chatbot: informe a chave do Gemini para ligar o bot.');
-  if (cfg.ativo && !cfg.texto_base) throw new Error('Chatbot: escreva o texto-base da empresa (o que o bot pode responder) antes de ligar.');
   return cfg;
 }
 
@@ -104,7 +89,8 @@ export const minutosDevolver = (cfg: Partial<ConfigChatbot> | null | undefined):
 
 /** Valor do banco → o que a tela recebe (sem a chave) */
 export function chatbotPublica(cfg: ConfigChatbot | null) {
-  const { chave_cifrada, horas_devolver, vendedores, ...resto } = { ...PADRAO, ...(cfg ?? {}) } as ConfigChatbot;
+  // ativo, menu e menu_texto: da versão antiga, não vão mais para a tela
+  const { chave_cifrada, horas_devolver, vendedores, texto_base, ativo, menu, menu_texto, ...resto } = { ...PADRAO, ...(cfg ?? {}) } as ConfigChatbot & Record<string, any>;
   return { ...resto, minutos_devolver: minutosDevolver(cfg), modelo: modeloDe(resto), chave_definida: Boolean(chave_cifrada), modelos: MODELOS_GEMINI };
 }
 
@@ -446,20 +432,6 @@ export interface OpcaoMenu {
   bot: boolean;
 }
 
-/** Opções do menu, na ordem da configuração (só departamentos ativos da empresa) */
-async function opcoesMenu(empresaId: number, cfg: ConfigChatbot): Promise<OpcaoMenu[]> {
-  const menu = cfg.menu ?? [];
-  if (!menu.length) return [];
-  const [rows] = await pool.query<any[]>('SELECT id, nome FROM departamentos WHERE empresa_id = ? AND ativo = 1 AND id IN (?)', [
-    empresaId,
-    menu.map((m) => m.departamento_id),
-  ]);
-  const nomes = new Map(rows.map((r) => [r.id, r.nome as string]));
-  return menu
-    .filter((m) => nomes.has(m.departamento_id))
-    .map((m, i) => ({ numero: i + 1, departamento_id: m.departamento_id, nome: nomes.get(m.departamento_id)!, bot: m.bot }));
-}
-
 /** "1 - Vendas\n2 - Suporte": fim de toda mensagem de menu (é por ele que se sabe que o menu está esperando resposta) */
 export const listaMenu = (opcoes: OpcaoMenu[]) => opcoes.map((o) => `${o.numero} - ${o.nome}`).join('\n');
 
@@ -483,62 +455,6 @@ export async function escolhaPelaIa(cfg: ConfigChatbot, texto: string, opcoes: O
   });
   const n = Number(/\d+/.exec(r.text ?? '')?.[0]);
   return opcoes.find((o) => o.numero === n) ?? null;
-}
-
-/**
- * Departamento já escolhido na conversa. Conversa parada há mais que os minutos de devolver (sem
- * contar a mensagem que acabou de chegar) recomeça: o departamento é esquecido e o menu volta.
- */
-async function departamentoDaConversa(nova: MensagemNova, minutos: number): Promise<{ id: number; nome: string } | null> {
-  await pool.query(
-    `UPDATE whatsapp_conversas SET departamento_id = NULL
-      WHERE empresa_id = ? AND telefone = ? AND departamento_id IS NOT NULL
-        AND COALESCE((SELECT MAX(w.data_hora) FROM whatsapp_mensagens w WHERE w.empresa_id = ? AND w.telefone = ? AND w.id < ?), '1000-01-01') < NOW() - INTERVAL ? MINUTE`,
-    [nova.empresaId, nova.telefone, nova.empresaId, nova.telefone, nova.id, minutos],
-  );
-  const [rows] = await pool.query<any[]>(
-    'SELECT d.id, d.nome FROM whatsapp_conversas c JOIN departamentos d ON d.id = c.departamento_id WHERE c.empresa_id = ? AND c.telefone = ?',
-    [nova.empresaId, nova.telefone],
-  );
-  return rows[0] ? { id: rows[0].id, nome: rows[0].nome } : null;
-}
-
-/**
- * Conversa sem departamento: manda o menu, ou trata a resposta a ele. Escolhido um departamento que
- * passa direto para humano, avisa a equipe e responde que um atendente vai continuar; que segue
- * com o bot, devolve o departamento para a IA responder.
- */
-async function tratarMenu(
-  ctx: Contexto,
-  cfg: ConfigChatbot,
-  opcoes: OpcaoMenu[],
-  nova: MensagemNova,
-  reserva: number,
-): Promise<{ respondido: boolean; departamento: { id: number; nome: string } | null }> {
-  const lista = listaMenu(opcoes);
-  const [ultimaDoBot] = await pool.query<any[]>(
-    "SELECT texto FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ? AND origem LIKE 'bot:%' AND id <> ? ORDER BY id DESC LIMIT 1",
-    [ctx.empresaId, ctx.telefone, reserva],
-  );
-  const enviar = async (texto: string) => {
-    await pool.query('UPDATE whatsapp_mensagens SET pessoa_id = ?, contato_id = ? WHERE id = ?', [ctx.dono.pessoa_id, ctx.dono.contato_id, reserva]);
-    await enviarReservada(ctx.empresaId, reserva, `bot:${nova.id}`, ctx.telefone, texto);
-    return { respondido: true, departamento: null };
-  };
-  // O menu ainda não foi mandado (ou mudou): manda agora
-  if (!String(ultimaDoBot[0]?.texto ?? '').endsWith(lista)) return enviar(`${cfg.menu_texto}\n${lista}`);
-
-  const [m] = await pool.query<any[]>('SELECT tipo, texto FROM whatsapp_mensagens WHERE id = ?', [nova.id]);
-  const texto = m[0]?.tipo === 'texto' ? String(m[0].texto ?? '') : '';
-  const escolha = texto ? (escolhaDoTexto(texto, opcoes) ?? (await escolhaPelaIa(cfg, texto, opcoes))) : null;
-  if (!escolha) return enviar(`Desculpe, não entendi. Responda com o número de uma das opções:\n${lista}`);
-
-  await pool.query('UPDATE whatsapp_conversas SET departamento_id = ? WHERE empresa_id = ? AND telefone = ?', [escolha.departamento_id, ctx.empresaId, ctx.telefone]);
-  const departamento = { id: escolha.departamento_id, nome: escolha.nome };
-  if (escolha.bot) return { respondido: false, departamento };
-  await mudarAtendimento(ctx.empresaId, ctx.telefone, 'humano');
-  await avisarDepartamento(ctx, departamento, 'Escolheu no menu do WhatsApp.');
-  return enviar(`Certo! Vou te encaminhar para *${escolha.nome}*. Um atendente já vai continuar a conversa por aqui.`);
 }
 
 /** Número de um usuário da empresa (avisos, lembretes): o bot não responde */
@@ -653,7 +569,7 @@ async function dadosDoCliente(ctx: Contexto): Promise<string> {
   return linhas.join('\n');
 }
 
-function instrucoes(cfg: ConfigChatbot, empresa: string, hoje: string, cliente: string, departamento: string | null): string {
+function instrucoes(cfg: ConfigChatbot, textoBase: string, empresa: string, hoje: string, cliente: string, departamento: string | null): string {
   return `Você é ${cfg.nome}, assistente virtual da empresa ${empresa} no WhatsApp. Hoje é ${hoje} (horário de Brasília).${
     departamento ? `
 No menu, o cliente escolheu falar com o departamento ${departamento}: atenda sobre esse assunto (o número que ele digitou foi a escolha do menu).` : ''
@@ -668,7 +584,7 @@ Como responder:
 - Cliente não cadastrado: descubra de forma natural o nome, a empresa (se houver) e o que procura. Quando souber pelo menos o nome e o interesse, use registrar_lead uma vez e diga que um vendedor vai acompanhar.
 
 Sobre a empresa:
-${cfg.texto_base}
+${textoBase}
 
 Dados do cliente no CRM:
 ${cliente}`;
@@ -683,12 +599,12 @@ const esperar = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
  * Resposta da IA para a conversa (histórico, texto-base e dados do cliente), já com as ferramentas
  * executadas (registrar lead, transferir). Texto vazio: a IA não respondeu nada.
  */
-export async function gerarRespostaIa(ctx: Contexto, cfg: ConfigChatbot): Promise<string> {
+export async function gerarRespostaIa(ctx: Contexto, cfg: ConfigChatbot, textoBase: string): Promise<string> {
   const [e] = await pool.query<any[]>('SELECT nome FROM empresas WHERE id = ?', [ctx.empresaId]);
   const ai = clienteGemini(cfg);
   const contents = await historico(ctx);
   if (!contents.length) return '';
-  const systemInstruction = instrucoes(cfg, e[0]?.nome ?? '', hojeBrasilia(), await dadosDoCliente(ctx), ctx.departamento?.nome ?? null);
+  const systemInstruction = instrucoes(cfg, textoBase, e[0]?.nome ?? '', hojeBrasilia(), await dadosDoCliente(ctx), ctx.departamento?.nome ?? null);
   for (let volta = 0; volta < MAX_VOLTAS; volta++) {
     const r = await ai.models.generateContent({
       model: modeloDe(cfg),
@@ -781,13 +697,13 @@ async function ultimaRecebida(empresaId: number, telefone: string): Promise<numb
  */
 export async function responderComBot(nova: MensagemNova): Promise<void> {
   const cfg = await lerChatbot(nova.empresaId);
-  // Jornada de atendimento (Configurações › Jornada) ligada para este número: ela atende no lugar do bot.
+  // Quem atende é a Automação (Configurações › Automação) ligada para este número.
   // Import dinâmico: jornada.ts usa este módulo
   const { jornadaDoNumero, executarJornada } = await import('./jornada.js');
   const jornada = await jornadaDoNumero(nova.empresaId, nova.telefone);
-  if (!jornada && (!cfg?.ativo || !cfg.chave_cifrada || !cfg.texto_base)) return;
-  // Número de teste da jornada pode ser de um usuário (quem testa é da empresa)
-  if (!jornada?.numeroDeTeste && (await ehUsuario(nova.empresaId, nova.telefone))) return;
+  if (!jornada) return;
+  // Número de teste da Automação pode ser de um usuário (quem testa é da empresa)
+  if (!jornada.numeroDeTeste && (await ehUsuario(nova.empresaId, nova.telefone))) return;
   if ((await atendimentoAtual(nova.empresaId, nova.telefone, minutosDevolver(cfg))) !== 'bot') return;
 
   // Espera de gente (1 a 30 s); se chegar outra mensagem nesse meio-tempo, ela é quem vai ser respondida
@@ -795,50 +711,5 @@ export async function responderComBot(nova: MensagemNova): Promise<void> {
   await esperar(Math.max(0, atrasoMs - 3000));
   if ((await ultimaRecebida(nova.empresaId, nova.telefone)) !== nova.id) return;
   if ((await atendimentoAtual(nova.empresaId, nova.telefone, minutosDevolver(cfg))) !== 'bot') return;
-  if (jornada) return executarJornada(nova, jornada.jornada, cfg);
-  if (!cfg) return;
-
-  const [dono0] = await pool.query<any[]>('SELECT MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?', [
-    nova.empresaId,
-    nova.telefone,
-  ]);
-  const ctx: Contexto = {
-    empresaId: nova.empresaId,
-    telefone: nova.telefone,
-    dono: dono0[0]?.pessoa_id ? { pessoa_id: dono0[0].pessoa_id, contato_id: dono0[0].contato_id } : await donoDoTelefone(nova.empresaId, nova.telefone),
-    departamento: null,
-  };
-
-  // Reserva antes de chamar a IA: aviso repetido da Evolution não gera uma segunda resposta
-  const origem = `bot:${nova.id}`;
-  const reserva = await reservarEnvio(nova.empresaId, origem, ctx.dono, nova.telefone, '');
-  if (!reserva) return;
-
-  try {
-    // Menu de departamentos: sem departamento escolhido, a resposta é o menu (ou a escolha)
-    const opcoes = await opcoesMenu(nova.empresaId, cfg);
-    if (opcoes.length) {
-      ctx.departamento = await departamentoDaConversa(nova, minutosDevolver(cfg));
-      if (!ctx.departamento) {
-        const menu = await tratarMenu(ctx, cfg, opcoes, nova, reserva);
-        if (menu.respondido) return;
-        ctx.departamento = menu.departamento;
-      }
-    }
-
-    // "digitando..." enquanto a IA pensa
-    void mostrarDigitando(nova.empresaId, nova.telefone, 3000);
-    const texto = await gerarRespostaIa(ctx, cfg);
-    if (!texto) {
-      await pool.query('DELETE FROM whatsapp_mensagens WHERE id = ?', [reserva]);
-      return;
-    }
-    // A conversa pode ter ganho pessoa (lead registrado) durante a resposta
-    await pool.query('UPDATE whatsapp_mensagens SET pessoa_id = ?, contato_id = ? WHERE id = ?', [ctx.dono.pessoa_id, ctx.dono.contato_id, reserva]);
-    await enviarReservada(nova.empresaId, reserva, origem, nova.telefone, texto.slice(0, 4000));
-  } catch (err: any) {
-    // Sem resposta (IA ou provedor fora do ar): libera a reserva; a próxima mensagem do cliente tenta de novo
-    await pool.query("DELETE FROM whatsapp_mensagens WHERE id = ? AND situacao = 'pendente'", [reserva]).catch(() => {});
-    console.error(`Chatbot: empresa ${nova.empresaId}, ${nova.telefone}: ${err.message}`);
-  }
+  return executarJornada(nova, jornada.jornada, cfg);
 }

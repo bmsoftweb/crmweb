@@ -30,7 +30,7 @@ import { enviarPesquisa } from './pesquisa.js';
  * Ligada, a jornada atende no lugar do bot (modo teste: só os números da lista).
  */
 
-const ONDE = 'Configurações › Jornada';
+const ONDE = 'Configurações › Automação';
 const MAX_NOS = 200;
 /** Passos por mensagem: laço sem nó de espera (Mensagem → Mensagem → ...) para aqui */
 const MAX_PASSOS = 50;
@@ -107,26 +107,26 @@ const texto = (v: unknown, max: number) => String(v ?? '').slice(0, max);
 /** Valor da tela → banco: confere a estrutura e cifra os cabeçalhos secretos das chamadas de API */
 export function prepararJornada(valor: any, anterior: Jornada | null): Jornada {
   const nosBrutos: any[] = Array.isArray(valor?.nos) ? valor.nos : [];
-  if (nosBrutos.length > MAX_NOS) throw new Error(`Jornada: no máximo ${MAX_NOS} nós.`);
+  if (nosBrutos.length > MAX_NOS) throw new Error(`Automação: no máximo ${MAX_NOS} nós.`);
   const nos: No[] = [];
   for (const n of nosBrutos) {
     const id = String(n?.id ?? '');
-    if (!ID.test(id) || nos.some((x) => x.id === id)) throw new Error(`Jornada: nó com identificador inválido ou repetido ("${id}").`);
-    if (!TIPOS_NO.includes(n?.tipo)) throw new Error(`Jornada: tipo de nó desconhecido ("${n?.tipo}").`);
+    if (!ID.test(id) || nos.some((x) => x.id === id)) throw new Error(`Automação: nó com identificador inválido ou repetido ("${id}").`);
+    if (!TIPOS_NO.includes(n?.tipo)) throw new Error(`Automação: tipo de nó desconhecido ("${n?.tipo}").`);
     const no: No = { id, tipo: n.tipo, x: Number(n.x) || 0, y: Number(n.y) || 0, dados: prepararDados(n.tipo, n.dados ?? {}, id, anterior) };
     nos.push(no);
   }
-  if (nos.filter((n) => n.tipo === 'inicio').length !== 1) throw new Error('Jornada: precisa ter exatamente um nó Início.');
+  if (nos.filter((n) => n.tipo === 'inicio').length !== 1) throw new Error('Automação: precisa ter exatamente um nó Início.');
 
   const ligacoes: Ligacao[] = [];
   for (const l of Array.isArray(valor?.ligacoes) ? valor.ligacoes : []) {
     const de = nos.find((n) => n.id === l?.de);
     const para = nos.find((n) => n.id === l?.para);
     const saida = String(l?.saida ?? '');
-    if (!de || !para) throw new Error('Jornada: ligação com nó que não existe.');
-    if (para.tipo === 'inicio') throw new Error('Jornada: nenhuma ligação pode chegar no Início.');
-    if (!saidasDoNo(de).includes(saida)) throw new Error(`Jornada: a saída "${saida}" não existe no nó "${rotulo(de)}".`);
-    if (ligacoes.some((x) => x.de === de.id && x.saida === saida)) throw new Error(`Jornada: a saída "${saida}" do nó "${rotulo(de)}" tem mais de uma ligação.`);
+    if (!de || !para) throw new Error('Automação: ligação com nó que não existe.');
+    if (para.tipo === 'inicio') throw new Error('Automação: nenhuma ligação pode chegar no Início.');
+    if (!saidasDoNo(de).includes(saida)) throw new Error(`Automação: a saída "${saida}" não existe no nó "${rotulo(de)}".`);
+    if (ligacoes.some((x) => x.de === de.id && x.saida === saida)) throw new Error(`Automação: a saída "${saida}" do nó "${rotulo(de)}" tem mais de uma ligação.`);
     ligacoes.push({ de: de.id, saida, para: para.id });
   }
 
@@ -134,19 +134,19 @@ export function prepararJornada(valor: any, anterior: Jornada | null): Jornada {
   for (const t of Array.isArray(valor?.numeros_teste) ? valor.numeros_teste : []) {
     const d = String(t ?? '').replace(/\D/g, '');
     if (!d) continue;
-    if (!chaveTelefone(d, d.length >= 12)) throw new Error(`Jornada: número de teste inválido ("${t}"). Use DDD + número.`);
+    if (!chaveTelefone(d, d.length >= 12)) throw new Error(`Automação: número de teste inválido ("${t}"). Use DDD + número.`);
     if (!numeros_teste.includes(d)) numeros_teste.push(d);
   }
   const modo = valor?.modo === 'todos' ? 'todos' : 'teste';
   const ativo = Boolean(valor?.ativo);
-  if (ativo && modo === 'teste' && !numeros_teste.length) throw new Error('Jornada: no modo teste, informe pelo menos um número de teste.');
+  if (ativo && modo === 'teste' && !numeros_teste.length) throw new Error('Automação: no modo teste, informe pelo menos um número de teste.');
   return { ativo, modo, numeros_teste, nos, ligacoes };
 }
 
 const rotulo = (n: Pick<No, 'id' | 'tipo' | 'dados'>) => String(n.dados?.titulo || '').trim() || `${n.tipo} ${n.id}`;
 
 function prepararDados(tipo: TipoNo, d: any, id: string, anterior: Jornada | null): Record<string, any> {
-  const erro = (msg: string) => new Error(`Jornada, nó ${rotulo({ id, tipo, dados: d })}: ${msg}`);
+  const erro = (msg: string) => new Error(`Automação, nó ${rotulo({ id, tipo, dados: d })}: ${msg}`);
   const base = { titulo: texto(d.titulo, 60) };
   const listaIds = (itens: any[], nome: string) => {
     const vistos = new Set<string>();
@@ -235,6 +235,8 @@ function prepararDados(tipo: TipoNo, d: any, id: string, anterior: Jornada | nul
       for (const e of extrair) if (!e.caminho || !VARIAVEL.test(e.variavel)) throw erro('cada campo da resposta precisa do caminho e da variável.');
       return { ...base, metodo, url, cabecalhos, corpo: texto(d.corpo, 20_000), extrair };
     }
+    case 'ia':
+      return { ...base, texto: texto(d.texto, 50_000) };
     case 'iaex': {
       if (!String(d.texto ?? '').trim()) throw erro('escreva o texto-base (o que a IA deve perguntar ou fazer).');
       const opcoes = (Array.isArray(d.opcoes) ? d.opcoes : []).map((o: any) => ({ id: String(o?.id ?? ''), rotulo: texto(o?.rotulo, 200).trim() }));
@@ -384,9 +386,19 @@ async function conferirDestino(url: string) {
   if (!ips.length || ips.some(ipInterno)) throw new Error(`Endereço não permitido: ${u.hostname}.`);
 }
 
-async function buscarFora(url: string, init: RequestInit = {}): Promise<globalThis.Response> {
-  await conferirDestino(url);
-  return fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(10_000) });
+/** fetch para fora com a trava de rede interna; GET segue até 3 redirecionamentos, conferindo cada destino */
+export async function buscarFora(url: string, init: RequestInit = {}): Promise<globalThis.Response> {
+  let atual = url;
+  for (let salto = 0; ; salto++) {
+    await conferirDestino(atual);
+    const r = await fetch(atual, { ...init, redirect: 'manual', signal: AbortSignal.timeout(10_000) });
+    const destino = r.status >= 300 && r.status < 400 ? r.headers.get('location') : null;
+    if (!destino) return r;
+    // Só GET segue (POST/PUT redirecionado mudaria de método ou reenviaria o corpo)
+    if ((init.method ?? 'GET').toUpperCase() !== 'GET') throw new Error(`o endereço redirecionou (HTTP ${r.status}).`);
+    if (salto >= 3) throw new Error('redirecionamentos demais.');
+    atual = new URL(destino, atual).toString();
+  }
 }
 
 // ------------------------------------------------------------
@@ -527,13 +539,15 @@ class Execucao {
 
   /** IA responde com o histórico; se ela passar para humano, segue a saída "humano" */
   private async ia(no: No): Promise<No | null | 'fim'> {
-    if (!this.bot?.chave_cifrada || !this.bot.texto_base) {
-      console.error(`Jornada: nó IA sem a chave do Gemini ou o texto-base (${ONDE} / Chatbot).`);
+    // Texto-base do nó; sem ele, o texto-base antigo do Chatbot (automações feitas antes da mudança)
+    const textoBase = String(no.dados.texto ?? '').trim() || String(this.bot?.texto_base ?? '').trim();
+    if (!this.bot?.chave_cifrada || !textoBase) {
+      console.error(`Jornada: nó IA sem a chave do Gemini (Configurações › Chatbot) ou sem texto-base (${ONDE}).`);
       return this.destino(no, 'humano') ?? 'fim';
     }
     this.ctx.jornada = { transferencia: null };
     void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000);
-    const resposta = await gerarRespostaIa(this.ctx, this.bot);
+    const resposta = await gerarRespostaIa(this.ctx, this.bot, textoBase);
     await this.enviar(resposta);
     if (this.ctx.jornada.transferencia === null) return null;
     this.estado.vars.motivo = this.ctx.jornada.transferencia;
@@ -588,7 +602,7 @@ class Execucao {
         this.estado.no = FIM;
         // O cliente chegou ao fim da jornada (nó Fim ou saída sem ligação): linha de encerramento na conversa
         if (!this.paraHumano) {
-          await marcarEncerramento(this.ctx.empresaId, this.ctx.telefone, null, null, 'Atendimento encerrado pelo cliente (fim da jornada)');
+          await marcarEncerramento(this.ctx.empresaId, this.ctx.telefone, null, null, 'Atendimento encerrado pelo cliente (fim da automação)');
           // Pesquisa de satisfação do atendimento do bot/jornada (se ligada)
           await enviarPesquisa(this.ctx.empresaId, this.ctx.telefone, 'jornada', null, this.ctx.departamento?.id ?? null);
         }

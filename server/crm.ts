@@ -759,7 +759,7 @@ ${link}` : mensagem;
         WHERE empresa_id = ? AND nota IS NOT NULL AND pedida_em >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
     ).catch(() => ({ media: null, qtd: 0 })); // sem a tabela: sem o card
     const satisfacaoPorAtendente = await varios(
-      `SELECT COALESCE(u.nome, 'Bot / jornada') nome, ROUND(AVG(a.nota), 1) media, COUNT(*) qtd
+      `SELECT COALESCE(u.nome, 'Bot / automação') nome, ROUND(AVG(a.nota), 1) media, COUNT(*) qtd
          FROM avaliacoes a LEFT JOIN usuarios u ON u.id = a.atendente_id
         WHERE a.empresa_id = ? AND a.nota IS NOT NULL AND a.pedida_em >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
         GROUP BY a.atendente_id, u.nome ORDER BY media DESC, qtd DESC`,

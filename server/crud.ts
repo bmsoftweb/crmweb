@@ -7,6 +7,7 @@ import { exigirAcesso } from './permissoes.js';
 import { gravarEnderecos, normalizarEnderecos } from './enderecos.js';
 import { gravarParticipantes, normalizarParticipantes } from './participantes.js';
 import { conferirTrava, contratoDoItem, recalcularContrato } from './contratos.js';
+import { apagarFotosRemovidas, fotosDoProduto, prepararFotos } from './fotos.js';
 
 /** Metadados enviados ao navegador: a consulta própria dos combos fica só no servidor */
 // O SQL próprio (combos, colunas calculadas) não sai do servidor
@@ -50,6 +51,8 @@ function coerceValue(field: FieldDef, raw: any): any {
       if (img.length > 1_000_000) throw new Error(`A imagem de "${field.label}" é grande demais (máx. ~700 KB).`);
       return img;
     }
+    case 'fotos':
+      return prepararFotos(raw, field.label);
     case 'criterios':
       // Validado e normalizado em antesDeGravar (regras.ts)
       return typeof raw === 'string' ? raw : JSON.stringify(raw);
@@ -329,10 +332,18 @@ export function createCrudRouter() {
       const total = Number(countRows[0]?.total || 0);
 
       const calculadas = resource.fields.filter((f) => f.sql);
+      // Nome do registro ligado (<campo>__rotulo): a lista mostra mesmo quando ele passa do limite
+      // dos combos (/options traz até 5.000), como produtos e pessoas importados
+      const rotulos = resource.fields.flatMap((f) => {
+        const ref = f.ref && !f.sql ? getResource(f.ref.resource) : null;
+        const campo = ref?.fields.find((x) => x.name === f.ref!.labelField);
+        if (!ref || !campo || campo.sql) return [];
+        return [`, (SELECT r.${campo.name} FROM ${ref.table} r WHERE r.${pkCol(ref)} = t.${f.name} LIMIT 1) AS ${f.name}__rotulo`];
+      });
       // A senha nunca sai do servidor, nem em hash
       const senhas = resource.fields.filter((f) => f.type === 'password').map((f) => f.name);
       const [rows] = await pool.query<any[]>(
-        `SELECT t.*${calculadas.map((f) => `, ${f.sql} AS ${f.name}`).join('')} FROM ${resource.table} t
+        `SELECT t.*${calculadas.map((f) => `, ${f.sql} AS ${f.name}`).join('')}${rotulos.join('')} FROM ${resource.table} t
           WHERE ${whereSql}
           ORDER BY ${calculadas.some((f) => f.name === sortField) ? sortField : `t.${sortField}`} ${sortDir}
           LIMIT ? OFFSET ?`,
@@ -433,6 +444,8 @@ export function createCrudRouter() {
 
       // A atividade pode ter trocado de negócio: o negócio anterior também precisa ser recalculado
       const afetados = await antesDeExcluir(resource.name, req.params.id);
+      // Fotos que saírem do produto são apagadas do Blob depois de gravar
+      const fotosAntes = resource.name === 'produtos' && 'fotos' in payload ? await fotosDoProduto(req.params.id, empresaId) : null;
       const [result] = await pool.query<any>(
         `UPDATE ${resource.table} t SET ${cols.map((c) => `t.${c} = ?`).join(', ')}
           WHERE ${resource.scopeSql} AND t.${pkCol(resource)} = ?`,
@@ -444,6 +457,7 @@ export function createCrudRouter() {
 
       await aposGravar(resource.name, req.params.id, afetados);
       if (filhos) await filhos(req.params.id);
+      if (fotosAntes) await apagarFotosRemovidas(fotosAntes, payload.fotos);
       res.json({ success: true });
     } catch (err: any) {
       res.status(400).json({ error: friendlyDbError(err, resource?.labelSingular) });
@@ -465,6 +479,7 @@ export function createCrudRouter() {
       const afetados = await antesDeExcluir(resource.name, req.params.id);
       // Item de contrato: o contrato precisa ser recalculado depois que o item sair
       const contratoAfetado = resource.name === 'contrato_itens' ? await contratoDoItem(req.params.id) : null;
+      const fotosAntes = resource.name === 'produtos' ? await fotosDoProduto(req.params.id, empresaDa(res)) : null;
       const [result] = await pool.query<any>(
         resource.exclusaoLogica
           ? `UPDATE ${resource.table} t SET t.${resource.exclusaoLogica} = NOW() WHERE ${resource.scopeSql} AND t.${pkCol(resource)} = ?`
@@ -478,6 +493,7 @@ export function createCrudRouter() {
       // Na exclusão lógica o registro continua existindo e as regras ainda o enxergam
       await aposGravar(resource.name, resource.exclusaoLogica ? req.params.id : null, afetados);
       if (contratoAfetado) await recalcularContrato(contratoAfetado);
+      if (fotosAntes) await apagarFotosRemovidas(fotosAntes, []);
       res.json({ success: true });
     } catch (err: any) {
       res.status(400).json({ error: friendlyDbError(err, resource?.labelSingular) });

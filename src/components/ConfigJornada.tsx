@@ -17,7 +17,7 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { AlertTriangle, ImagePlus, Loader2, Plus, Save, Wand2, X } from 'lucide-react';
+import { AlertTriangle, ImagePlus, Loader2, Plus, Save, X } from 'lucide-react';
 import { enviarArquivoJornada, fetchArquivoJornada, fetchConfig, fetchOptions, salvarConfig } from '../services/api';
 import { OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
@@ -226,7 +226,7 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
         const qtdNos = ns.length;
         setConfirmacao({
           titulo: qtdNos ? `Excluir ${qtdNos === 1 ? 'o nó' : `${qtdNos} nós`}?` : `Remover ${es.length === 1 ? 'a ligação' : `${es.length} ligações`}?`,
-          mensagem: qtdNos ? 'O nó e as ligações dele saem da jornada (só vale depois de Salvar).' : 'A saída fica sem destino (só vale depois de Salvar).',
+          mensagem: qtdNos ? 'O nó e as ligações dele saem da automação (só vale depois de Salvar).' : 'A saída fica sem destino (só vale depois de Salvar).',
           confirmar: qtdNos ? 'Excluir' : 'Remover',
           acao: () => ok(true),
           cancelar: () => ok(false),
@@ -241,44 +241,11 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     try {
       const numeros_teste = numeros.split(/[,;\n]/).map((t) => t.trim()).filter(Boolean);
       await salvarConfig('whatsapp', 'jornada', { ativo, modo, numeros_teste, ...jornadaAtual });
-      onToast(ativo ? `Jornada gravada e ligada (${modo === 'teste' ? 'só números de teste' : 'todos os clientes'}).` : 'Jornada gravada (desligada).');
+      onToast(ativo ? `Automação gravada e ligada (${modo === 'teste' ? 'só números de teste' : 'todos os clientes'}).` : 'Automação gravada (desligada).');
     } catch (err: any) {
       setErro(err.message);
     } finally {
       setSalvando(false);
-    }
-  };
-
-  /** Modelo: o menu de departamentos do Chatbot vira Início → Menu → Departamento/IA */
-  const usarMenuDoChatbot = async () => {
-    try {
-      const { valor } = await fetchConfig<any>('whatsapp', 'chatbot');
-      const menu: { departamento_id: number; bot: boolean }[] = valor?.menu ?? [];
-      if (!menu.length) return setErro('O Chatbot não tem menu de departamentos configurado.');
-      const nomeDep = (id: number) => departamentos.find((d) => Number(d.value) === id)?.label ?? `Departamento ${id}`;
-      const opcoes = menu.map((m) => ({ id: novoId('o'), rotulo: nomeDep(m.departamento_id) }));
-      const nos: NoJornada[] = [
-        { id: 'inicio', tipo: 'inicio', x: 0, y: 0, dados: {} },
-        { id: 'menu', tipo: 'menu', x: 0, y: 140, dados: { texto: valor.menu_texto || 'Escolha uma opção:', opcoes, invalida: '' } },
-      ];
-      const ligacoes = [{ de: 'inicio', saida: 'proximo', para: 'menu' }];
-      menu.forEach((m, i) => {
-        const id = novoId();
-        const x = (i - (menu.length - 1) / 2) * 280;
-        nos.push(
-          m.bot
-            ? { id, tipo: 'ia', x, y: 340, dados: { titulo: `IA — ${nomeDep(m.departamento_id)}` } }
-            : { id, tipo: 'departamento', x, y: 340, dados: { ...dadosPadrao('departamento'), departamento_id: m.departamento_id } },
-        );
-        ligacoes.push({ de: 'menu', saida: opcoes[i].id, para: id });
-      });
-      const j = { ativo, modo, numeros_teste: [], nos, ligacoes };
-      setNodes(paraNos(j));
-      setEdges(paraLigacoes(j));
-      setSelecionado(null);
-      setTimeout(() => rf.fitView({ padding: 0.2, maxZoom: 1 }), 50);
-    } catch (err: any) {
-      setErro(err.message);
     }
   };
 
@@ -290,7 +257,7 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
         {erro && <AvisoErro mensagem={erro} onFechar={() => setErro(null)} />}
 
         <fieldset disabled={somenteLeitura} className="flex flex-wrap items-end gap-4">
-          <Toggle checked={ativo} onChange={setAtivo} label={<span className="text-xs font-semibold text-stone-700 dark:text-stone-200">Jornada ligada</span>} />
+          <Toggle checked={ativo} onChange={setAtivo} label={<span className="text-xs font-semibold text-stone-700 dark:text-stone-200">Automação ligada</span>} />
           <div className={FIELD_CLASS}>
             <label htmlFor="jor-modo" className={LABEL_CLASS}>Atende</label>
             <select id="jor-modo" value={modo} onChange={(e) => setModo(e.target.value as 'teste' | 'todos')} className={`${INPUT_CLASS} cursor-pointer`}>
@@ -308,28 +275,12 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
             <div className="flex gap-2 ml-auto">
               <button
                 type="button"
-                onClick={() =>
-                  setConfirmacao({
-                    titulo: 'Substituir a jornada pelo menu do Chatbot?',
-                    mensagem: 'Os nós atuais saem do quadro e entram Início → Menu → um nó por departamento (só vale depois de Salvar).',
-                    confirmar: 'Substituir',
-                    tom: 'normal',
-                    acao: usarMenuDoChatbot,
-                  })
-                }
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
-              >
-                <Wand2 className="w-4 h-4" />
-                Usar o menu do Chatbot
-              </button>
-              <button
-                type="button"
                 onClick={salvar}
                 disabled={salvando}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
               >
                 {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar jornada
+                Salvar automação
               </button>
             </div>
           )}
@@ -643,10 +594,18 @@ const PainelNo: React.FC<PainelProps> = ({ no, somenteLeitura, departamentos, va
       {tipo === 'api' && <CamposApi d={d} set={set} setItem={setItem} removerItem={removerItem} idBase={id('api')} botaoIncluir={botaoIncluir} botaoRemover={botaoRemover} />}
 
       {tipo === 'ia' && (
-        <p className="text-xs text-stone-600 dark:text-stone-300">
-          Usa a chave, o modelo e o texto-base de Configurações › Chatbot. A conversa fica com a IA até ela passar para humano: aí segue a saída "passou p/ humano" (sem
-          ligação, a conversa fica com a equipe).
-        </p>
+        <>
+          {textoCom(
+            'texto',
+            'Texto-base (o que a IA sabe e pode responder)',
+            10,
+            'O que a empresa faz, produtos e serviços, preços que podem ser informados, horário de atendimento, endereço, formas de pagamento, prazos, políticas, perguntas frequentes...',
+          )}
+          <span className={HINT_CLASS}>
+            Usa a chave e o modelo de Configurações › Chatbot. A IA responde só com o texto-base e os dados do cliente no CRM; a conversa fica com ela até passar para
+            humano: aí segue a saída "passou p/ humano" (sem ligação, a conversa fica com a equipe).
+          </span>
+        </>
       )}
 
       {tipo === 'iaex' && (

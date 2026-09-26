@@ -1,7 +1,7 @@
 {
   "name": "crmweb",
   "private": true,
-  "version": "0.0.26",
+  "version": "0.0.27",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -15,6 +15,7 @@
     "@google/genai": "^2.24.0",
     "@sparticuz/chromium": "^153.0.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@vercel/blob": "^2.8.0",
     "@vercel/functions": "^3.9.9",
     "@vitejs/plugin-react": "^5.0.4",
     "@xyflow/react": "^12.12.0",

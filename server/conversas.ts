@@ -370,7 +370,7 @@ export function createConversasRouter(): Router {
       // cliente foi o último a escrever) ou com o bot
       res.json(
         rows.map(({ atendimento, atendente_id, ...r }) => {
-          const comBot = Boolean(chatbot?.ativo) || jornadaAtende(jornada, r.telefone);
+          const comBot = jornadaAtende(jornada, r.telefone);
           const estado = atendente_id
             ? 'atendimento'
             : atendimento === 'humano' || (!comBot && r.direcao === 'recebida')
@@ -443,7 +443,7 @@ export function createConversasRouter(): Router {
         : [[]];
       // Situação do atendimento: com o bot (ou jornada), aguardando alguém atender ou em atendimento
       const chatbot: any = await lerConfig(String(emp), 'whatsapp', 'chatbot');
-      const comBot = Boolean(chatbot?.ativo) || jornadaAtende(await lerJornadaConfig(emp), telefone);
+      const comBot = jornadaAtende(await lerJornadaConfig(emp), telefone);
       const atendimento = await atendimentoAtual(emp, telefone, minutosDevolver(chatbot), comBot);
       const [cv] = await pool.query<any[]>(
         `SELECT d.nome AS departamento, c.atendente_id, u.nome AS atendente_nome, DATE_FORMAT(c.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,

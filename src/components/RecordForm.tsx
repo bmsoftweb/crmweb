@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Save, Loader2, Eye, EyeOff, X, Columns3, Search, Move, Scaling, RotateCcw, Lock } from 'lucide-react';
-import { Endereco, FieldDef, OpcaoRef, RegistroCrud, ResourceDef } from '../types';
+import { Endereco, FieldDef, Id, OpcaoRef, RegistroCrud, ResourceDef } from '../types';
 import { maskCNPJ, cleanCNPJ, toInputDate, toInputDateTime } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { DateField } from './DateField';
@@ -8,6 +8,7 @@ import { NumberField } from './NumberField';
 import { Toggle } from './Toggle';
 import { SelectBusca } from './SelectBusca';
 import { ImagemField } from './ImagemField';
+import { FotosField } from './FotosField';
 import type { TamanhoCampo } from '../utils/configListas';
 import { AvisoErro } from './AvisoErro';
 import { fetchCamposPersonalizados, fetchEnderecos, fetchParticipantes, travaContrato } from '../services/api';
@@ -88,7 +89,7 @@ function initialValue(field: FieldDef, record: RegistroCrud | null): any {
     if (field.type === 'datetime') return toInputDateTime(raw);
     if (field.type === 'cnpj') return maskCNPJ(String(raw));
     if (field.type === 'password') return '';
-    if (field.type === 'criterios') return raw;
+    if (field.type === 'criterios' || field.type === 'fotos') return raw;
     if (field.type === 'time') return String(raw).slice(0, 5);
     return String(raw);
   }
@@ -468,6 +469,9 @@ export const RecordForm: React.FC<RecordFormProps> = ({
       case 'imagem':
         return <ImagemField id={inputId} value={String(value ?? '')} onChange={(v) => setValue(field.name, v)} rotulo={field.label} />;
 
+      case 'fotos':
+        return <FotosField id={inputId} produtoId={(record?.id as Id | undefined) ?? null} value={value} onChange={(v) => setValue(field.name, v)} />;
+
       case 'criterios':
         return <CriteriosSegmento id={inputId} value={value} onChange={(v) => setValue(field.name, v)} />;
 
@@ -587,7 +591,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({
   };
 
   /** Campos longos ocupam a linha inteira do grid */
-  const isWide = (f: FieldDef) => f.type === 'textarea' || f.type === 'imagem' || f.type === 'criterios' || f.maxLength === 255;
+  const isWide = (f: FieldDef) => f.type === 'textarea' || f.type === 'imagem' || f.type === 'criterios' || f.type === 'fotos' || f.maxLength === 255;
 
   // "Customizar layout": cada campo ganha borda e alças; a largura anda em colunas de um grid
   // de 4 (no desktop) e a altura é a do controle, em px.

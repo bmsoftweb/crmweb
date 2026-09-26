@@ -63,7 +63,7 @@ export const ConfigPesquisa: React.FC<Props> = ({ somenteLeitura, onToast }) => 
         Pesquisa de satisfação
       </h3>
       <p className="text-xs text-stone-600 dark:text-stone-300">
-        Enviada quando alguém da equipe clica em Encerrar numa conversa que atendeu, e quando o cliente chega ao fim da jornada. O cliente responde de 1 a 5 (número
+        Enviada quando alguém da equipe clica em Encerrar numa conversa que atendeu, e quando o cliente chega ao fim da automação. O cliente responde de 1 a 5 (número
         ou estrelas); nota de 1 a 3 pede um comentário. Se ele responder outra coisa, a pesquisa é descartada e o atendimento segue normal. Resultados em Vendas ›
         Avaliações e no Painel de Vendas.
       </p>
@@ -76,7 +76,7 @@ export const ConfigPesquisa: React.FC<Props> = ({ somenteLeitura, onToast }) => 
             <div className={FIELD_CLASS}>
               <label htmlFor="pesq-pergunta" className={LABEL_CLASS}>Pergunta</label>
               <textarea id="pesq-pergunta" value={v.pergunta} onChange={(e) => alterar({ pergunta: e.target.value })} rows={2} maxLength={1000} className={campo} />
-              <span className={HINT_CLASS}>{'{{atendente}}'} = quem atendeu (no fim da jornada, o nome do bot). As opções de 1 a 5 vão embaixo.</span>
+              <span className={HINT_CLASS}>{'{{atendente}}'} = quem atendeu (no fim da automação, o nome do bot). As opções de 1 a 5 vão embaixo.</span>
             </div>
             <div className={FIELD_CLASS}>
               <label htmlFor="pesq-comentario" className={LABEL_CLASS}>Pedido de comentário (nota de 1 a 3)</label>

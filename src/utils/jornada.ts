@@ -49,7 +49,7 @@ export const TIPOS_NO: Record<TipoNo, { nome: string; icone: LucideIcon; cor: st
   case: { nome: 'Condição múltipla', icone: GitFork, cor: 'amber', ajuda: 'Compara uma variável com vários casos; o primeiro que bater decide a saída.' },
   esperar: { nome: 'Esperar', icone: Clock, cor: 'stone', ajuda: 'Pausa X minutos e continua sozinho.' },
   api: { nome: 'Chamar API', icone: Globe, cor: 'cyan', ajuda: 'Chama outro sistema (https) e guarda campos da resposta em variáveis.' },
-  ia: { nome: 'IA (Gemini)', icone: Bot, cor: 'fuchsia', ajuda: 'Conversa com o texto-base do Chatbot até passar para humano.' },
+  ia: { nome: 'IA (Gemini)', icone: Bot, cor: 'fuchsia', ajuda: 'Conversa com o texto-base do nó até passar para humano.' },
   iaex: {
     nome: 'IA (Gemini) Ex',
     icone: BrainCircuit,
@@ -58,7 +58,7 @@ export const TIPOS_NO: Record<TipoNo, { nome: string; icone: LucideIcon; cor: st
   },
   lead: { nome: 'Registrar lead', icone: UserPlus, cor: 'teal', ajuda: 'Cadastra pessoa, negócio e atividade com as variáveis coletadas.' },
   departamento: { nome: 'Departamento', icone: Network, cor: 'sky', ajuda: 'Passa para humano do departamento (atividade + aviso no WhatsApp).' },
-  fim: { nome: 'Fim', icone: Flag, cor: 'rose', ajuda: 'Encerra a jornada (com uma mensagem opcional).' },
+  fim: { nome: 'Fim', icone: Flag, cor: 'rose', ajuda: 'Encerra a automação (com uma mensagem opcional).' },
 };
 
 /** Grupos da barra de nós do editor, na ordem (nó novo: incluir o tipo no grupo certo) */
@@ -147,6 +147,8 @@ export function dadosPadrao(tipo: TipoNo): Record<string, any> {
       return { minutos: 5, interromper: true };
     case 'api':
       return { metodo: 'GET', url: 'https://', cabecalhos: [], corpo: '', extrair: [] };
+    case 'ia':
+      return { texto: '' };
     case 'iaex':
       return {
         texto: 'Pergunte ao cliente, de forma cordial, sobre o que ele deseja.',
@@ -194,7 +196,7 @@ export function resumoNo(no: NoJornada, departamentos: { value: string; label: s
     case 'lead':
       return 'Pessoa + negócio + atividade';
     case 'ia':
-      return 'Responde com o texto-base';
+      return d.texto || 'Escreva o texto-base';
     case 'iaex':
       return d.texto || '';
     default:
@@ -210,7 +212,7 @@ export function avisosJornada(j: Pick<Jornada, 'nos' | 'ligacoes'>): string[] {
     if (n.tipo !== 'inicio' && !j.ligacoes.some((l) => l.para === n.id)) avisos.push(`"${nome(n)}" não recebe nenhuma ligação (nunca é alcançado).`);
     for (const s of saidasDoNo(n)) {
       if (['invalida', 'nenhum', 'nenhuma', 'erro', 'humano'].includes(s.id)) continue;
-      if (!j.ligacoes.some((l) => l.de === n.id && l.saida === s.id)) avisos.push(`"${nome(n)}": a saída ${s.rotulo ? `"${s.rotulo}"` : ''} não está ligada (encerra a jornada).`);
+      if (!j.ligacoes.some((l) => l.de === n.id && l.saida === s.id)) avisos.push(`"${nome(n)}": a saída ${s.rotulo ? `"${s.rotulo}"` : ''} não está ligada (encerra a automação).`);
     }
   }
   return avisos;

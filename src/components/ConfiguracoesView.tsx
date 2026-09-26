@@ -34,12 +34,12 @@ const ABAS = [
   {
     id: 'chatbot',
     titulo: 'Chatbot',
-    descricao: 'Assistente com IA (Gemini) que responde o WhatsApp, cadastra leads para os vendedores e passa para um humano quando precisa.',
+    descricao: 'IA (Gemini) usada pela Automação: chave, modelo e nome do assistente, tempo para devolver ao bot, revezamento de leads e pesquisa de satisfação.',
   },
   {
     id: 'jornada',
-    titulo: 'Jornada',
-    descricao: 'Fluxo de atendimento do WhatsApp desenhado em nós: menus, perguntas, condições, esperas, chamadas de API, IA e departamentos.',
+    titulo: 'Automação',
+    descricao: 'Atendimento automático do WhatsApp desenhado em nós: menus, perguntas, condições, esperas, chamadas de API, IA (com o texto-base) e departamentos.',
   },
   {
     id: 'automaticas',

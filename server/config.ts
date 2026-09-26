@@ -82,7 +82,14 @@ export function createConfigRouter(): Router {
       validar(grupo, chave);
       const valor = await lerConfig(String(res.locals.empresaId), grupo, chave);
       const segredo = COM_SEGREDO[`${grupo}.${chave}`];
-      res.json({ grupo, chave, valor: segredo ? segredo.publica(valor) : valor });
+      const publico = segredo ? segredo.publica(valor) : valor;
+      // Nó IA sem texto-base próprio: mostra o texto-base antigo do Chatbot, que é o que ele usa
+      // (ao salvar a automação, o texto passa a ficar no nó)
+      if (grupo === 'whatsapp' && chave === 'jornada') {
+        const antigo = String((await lerConfig(String(res.locals.empresaId), 'whatsapp', 'chatbot'))?.texto_base ?? '').trim();
+        if (antigo) publico.nos = publico.nos.map((n: any) => (n.tipo === 'ia' && !String(n.dados?.texto ?? '').trim() ? { ...n, dados: { ...n.dados, texto: antigo } } : n));
+      }
+      res.json({ grupo, chave, valor: publico });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message });
     }

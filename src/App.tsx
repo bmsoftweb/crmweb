@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Usuario, ResourceDef, DbConnectionStatus, DashboardData, RegistroCrud } from './types';
-import {
+import { fetchContagemChamados,
   setTokenSessao,
   setAoExpirarSessao,
   fetchResources,
@@ -32,6 +32,7 @@ import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
 import { ConversasView, PedidoConversa } from './components/ConversasView';
+import { ChamadosAtivos, ChamadosFila } from './components/Chamados';
 import { BotaoWhatsApp } from './components/BotaoWhatsApp';
 import { BotaoPermissoes } from './components/PermissoesUsuario';
 import { gruposDoMenu, podeAcessar } from './utils/menu';
@@ -81,6 +82,9 @@ export default function App() {
 
   /** Mensagens do WhatsApp recebidas e ainda não vistas (etiqueta do menu Conversas) */
   const [naoVistas, setNaoVistas] = useState(0);
+  /** Chamados aguardando na fila (etiqueta do menu) e o chamado a abrir em Chamados Ativos */
+  const [filaChamados, setFilaChamados] = useState(0);
+  const [chamadoAbrir, setChamadoAbrir] = useState<number | null>(null);
   /** Conversas passadas ao meu departamento que já tocaram o aviso (telefone + quando) */
   const avisadasRef = useRef(new Set<string>());
   const atualizarNaoVistas = useCallback(() => {
@@ -108,6 +112,20 @@ export default function App() {
     const i = setInterval(atualizarNaoVistas, 15_000);
     return () => clearInterval(i);
   }, [sessao, veConversas, atualizarNaoVistas]);
+
+  // Etiqueta da Fila de Chamados, para quem trabalha os chamados
+  const veChamados = podeAcessar(sessao?.usuario ?? null, 'chamados_fila') || podeAcessar(sessao?.usuario ?? null, 'chamados_ativos');
+  const atualizarFilaChamados = useCallback(() => {
+    fetchContagemChamados()
+      .then((r) => setFilaChamados(r.fila))
+      .catch(() => {}); // sem as tabelas ou sem conexão: fica sem etiqueta
+  }, []);
+  useEffect(() => {
+    if (!sessao || !veChamados) return;
+    atualizarFilaChamados();
+    const i = setInterval(atualizarFilaChamados, 15_000);
+    return () => clearInterval(i);
+  }, [sessao, veChamados, atualizarFilaChamados]);
 
   // Tela sem permissão (ex.: o Funil, que abre primeiro): vai para a primeira opção do menu que o usuário acessa
   useEffect(() => {
@@ -268,12 +286,14 @@ export default function App() {
     kanban: ['Funil de Vendas', 'Arraste os negócios entre as etapas; solte em Ganho ou Perdido para encerrar'],
     configuracoes: ['Configurações', 'Preferências da empresa, por grupo'],
     conversas: ['Conversas', 'Mensagens do WhatsApp da empresa'],
+    chamados_fila: ['Fila de Chamados', 'Chamados aguardando atendimento, em ordem de chegada'],
+    chamados_ativos: ['Chamados Ativos', 'Atendimento dos chamados de suporte'],
   };
   const [headerTitle, headerSubtitle] = activeResource
     ? [activeResource.label, activeResource.description]
     : TITULOS[activeTab] || ['CRM Web', ''];
 
-  const podeCriar = activeTab === 'kanban' || Boolean(activeResource?.canCreate);
+  const podeCriar = activeTab === 'kanban' || activeTab === 'chamados_ativos' || Boolean(activeResource?.canCreate);
 
   return (
     <div className="h-screen overflow-hidden bg-stone-100/70 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex font-sans antialiased selection:bg-blue-600 selection:text-white">
@@ -290,6 +310,7 @@ export default function App() {
         resources={resources}
         recordCounts={recordCounts}
         naoVistas={naoVistas}
+        filaChamados={filaChamados}
         usuario={usuario}
         onLogout={handleLogout}
         isOpenMobile={isMobileSidebarOpen}
@@ -305,7 +326,7 @@ export default function App() {
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           onRefresh={() => setRefreshToken((t) => t + 1)}
           onCreate={podeCriar ? () => setCreateToken((t) => t + 1) : undefined}
-          createLabel={activeTab === 'kanban' ? 'Novo Negócio' : activeResource ? `Novo ${activeResource.labelSingular}` : undefined}
+          createLabel={activeTab === 'kanban' ? 'Novo Negócio' : activeTab === 'chamados_ativos' ? 'Novo Chamado' : activeResource ? `Novo ${activeResource.labelSingular}` : undefined}
           theme={theme}
           onToggleTheme={handleToggleTheme}
         />
@@ -323,6 +344,29 @@ export default function App() {
         ) : activeTab === 'conversas' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
             <ConversasView refreshToken={refreshToken} onVisto={atualizarNaoVistas} pedido={pedidoConversa} onToast={showToast} />
+          </main>
+        ) : activeTab === 'chamados_fila' ? (
+          <main className="flex-1 flex flex-col min-h-0 w-full">
+            <ChamadosFila
+              refreshToken={refreshToken}
+              onMudou={atualizarFilaChamados}
+              onAbrir={(id) => {
+                setChamadoAbrir(id);
+                navegar('chamados_ativos');
+              }}
+              onToast={showToast}
+            />
+          </main>
+        ) : activeTab === 'chamados_ativos' ? (
+          <main className="flex-1 flex flex-col min-h-0 w-full">
+            <ChamadosAtivos
+              refreshToken={refreshToken}
+              createToken={createToken}
+              abrir={chamadoAbrir}
+              onMudou={atualizarFilaChamados}
+              onConversar={(pessoaId) => pedirConversa({ pessoaId })}
+              onToast={showToast}
+            />
           </main>
         ) : activeTab === 'configuracoes' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">

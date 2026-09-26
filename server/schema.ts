@@ -28,7 +28,9 @@ export type FieldType =
   /** Conjunto de campos definidos em Configurações, gravado como JSON */
   | 'personalizados'
   /** Regras de segmentação de campanha, gravadas como JSON (server/campanhas.ts) */
-  | 'criterios';
+  | 'criterios'
+  /** Até 4 fotos no Vercel Blob; a coluna guarda os endereços em JSON (server/fotos.ts) */
+  | 'fotos';
 
 export interface FieldDef {
   /** Nome da coluna no MySQL */
@@ -486,7 +488,7 @@ export const RESOURCES: ResourceDef[] = [
       },
       { name: 'atendente_id', label: 'Atendente', type: 'text', readOnly: true, listed: true, filterable: true, ref: { resource: 'usuarios', labelField: 'nome' } },
       { name: 'departamento_id', label: 'Departamento', type: 'text', readOnly: true, listed: true, filterable: true, ref: { resource: 'departamentos', labelField: 'nome' } },
-      { name: 'origem', label: 'Atendido por', type: 'enum', readOnly: true, listed: true, filterable: true, options: [{ value: 'atendente', label: 'Equipe' }, { value: 'jornada', label: 'Bot / jornada' }] },
+      { name: 'origem', label: 'Atendido por', type: 'enum', readOnly: true, listed: true, filterable: true, options: [{ value: 'atendente', label: 'Equipe' }, { value: 'jornada', label: 'Bot / automação' }] },
       { name: 'nota', label: 'Nota', type: 'number', readOnly: true, listed: true, filterable: true, width: 'xs' },
       { name: 'comentario', label: 'Comentário', type: 'textarea', readOnly: true, listed: true, searchable: true },
       {
@@ -934,6 +936,34 @@ export const RESOURCES: ResourceDef[] = [
     ],
   },
   {
+    name: 'chamado_categorias',
+    table: 'chamado_categorias',
+    tenantColumn: 'empresa_id',
+    scopeSql: 't.empresa_id = ?',
+    label: 'Categorias de Chamado',
+    labelSingular: 'Categoria de Chamado',
+    description: 'Tipos de chamado de suporte (Suporte técnico, Financeiro...) com o prazo de SLA em horas',
+    icon: 'Tags',
+    group: 'cadastros',
+    pk: ['id'],
+    autoIncrement: true,
+    labelField: 'nome',
+    optionsSql: `SELECT id AS value, CONCAT(nome, ' (', sla_horas, 'h)') AS label
+                   FROM chamado_categorias WHERE empresa_id = ? AND ativo = 1 ORDER BY nome LIMIT 1000`,
+    defaultSort: { field: 'nome', dir: 'asc' },
+    canCreate: true,
+    canUpdate: true,
+    canDelete: true,
+    fields: [
+      ID,
+      { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 80 },
+      { name: 'sla_horas', label: 'SLA (horas)', type: 'number', required: true, listed: true, default: 24, width: 'xs', hint: 'Prazo para resolver, contado da abertura do chamado' },
+      { name: 'cor', label: 'Cor', type: 'text', maxLength: 7, listed: true, width: 'xs', hint: 'Ex.: #3B82F6 (etiqueta da categoria na fila)' },
+      { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true, default: true, width: 'xs' },
+      { name: 'criado_em', label: 'Criado em', type: 'datetime', readOnly: true },
+    ],
+  },
+  {
     name: 'segmentos',
     table: 'segmentos',
     tenantColumn: 'empresa_id',
@@ -989,6 +1019,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'unidade_medida', label: 'Unidade', type: 'text', maxLength: 10, listed: true, default: 'UN', width: 'xs' },
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true },
       { name: 'cod_integracao', label: 'Cód.Integração', type: 'text', readOnly: true, filterable: true, searchable: true, hint: 'Preenchido pela importação do bmsoft (PRODUTOSPRINCIPAL.ID)' },
+      { name: 'fotos', label: 'Fotos', type: 'fotos', hint: 'Até 4 fotos, do computador ou da internet' },
       ...CRIADO_ATUALIZADO,
     ],
   },
@@ -1300,7 +1331,7 @@ export const RESOURCES: ResourceDef[] = [
         listed: true,
         filterable: true,
         default: false,
-        hint: 'Leads novos do chatbot e da jornada vão, um de cada vez, para quem tem isto ligado',
+        hint: 'Leads novos da automação vão, um de cada vez, para quem tem isto ligado',
       },
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true },
       { name: 'created_at', label: 'Criado em', type: 'datetime', readOnly: true },

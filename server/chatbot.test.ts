@@ -1,18 +1,21 @@
 import assert from 'node:assert';
 import { chatbotPublica, escolhaDoTexto, listaMenu, minutosDevolver, prepararChatbot } from './chatbot.js';
 
-// Sem nada gravado: desligado, com o modelo e o nome padrão, sem chave
+// Sem nada gravado: modelo e nome padrão, sem chave
 const vazio = chatbotPublica(null);
-assert.strictEqual(vazio.ativo, false);
 assert.strictEqual(vazio.modelo, 'gemini-3.8-flash');
 assert.strictEqual(vazio.chave_definida, false);
 
-// Ligar exige chave e texto-base
-assert.throws(() => prepararChatbot({ ativo: true, texto_base: 'x' }, null), /chave do Gemini/);
-assert.throws(() => prepararChatbot({ ativo: true, chave: 'abc' }, null), /texto-base/);
+// Ligar, texto-base e menu saíram do Chatbot (ficam na Automação): o que vier da versão antiga não volta à tela
+const antiga = { ativo: true, modelo: 'gemini-3.8-flash', nome: 'Eloisa', minutos_devolver: 60, texto_base: 'Vendemos sistemas.', menu_texto: 'Escolha', menu: [{ departamento_id: 3, bot: true }] } as any;
+for (const k of ['ativo', 'texto_base', 'menu', 'menu_texto']) assert.strictEqual(k in chatbotPublica(antiga), false, k);
+// O texto-base antigo não é mais editado, mas continua gravado (nó IA sem texto-base próprio usa)
+const regravadaAntiga = prepararChatbot({ modelo: 'gemini-3.8-flash', nome: 'Eloisa', minutos_devolver: 60, texto_base: 'outro', ativo: true, menu: [{ departamento_id: 1 }] }, antiga);
+assert.strictEqual(regravadaAntiga.texto_base, 'Vendemos sistemas.');
+for (const k of ['ativo', 'menu', 'menu_texto']) assert.strictEqual(k in regravadaAntiga, false, k);
 
 // A chave vai cifrada e nunca volta para a tela; em branco mantém a gravada
-const gravada = prepararChatbot({ ativo: true, chave: 'minha-chave', texto_base: 'Vendemos sistemas.', vendedores: [30, 31] }, null);
+const gravada = prepararChatbot({ chave: 'minha-chave', vendedores: [30, 31] }, null);
 assert.ok(gravada.chave_cifrada && !gravada.chave_cifrada.includes('minha-chave'));
 // O revezamento é do cadastro de usuários: a lista antiga não é mais gravada nem devolvida
 assert.strictEqual('vendedores' in gravada, false);
@@ -40,12 +43,6 @@ assert.strictEqual(minutosDevolver({ minutos_devolver: 15, horas_devolver: 4 } a
 assert.strictEqual(minutosDevolver(null), 240);
 assert.strictEqual(chatbotPublica({ ...gravada, minutos_devolver: undefined, horas_devolver: 2 } as any).minutos_devolver, 120);
 assert.strictEqual('horas_devolver' in chatbotPublica({ ...gravada, horas_devolver: 2 } as any), false);
-
-// Menu de departamentos: sem repetidos, id inválido fora, no máximo 9
-const comMenu = prepararChatbot({ ...gravada, chave: '', menu: [{ departamento_id: 3, bot: true }, { departamento_id: '3' }, { departamento_id: 'x' }, { departamento_id: 5 }] }, gravada);
-assert.deepStrictEqual(comMenu.menu, [{ departamento_id: 3, bot: true }, { departamento_id: 5, bot: false }]);
-assert.ok(comMenu.menu_texto);
-assert.throws(() => prepararChatbot({ ...gravada, chave: '', menu: Array.from({ length: 10 }, (_, i) => ({ departamento_id: i + 1 })) }, gravada), /no máximo 9/);
 
 const opcoes = [
   { numero: 1, departamento_id: 3, nome: 'Vendas', bot: true },

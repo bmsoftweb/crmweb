@@ -15,7 +15,9 @@ export type FieldType =
   /** Conjunto de campos definidos em Configurações, gravado como JSON */
   | 'personalizados'
   /** Regras de segmentação de campanha (JSON) */
-  | 'criterios';
+  | 'criterios'
+  /** Até 4 fotos no Vercel Blob (endereços em JSON) */
+  | 'fotos';
 
 export interface FieldDef {
   name: string;

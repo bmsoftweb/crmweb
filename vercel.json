@@ -8,6 +8,10 @@
     {
       "source": "/p/:token",
       "destination": "/index.html"
+    },
+    {
+      "source": "/suporte",
+      "destination": "/index.html"
     }
   ],
   "functions": {

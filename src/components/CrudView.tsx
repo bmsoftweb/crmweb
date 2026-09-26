@@ -196,7 +196,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
   const camposBuscaAtuais = useMemo(
     () =>
       resource.fields
-        .filter((f) => f.type !== 'password' && f.type !== 'imagem')
+        .filter((f) => f.type !== 'password' && f.type !== 'imagem' && f.type !== 'fotos')
         .filter((f) => (camposBusca ? camposBusca.includes(f.name) : f.filterable))
         .map((f) => f.name),
     [resource, camposBusca],

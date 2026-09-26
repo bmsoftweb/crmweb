@@ -20,6 +20,8 @@ interface SidebarProps {
   recordCounts: Record<string, number>;
   /** Mensagens do WhatsApp não vistas */
   naoVistas: number;
+  /** Chamados aguardando na fila */
+  filaChamados?: number;
   usuario: Usuario | null;
   onLogout: () => void;
   isOpenMobile: boolean;
@@ -32,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   resources,
   recordCounts,
   naoVistas,
+  filaChamados = 0,
   usuario,
   onLogout,
   isOpenMobile,
@@ -97,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Recolhido: só as conversas não vistas, como um ponto */}
-        {rec && id === 'conversas' && Boolean(badge) && <span className="absolute top-2 right-4 w-2 h-2 rounded-full bg-rose-500" />}
+        {rec && (id === 'conversas' || id === 'chamados_fila') && Boolean(badge) && <span className="absolute top-2 right-4 w-2 h-2 rounded-full bg-rose-500" />}
         {!rec && badge !== undefined && badge > 0 && (
           <span
             // Mesma altura da linha do texto (16px): a etiqueta chega depois da contagem e não pode esticar a opção
@@ -161,7 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className={i ? 'pt-3' : ''}>
                   {tituloGrupo(g.titulo, rec, !i)}
                   {itens.map((it) =>
-                    renderNavButton(it.id, it.label, it.descricao, it.icone, it.id === 'conversas' ? naoVistas : it.id in recordCounts ? recordCounts[it.id] : undefined, rec),
+                    renderNavButton(it.id, it.label, it.descricao, it.icone, it.id === 'conversas' ? naoVistas : it.id === 'chamados_fila' ? filaChamados : it.id in recordCounts ? recordCounts[it.id] : undefined, rec),
                   )}
                 </div>
               )}
