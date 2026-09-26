@@ -350,6 +350,7 @@ export default function App() {
                     )
                   : undefined
               }
+              acoesEmMenu={activeResource.name === 'propostas' || activeResource.name === 'pedidos'}
               acoesLinha={
                 activeResource.name === 'propostas' || activeResource.name === 'pedidos'
                   ? (row, { abrir, recarregar }) => (

@@ -10,6 +10,7 @@ import {
   escolhaDoTexto,
   escolhaPelaIa,
   gerarRespostaIa,
+  iaComOpcoes,
   lerChatbot,
   marcarEncerramento,
   mudarAtendimento,
@@ -37,7 +38,7 @@ const MAX_ARQUIVO = 3 * 1024 * 1024;
 /** Estado da conversa depois de um nó Fim (ou saída sem ligação) */
 const FIM = '__fim';
 
-export const TIPOS_NO = ['inicio', 'mensagem', 'imagem', 'menu', 'pergunta', 'condicao', 'case', 'esperar', 'api', 'ia', 'lead', 'departamento', 'fim'] as const;
+export const TIPOS_NO = ['inicio', 'mensagem', 'imagem', 'menu', 'pergunta', 'condicao', 'case', 'esperar', 'api', 'ia', 'iaex', 'lead', 'departamento', 'fim'] as const;
 export type TipoNo = (typeof TIPOS_NO)[number];
 
 export interface No {
@@ -74,6 +75,8 @@ export function saidasDoNo(no: Pick<No, 'tipo' | 'dados'>): string[] {
       return ['sucesso', 'erro'];
     case 'ia':
       return ['humano'];
+    case 'iaex':
+      return [...(no.dados.opcoes ?? []).map((o: any) => String(o.id)), 'nenhuma'];
     case 'departamento':
     case 'fim':
       return [];
@@ -231,6 +234,16 @@ function prepararDados(tipo: TipoNo, d: any, id: string, anterior: Jornada | nul
         .filter((e: any) => e.caminho || e.variavel);
       for (const e of extrair) if (!e.caminho || !VARIAVEL.test(e.variavel)) throw erro('cada campo da resposta precisa do caminho e da variável.');
       return { ...base, metodo, url, cabecalhos, corpo: texto(d.corpo, 20_000), extrair };
+    }
+    case 'iaex': {
+      if (!String(d.texto ?? '').trim()) throw erro('escreva o texto-base (o que a IA deve perguntar ou fazer).');
+      const opcoes = (Array.isArray(d.opcoes) ? d.opcoes : []).map((o: any) => ({ id: String(o?.id ?? ''), rotulo: texto(o?.rotulo, 200).trim() }));
+      if (!opcoes.length || opcoes.length > 9) throw erro('informe de 1 a 9 saídas.');
+      if (opcoes.some((o: any) => !o.rotulo)) throw erro('toda saída precisa dizer quando ela vale.');
+      listaIds(opcoes, 'saída');
+      const tentativas = Number(d.tentativas ?? 3);
+      if (!Number.isInteger(tentativas) || tentativas < 1 || tentativas > 10) throw erro('as tentativas devem ser de 1 a 10.');
+      return { ...base, texto: texto(d.texto, 4000), opcoes, tentativas };
     }
     case 'lead':
       return { ...base, nome: texto(d.nome, 200), empresa: texto(d.empresa, 200), email: texto(d.email, 200), interesse: texto(d.interesse, 300) };
@@ -501,6 +514,8 @@ class Execucao {
         return this.destino(no, 'proximo') ?? 'fim';
       case 'ia':
         return this.ia(no);
+      case 'iaex':
+        return this.iaex(no, false);
       case 'esperar':
         if (!no.dados.interromper) return null;
         this.estado.retomar = 'limpar';
@@ -527,6 +542,41 @@ class Execucao {
     await mudarAtendimento(this.ctx.empresaId, this.ctx.telefone, 'humano');
     this.paraHumano = true;
     return 'fim';
+  }
+
+  /**
+   * IA (Gemini) Ex: a IA conversa pelo texto-base do nó até o cliente indicar uma das saídas (vai para
+   * ela, com a escolha em {{ia_opcao}}). Sem entender depois das tentativas, ou sem IA: saída "nenhuma".
+   */
+  private async iaex(no: No, abertura: boolean): Promise<No | null | 'fim'> {
+    const opcoes = (no.dados.opcoes ?? []).map((o: any, i: number) => ({ numero: i + 1, rotulo: String(o.rotulo), id: String(o.id) }));
+    const nenhuma = () => {
+      this.estado.vars.ia_opcao = '';
+      delete this.estado.vars._iaex;
+      return this.destino(no, 'nenhuma') ?? 'fim';
+    };
+    if (!this.bot?.chave_cifrada) {
+      console.error(`Jornada: nó ${rotulo(no)} sem a chave do Gemini (${ONDE} / Chatbot).`);
+      return nenhuma();
+    }
+    if (!abertura) this.estado.vars._iaex = (Number(this.estado.vars._iaex) || 0) + 1;
+    let r: { opcao: number; mensagem: string };
+    try {
+      void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000);
+      r = await iaComOpcoes(this.ctx, this.bot, preencher(no.dados.texto ?? '', await this.vars()), opcoes, abertura);
+    } catch (err: any) {
+      console.error(`Jornada: nó ${rotulo(no)}: ${err.message}`);
+      return nenhuma();
+    }
+    const escolha = opcoes.find((o: any) => o.numero === r.opcao);
+    if (escolha) {
+      this.estado.vars.ia_opcao = escolha.rotulo;
+      delete this.estado.vars._iaex;
+      return this.destino(no, escolha.id) ?? 'fim';
+    }
+    if (Number(this.estado.vars._iaex) >= (Number(no.dados.tentativas) || 3)) return nenhuma();
+    await this.enviar(r.mensagem || 'Desculpe, não entendi. Pode me dizer com outras palavras o que você precisa?');
+    return null;
   }
 
   /** Executa a partir do nó até um que espere o cliente, uma pausa ou o fim */
@@ -582,6 +632,10 @@ class Execucao {
           break;
         case 'ia':
           no = await this.ia(no);
+          break;
+        case 'iaex':
+          this.estado.vars._iaex = 0;
+          no = await this.iaex(no, true);
           break;
         case 'lead': {
           const v = await this.vars();

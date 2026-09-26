@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.24 — 2026-09-25
+
+Jornada: nó "IA (Gemini) Ex"; ações das listas em menu "...".
+
+- Nó "IA (Gemini) Ex" (Integrações): texto-base próprio (o que a IA deve fazer) e de 1 a 9 saídas ("quando o cliente quiser..."), cada uma um ponto de ligação, mais "não identificou". A IA pergunta, entende a resposta (número ou palavras) e segue pela saída certa; se a primeira mensagem já disser o que o cliente quer, vai direto (número solto na abertura não conta). Sem entender depois das tentativas configuradas (padrão 3), ou sem o Gemini, sai por "não identificou". A escolha fica em {{ia_opcao}}. Usa a chave e o modelo de Configurações › Chatbot.
+- Propostas e Pedidos de Venda: a coluna Ações virou um botão "..." com menu popup (ícone e nome de cada ação; Editar e Excluir no fim). Regra: coluna com mais de 3 ícones usa o menu.
+
 ## 0.0.23 — 2026-09-25
 
 Aprovação da proposta pelo cliente com assinatura digital. Banco: colunas propostas.aceite_* (token, em, nome, documento, ip, navegador, assinatura, hash).

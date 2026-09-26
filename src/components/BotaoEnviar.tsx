@@ -6,6 +6,7 @@ import { enviarDocumento, fetchDocumento, TipoDocumento } from '../services/api'
 import { formatDateBR, formatMoeda } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { ConfirmDialog } from './ConfirmDialog';
+import { BotaoAcao, useEmMenu } from './MenuAcoes';
 
 type Canal = 'email' | 'whatsapp';
 
@@ -46,6 +47,7 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
   const [menu, setMenu] = useState<{ top: number; right: number } | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [envio, setEnvio] = useState<{ canal: Canal; destino: string; mensagem: string } | null>(null);
+  const emMenu = useEmMenu();
 
   // Menu fecha ao clicar fora, rolar a lista ou apertar Esc
   useEffect(() => {
@@ -79,8 +81,15 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
 
   const item = 'w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer';
 
+  const anexo = ehProposta ? 'PDF da proposta e o link para o cliente aprovar e assinar' : 'PDF do pedido anexo';
   return (
     <>
+      {emMenu ? (
+        <>
+          <BotaoAcao icone={Mail} titulo="Enviar por e-mail" descricao={`Mensagem com o ${anexo}`} carregando={carregando} onClick={() => escolher('email')} />
+          <BotaoAcao icone={MessageCircle} titulo="Enviar por WhatsApp" descricao={`Mensagem com o ${anexo}`} tom="verde" carregando={carregando} onClick={() => escolher('whatsapp')} />
+        </>
+      ) : (
       <button
         ref={botaoRef}
         onClick={(e) => {
@@ -94,6 +103,7 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
       >
         {carregando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
       </button>
+      )}
 
       {/* No body: dentro da célula fixa da coluna Ações ficaria cortado; o span segura os cliques */}
       {menu &&

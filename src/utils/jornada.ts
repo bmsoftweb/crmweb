@@ -1,5 +1,6 @@
 import {
   Bot,
+  BrainCircuit,
   Clock,
   Flag,
   GitBranch,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 
 /** Jornada de atendimento: o mesmo formato de server/jornada.ts */
-export type TipoNo = 'inicio' | 'mensagem' | 'imagem' | 'menu' | 'pergunta' | 'condicao' | 'case' | 'esperar' | 'api' | 'ia' | 'lead' | 'departamento' | 'fim';
+export type TipoNo = 'inicio' | 'mensagem' | 'imagem' | 'menu' | 'pergunta' | 'condicao' | 'case' | 'esperar' | 'api' | 'ia' | 'iaex' | 'lead' | 'departamento' | 'fim';
 
 export interface NoJornada {
   id: string;
@@ -49,6 +50,12 @@ export const TIPOS_NO: Record<TipoNo, { nome: string; icone: LucideIcon; cor: st
   esperar: { nome: 'Esperar', icone: Clock, cor: 'stone', ajuda: 'Pausa X minutos e continua sozinho.' },
   api: { nome: 'Chamar API', icone: Globe, cor: 'cyan', ajuda: 'Chama outro sistema (https) e guarda campos da resposta em variáveis.' },
   ia: { nome: 'IA (Gemini)', icone: Bot, cor: 'fuchsia', ajuda: 'Conversa com o texto-base do Chatbot até passar para humano.' },
+  iaex: {
+    nome: 'IA (Gemini) Ex',
+    icone: BrainCircuit,
+    cor: 'fuchsia',
+    ajuda: 'A IA conversa pelo texto-base do nó até entender o que o cliente quer; cada opção é uma saída. Espera a resposta.',
+  },
   lead: { nome: 'Registrar lead', icone: UserPlus, cor: 'teal', ajuda: 'Cadastra pessoa, negócio e atividade com as variáveis coletadas.' },
   departamento: { nome: 'Departamento', icone: Network, cor: 'sky', ajuda: 'Passa para humano do departamento (atividade + aviso no WhatsApp).' },
   fim: { nome: 'Fim', icone: Flag, cor: 'rose', ajuda: 'Encerra a jornada (com uma mensagem opcional).' },
@@ -58,7 +65,7 @@ export const TIPOS_NO: Record<TipoNo, { nome: string; icone: LucideIcon; cor: st
 export const GRUPOS_NO: { titulo: string; tipos: TipoNo[] }[] = [
   { titulo: 'Conversa', tipos: ['mensagem', 'imagem', 'menu', 'pergunta'] },
   { titulo: 'Lógica', tipos: ['condicao', 'case', 'esperar'] },
-  { titulo: 'Integrações', tipos: ['api', 'ia'] },
+  { titulo: 'Integrações', tipos: ['api', 'ia', 'iaex'] },
   { titulo: 'CRM', tipos: ['lead', 'departamento'] },
   { titulo: 'Encerrar', tipos: ['fim'] },
 ];
@@ -109,6 +116,8 @@ export function saidasDoNo(no: Pick<NoJornada, 'tipo' | 'dados'>): { id: string;
       ];
     case 'ia':
       return [{ id: 'humano', rotulo: 'passou p/ humano' }];
+    case 'iaex':
+      return [...(d.opcoes ?? []).map((o: any, i: number) => ({ id: o.id, rotulo: `${i + 1} ${o.rotulo || ''}`.trim() })), { id: 'nenhuma', rotulo: 'não identificou' }];
     case 'departamento':
     case 'fim':
       return [];
@@ -138,6 +147,12 @@ export function dadosPadrao(tipo: TipoNo): Record<string, any> {
       return { minutos: 5, interromper: true };
     case 'api':
       return { metodo: 'GET', url: 'https://', cabecalhos: [], corpo: '', extrair: [] };
+    case 'iaex':
+      return {
+        texto: 'Pergunte ao cliente, de forma cordial, sobre o que ele deseja.',
+        opcoes: ['Falar com um atendente', 'Saber mais sobre o sistema', 'Assuntos financeiros', 'Falar com o suporte'].map((rotulo) => ({ id: novoId('o'), rotulo })),
+        tentativas: 3,
+      };
     case 'lead':
       return { nome: '{{nome}}', empresa: '{{empresa}}', email: '{{email}}', interesse: '{{interesse}}' };
     case 'departamento':
@@ -180,6 +195,8 @@ export function resumoNo(no: NoJornada, departamentos: { value: string; label: s
       return 'Pessoa + negócio + atividade';
     case 'ia':
       return 'Responde com o texto-base';
+    case 'iaex':
+      return d.texto || '';
     default:
       return '';
   }
@@ -192,7 +209,7 @@ export function avisosJornada(j: Pick<Jornada, 'nos' | 'ligacoes'>): string[] {
   for (const n of j.nos) {
     if (n.tipo !== 'inicio' && !j.ligacoes.some((l) => l.para === n.id)) avisos.push(`"${nome(n)}" não recebe nenhuma ligação (nunca é alcançado).`);
     for (const s of saidasDoNo(n)) {
-      if (['invalida', 'nenhum', 'erro', 'humano'].includes(s.id)) continue;
+      if (['invalida', 'nenhum', 'nenhuma', 'erro', 'humano'].includes(s.id)) continue;
       if (!j.ligacoes.some((l) => l.de === n.id && l.saida === s.id)) avisos.push(`"${nome(n)}": a saída ${s.rotulo ? `"${s.rotulo}"` : ''} não está ligada (encerra a jornada).`);
     }
   }
@@ -205,6 +222,7 @@ export function variaveisDisponiveis(nos: NoJornada[]): string[] {
   for (const n of nos) {
     if (n.tipo === 'pergunta' && n.dados.variavel) v.add(n.dados.variavel);
     if (n.tipo === 'api') for (const e of n.dados.extrair ?? []) if (e.variavel) v.add(e.variavel);
+    if (n.tipo === 'iaex') v.add('ia_opcao');
   }
   return [...v];
 }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Copy, Loader2 } from 'lucide-react';
+import { Copy } from 'lucide-react';
+import { BotaoAcao } from './MenuAcoes';
 import { RegistroCrud } from '../types';
 import { clonarDocumento } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -42,17 +43,13 @@ export const BotaoClonar: React.FC<Props> = ({ tipo, registro, onAbrir, onRecarr
 
   return (
     <>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setConfirmando(true);
-        }}
-        disabled={clonando}
-        title={`Clonar: cria ${ehProposta ? 'uma proposta nova' : 'um pedido novo'} com o mesmo conteúdo (número próprio)`}
-        className="p-1 rounded text-stone-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer disabled:cursor-wait"
-      >
-        {clonando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-      </button>
+      <BotaoAcao
+        icone={Copy}
+        titulo="Clonar"
+        descricao={`Cria ${ehProposta ? 'uma proposta nova' : 'um pedido novo'} com o mesmo conteúdo, com número próprio`}
+        carregando={clonando}
+        onClick={() => setConfirmando(true)}
+      />
 
       {confirmando &&
         // No body: dentro da célula fixa da coluna Ações o diálogo ficaria sob o cabeçalho da grade.

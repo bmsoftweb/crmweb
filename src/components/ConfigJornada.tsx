@@ -649,6 +649,29 @@ const PainelNo: React.FC<PainelProps> = ({ no, somenteLeitura, departamentos, va
         </p>
       )}
 
+      {tipo === 'iaex' && (
+        <>
+          {textoCom('texto', 'Texto-base (o que a IA deve fazer nesta etapa)', 5, 'Pergunte ao cliente, de forma cordial, sobre o que ele deseja.')}
+          <span className={LABEL_CLASS}>Saídas: quando o cliente quiser...</span>
+          {(d.opcoes ?? []).map((o: any, i: number) => (
+            <div key={o.id} className="flex items-center gap-2">
+              <span className="w-4 text-xs font-bold text-stone-500">{i + 1}</span>
+              <input aria-label={`Saída ${i + 1}`} value={o.rotulo} onChange={(e) => setItem('opcoes', i, { rotulo: e.target.value })} onFocus={selecionar} placeholder="Ex.: falar com o suporte" className={campo} />
+              {botaoRemover(() => removerItem('opcoes', i, `a saída ${i + 1}`), 'Remover a saída')}
+            </div>
+          ))}
+          {botaoIncluir(() => set({ opcoes: [...(d.opcoes ?? []), { id: novoId('o'), rotulo: '' }] }), 'Saída', (d.opcoes?.length ?? 0) >= 9)}
+          <div className={FIELD_CLASS}>
+            <label htmlFor={id('tent')} className={LABEL_CLASS}>Respostas sem entender, antes de "não identificou"</label>
+            <NumberField id={id('tent')} value={String(d.tentativas ?? 3)} onChange={(t) => set({ tentativas: Number(t) || 0 })} scale={0} className={campo} />
+          </div>
+          <span className={HINT_CLASS}>
+            Usa a chave e o modelo de Configurações › Chatbot. A IA faz a pergunta, entende a resposta (número ou palavras) e segue pela saída certa; a escolha fica em {'{{ia_opcao}}'}.
+            Se o cliente já disser o que quer na primeira mensagem, vai direto.
+          </span>
+        </>
+      )}
+
       {tipo === 'lead' && (
         <>
           {linha('nome', 'Nome', '{{nome}}')}

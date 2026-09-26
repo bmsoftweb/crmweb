@@ -75,4 +75,15 @@ assert.strictEqual(pegar(null, 'a.b'), undefined);
 for (const ip of ['127.0.0.1', '10.1.2.3', '192.168.0.10', '172.20.0.1', '169.254.169.254', '::1', 'fd00::1', '::ffff:10.0.0.1', '0.0.0.0']) assert.ok(ipInterno(ip), ip);
 for (const ip of ['8.8.8.8', '172.32.0.1', '2804:14c::1']) assert.ok(!ipInterno(ip), ip);
 
+// IA (Gemini) Ex: texto-base e de 1 a 9 saídas, cada uma um ponto de ligação, mais "nenhuma"
+const iaex = { id: 'x1', tipo: 'iaex', x: 0, y: 0, dados: { texto: 'Pergunte o que o cliente deseja.', opcoes: [{ id: 'a', rotulo: 'Atendente' }, { id: 'b', rotulo: 'Suporte' }] } };
+const comIa = (dados: any) => ({ ...base, nos: [inicio, { ...iaex, dados }, fim], ligacoes: [{ de: 'inicio', saida: 'proximo', para: 'x1' }, { de: 'x1', saida: 'b', para: 'f' }] });
+const gravada = prepararJornada(comIa(iaex.dados), null).nos.find((n) => n.id === 'x1')!;
+assert.deepStrictEqual(saidasDoNo(gravada), ['a', 'b', 'nenhuma']);
+assert.strictEqual(gravada.dados.tentativas, 3);
+assert.throws(() => prepararJornada(comIa({ ...iaex.dados, texto: ' ' }), null), /texto-base/);
+assert.throws(() => prepararJornada(comIa({ ...iaex.dados, opcoes: [] }), null), /1 a 9 saídas/);
+assert.throws(() => prepararJornada(comIa({ ...iaex.dados, opcoes: [{ id: 'a', rotulo: '' }, { id: 'b', rotulo: 'x' }] }), null), /precisa dizer/);
+assert.throws(() => prepararJornada(comIa({ ...iaex.dados, tentativas: 0 }), null), /tentativas/);
+
 console.log('jornada: ok');

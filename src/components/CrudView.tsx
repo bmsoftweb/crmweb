@@ -36,6 +36,7 @@ import { Toggle } from './Toggle';
 import { CellValue } from './CellValue';
 import { DetailPanel } from './DetailPanel';
 import { AdvancedSearch } from './AdvancedSearch';
+import { BotaoAcao, MenuAcoes, SeparadorAcoes } from './MenuAcoes';
 import { ConfirmDialog } from './ConfirmDialog';
 import { INPUT_CLASS } from '../utils/formStyles';
 import { AvisoErro } from './AvisoErro';
@@ -61,6 +62,8 @@ interface CrudViewProps {
   acoesLista?: (recarregar: () => void) => React.ReactNode;
   /** Botões extras da coluna Ações de cada linha (ex.: Clonar proposta) */
   acoesLinha?: (row: RegistroCrud, ctx: { abrir: (row: RegistroCrud) => void; recarregar: () => void }) => React.ReactNode;
+  /** Ações da linha (as de acoesLinha, Editar e Excluir) num menu "..." com descrição, em vez de ícones soltos */
+  acoesEmMenu?: boolean;
   /** Botões extras nas linhas do painel de detalhes (ex.: WhatsApp do contato), por recurso filho */
   acoesDetalhe?: (recurso: string, row: RegistroCrud) => React.ReactNode;
 }
@@ -105,6 +108,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
   renderEditor,
   acoesLista,
   acoesLinha,
+  acoesEmMenu,
   acoesDetalhe,
 }) => {
   /**
@@ -836,6 +840,18 @@ export const CrudView: React.FC<CrudViewProps> = ({
                     ))}
                     {comSobra && <td className={`w-full ${bordasCelula}`} />}
                     <td className={`sticky right-0 z-[5] ${larguraAcoes} px-3 py-[7.5px] text-center whitespace-nowrap bg-inherit border-l border-stone-200 dark:border-stone-800 ${bordasCelula}`}>
+                      {acoesEmMenu ? (
+                        <MenuAcoes>
+                          {acoesLinha?.(row, { abrir: abrirAbaEdicao, recarregar: load })}
+                          {(resource.canUpdate || resource.canDelete) && <SeparadorAcoes />}
+                          {resource.canUpdate && (
+                            <BotaoAcao icone={Pencil} titulo="Editar" descricao="Abre o registro numa aba de edição" onClick={() => abrirAbaEdicao(row)} />
+                          )}
+                          {resource.canDelete && (
+                            <BotaoAcao icone={Trash2} titulo="Excluir" descricao="Apaga o registro (pede confirmação)" tom="perigo" onClick={() => setDeleting(row)} />
+                          )}
+                        </MenuAcoes>
+                      ) : (
                       <div className="inline-flex items-center gap-1">
                         {acoesLinha?.(row, { abrir: abrirAbaEdicao, recarregar: load })}
                         {resource.canUpdate && (
@@ -863,6 +879,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
                           </button>
                         )}
                       </div>
+                      )}
                     </td>
                   </tr>
                 );

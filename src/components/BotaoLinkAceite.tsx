@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link2, Loader2 } from 'lucide-react';
+import { Link2 } from 'lucide-react';
+import { BotaoAcao } from './MenuAcoes';
 import { RegistroCrud } from '../types';
 import { linkAceiteProposta } from '../services/api';
 
@@ -13,8 +14,7 @@ export const BotaoLinkAceite: React.FC<Props> = ({ registro, onToast }) => {
   const [gerando, setGerando] = useState(false);
   if (['aceita', 'recusada', 'fechada', 'expirada'].includes(String(registro.status))) return null;
 
-  const copiar = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const copiar = async () => {
     setGerando(true);
     try {
       const { link } = await linkAceiteProposta(registro.id as number);
@@ -32,13 +32,12 @@ export const BotaoLinkAceite: React.FC<Props> = ({ registro, onToast }) => {
   };
 
   return (
-    <button
+    <BotaoAcao
+      icone={Link2}
+      titulo="Copiar link de aprovação"
+      descricao="Link em que o cliente confere a proposta e aprova com assinatura digital"
+      carregando={gerando}
       onClick={copiar}
-      disabled={gerando}
-      title="Copiar link: o cliente abre, confere a proposta e aprova com assinatura digital"
-      className="p-1 rounded text-stone-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer disabled:cursor-wait"
-    >
-      {gerando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-    </button>
+    />
   );
 };

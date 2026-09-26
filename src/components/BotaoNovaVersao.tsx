@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { GitBranchPlus, Loader2 } from 'lucide-react';
+import { GitBranchPlus } from 'lucide-react';
+import { BotaoAcao } from './MenuAcoes';
 import { RegistroCrud } from '../types';
 import { fetchDocumento, novaVersaoProposta } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -39,17 +40,13 @@ export const BotaoNovaVersao: React.FC<Props> = ({ registro, onAbrir, onRecarreg
 
   return (
     <>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setConfirmando(true);
-        }}
-        disabled={gerando}
-        title="Nova versão: copia esta proposta como a próxima versão do mesmo número"
-        className="p-1 rounded text-stone-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer disabled:cursor-wait"
-      >
-        {gerando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitBranchPlus className="w-3.5 h-3.5" />}
-      </button>
+      <BotaoAcao
+        icone={GitBranchPlus}
+        titulo="Nova versão"
+        descricao="Copia esta proposta como a próxima versão do mesmo número, para renegociar"
+        carregando={gerando}
+        onClick={() => setConfirmando(true)}
+      />
 
       {confirmando &&
         // No body: dentro da célula fixa da coluna Ações o diálogo ficaria sob o cabeçalho da grade.
