@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.36 — 2026-09-26
+
+- Chamados: aviso sonoro (três notas, diferente do bipe do WhatsApp) e aviso na tela quando o cliente escreve num chamado aberto que o usuário atende; a conversa aberta se atualiza. A verificação passou a cada 5 s.
+- Chamados Ativos: botão "Cutucar" (chamado do site, já assumido, no máximo um a cada 10 s). No chat do cliente toca uma campainha, o chat treme e aparece "Fulano está chamando a sua atenção"; com o painel do widget fechado, o botão flutuante no site treme e ganha um ponto vermelho.
+
 ## 0.0.35 — 2026-09-26
 
 - Chamados Ativos e chat do site: o campo da mensagem não é mais desabilitado durante o envio (fica só leitura), então o cursor não sai dele e dá para escrever a próxima sem clicar; Enter repetido durante o envio é ignorado.

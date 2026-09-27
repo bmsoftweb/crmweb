@@ -660,7 +660,11 @@ export interface ChamadoDetalhe extends ChamadoResumo {
 export type FiltroChamados = 'meus' | 'todos' | 'aguardando' | 'andamento' | 'encerrados';
 
 export const fetchFilaChamados = (): Promise<ChamadoResumo[]> => get('/api/chamados/fila');
-export const fetchContagemChamados = (): Promise<{ fila: number }> => get('/api/chamados/contagem');
+export const fetchContagemChamados = (): Promise<{
+  fila: number;
+  /** Última mensagem de cliente nos chamados abertos que o usuário atende */
+  mensagem: { id: number; chamado_id: number; numero: number; nome: string | null } | null;
+}> => get('/api/chamados/contagem');
 export const fetchChamados = (filtro: FiltroChamados, q = ''): Promise<ChamadoResumo[]> =>
   get(`/api/chamados?filtro=${filtro}${q ? `&q=${encodeURIComponent(q)}` : ''}`);
 export const fetchChamado = (id: number): Promise<ChamadoDetalhe> => get(`/api/chamados/${id}`);
@@ -680,6 +684,8 @@ export const encerrarChamado = (id: number) => enviar('POST', `/api/chamados/${i
 export const transferirChamado = (id: number, destino: { usuario_id?: number; departamento_id?: number; observacao?: string }) =>
   enviar('POST', `/api/chamados/${id}/transferir`, destino);
 /** Pede ao cliente (chat do site) para abrir o AnyDesk */
+/** Chama a atenção do cliente no chat do site (som e tremida) */
+export const cutucarCliente = (id: number) => enviar('POST', `/api/chamados/${id}/cutucar`);
 export const pedirTelaRemota = (id: number) => enviar('POST', `/api/chamados/${id}/tela-remota`);
 export const enviarMensagemChamado = (id: number, texto: string, interna: boolean): Promise<{ success: boolean; aviso: string | null }> =>
   enviar('POST', `/api/chamados/${id}/mensagens`, { texto, interna });

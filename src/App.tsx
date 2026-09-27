@@ -115,15 +115,28 @@ export default function App() {
 
   // Etiqueta da Fila de Chamados, para quem trabalha os chamados
   const veChamados = podeAcessar(sessao?.usuario ?? null, 'chamados_fila') || podeAcessar(sessao?.usuario ?? null, 'chamados_ativos');
+  /** Última mensagem de cliente já vista nos meus chamados (null = ainda não carregou: sem som na abertura) */
+  const ultimaMsgChamado = useRef<number | null>(null);
   const atualizarFilaChamados = useCallback(() => {
     fetchContagemChamados()
-      .then((r) => setFilaChamados(r.fila))
+      .then((r) => {
+        setFilaChamados(r.fila);
+        const m = r.mensagem;
+        // Cliente escreveu num chamado meu: aviso sonoro, aviso na tela e a conversa aberta se atualiza
+        if (m && ultimaMsgChamado.current !== null && m.id > ultimaMsgChamado.current) {
+          tocarAviso('suporte');
+          showToast(`Nova mensagem de ${m.nome || 'cliente'} no chamado nº ${m.numero}.`);
+          setRefreshToken((t) => t + 1);
+        }
+        ultimaMsgChamado.current = Math.max(ultimaMsgChamado.current ?? 0, m?.id ?? 0);
+      })
       .catch(() => {}); // sem as tabelas ou sem conexão: fica sem etiqueta
-  }, []);
+  }, [showToast]);
   useEffect(() => {
     if (!sessao || !veChamados) return;
     atualizarFilaChamados();
-    const i = setInterval(atualizarFilaChamados, 15_000);
+    // A cada 5 s: o aviso de mensagem do cliente não pode demorar (é uma consulta pequena)
+    const i = setInterval(atualizarFilaChamados, 5_000);
     return () => clearInterval(i);
   }, [sessao, veChamados, atualizarFilaChamados]);
 

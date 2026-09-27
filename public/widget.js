@@ -49,7 +49,26 @@
     }
     painel.style.display = abrir ? 'block' : 'none';
     botao.innerHTML = abrir ? iconeFechar : iconeChat;
+    botao.appendChild(ponto);
+    if (abrir) ponto.style.display = 'none';
   };
+
+  // Cutucão do técnico (o chat avisa por postMessage): com o painel fechado, o botão treme e ganha um ponto
+  var ponto = document.createElement('span');
+  ponto.style.cssText = 'display:none;position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#e11d48;border:2px solid #fff;';
+  botao.style.position = 'relative';
+  botao.appendChild(ponto);
+  window.addEventListener('message', function (e) {
+    if (e.origin !== origem || e.data !== 'crmweb-cutucar') return;
+    if (painel.style.display !== 'none') return;
+    ponto.style.display = 'block';
+    if (botao.animate) {
+      botao.animate(
+        [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }],
+        { duration: 300, iterations: 4 }
+      );
+    }
+  });
 
   caixa.appendChild(painel);
   caixa.appendChild(botao);

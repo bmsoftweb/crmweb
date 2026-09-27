@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Download, Headset, Loader2, MonitorSmartphone, Send, Star } from 'lucide-react';
+import { Bell, CheckCircle2, Download, Headset, Loader2, MonitorSmartphone, Send, Star } from 'lucide-react';
 import { formatDateTimeBR } from '../utils/formatters';
 import { ConfirmDialog } from './ConfirmDialog';
+import { destravarSom, tocarAviso } from '../utils/som';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 
 /**
@@ -48,6 +49,8 @@ const soDigitos = (v: string, max: number) => v.replace(/\D/g, '').slice(0, max)
 
 /** Pedido de tela remota do técnico (server/chamados.ts): vira o cartão com o botão do AnyDesk */
 const TELA_REMOTA = '[[anydesk]]';
+/** Cutucão do técnico (server/chamados.ts): som, tremida e aviso ao site (widget.js) */
+const CUTUCAR = '[[cutucar]]';
 
 /** Número do AnyDesk que o cliente enviou (server/suporte.ts) */
 const ID_ANYDESK = /^\[\[anydesk-id:(\d+)\]\]$/;
@@ -274,6 +277,9 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
   const campoMensagem = useRef<HTMLTextAreaElement>(null);
   /** Maior id de mensagem já visto (null = ainda não carregou): pedido de tela remota chegando depois tenta abrir o AnyDesk */
   const vistoAte = useRef<number | null>(null);
+  const [tremer, setTremer] = useState(false);
+  // O navegador só libera som depois do primeiro clique ou tecla na página
+  useEffect(() => destravarSom(), []);
   const url = `/api/publico/suporte/chamado/${encodeURIComponent(token)}`;
   const onNovoRef = useRef(onNovo);
   onNovoRef.current = onNovo;
@@ -320,6 +326,17 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
         setTimeout(() => q.remove(), 3000);
       } catch {
         // bloqueado: o cliente usa o botão do cartão
+      }
+    }
+    // Cutucão novo: campainha, o chat treme e o botão do widget no site pisca (se o painel estiver fechado)
+    if (vistoAte.current !== null && c.mensagens.some((m) => m.texto === CUTUCAR && m.id > vistoAte.current!)) {
+      tocarAviso('cutucar');
+      setTremer(true);
+      setTimeout(() => setTremer(false), 1000);
+      try {
+        window.parent.postMessage('crmweb-cutucar', '*');
+      } catch {
+        // página aberta fora do widget
       }
     }
     vistoAte.current = maior;
@@ -373,9 +390,13 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+      <div className={`flex-1 overflow-y-auto p-4 flex flex-col gap-2 ${tremer ? 'animate-tremer' : ''}`}>
         {c.mensagens.map((m, i) =>
-          m.texto === TELA_REMOTA ? (
+          m.texto === CUTUCAR ? (
+            <div key={m.id} className="self-center text-xs font-semibold text-amber-800 bg-amber-100 rounded-full px-3 py-1 inline-flex items-center gap-1.5">
+              <Bell className="w-3.5 h-3.5" /> {m.usuario_nome || 'O técnico'} está chamando a sua atenção • {formatDateTimeBR(m.criado_em)}
+            </div>
+          ) : m.texto === TELA_REMOTA ? (
             <CartaoTelaRemota
               key={m.id}
               tecnico={m.usuario_nome || 'O técnico'}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, Hand, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Search, Send, StickyNote } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Hand, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Search, Send, StickyNote } from 'lucide-react';
 import {
   assumirChamado,
   buscarPessoasChamado,
@@ -11,6 +11,7 @@ import {
   fetchChamado,
   fetchChamados,
   fetchFilaChamados,
+  cutucarCliente,
   fetchOptions,
   FiltroChamados,
   pedirTelaRemota,
@@ -31,6 +32,8 @@ import { Toggle } from './Toggle';
 
 /** Mensagem "Tela remota" (a mesma de server/chamados.ts) */
 const TELA_REMOTA = '[[anydesk]]';
+/** Mensagem "Cutucar" (a mesma de server/chamados.ts) */
+const CUTUCAR = '[[cutucar]]';
 /** Número do AnyDesk que o cliente mandou pelo chat do site (server/suporte.ts) */
 const ID_ANYDESK = /^\[\[anydesk-id:(\d+)\]\]$/;
 const formatarAnydesk = (id: string) => id.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -489,6 +492,16 @@ const ChamadoAberto: React.FC<{
           {podeEscrever && c.canal === 'web' && (
             <button
               type="button"
+              onClick={() => acao(() => cutucarCliente(c.id), 'Cliente cutucado: tocou um som no chat dele.')}
+              title="Toca um som e faz o chat do cliente tremer, para chamar a atenção dele"
+              className={`${botao} border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40`}
+            >
+              <Bell className="w-3.5 h-3.5" /> Cutucar
+            </button>
+          )}
+          {podeEscrever && c.canal === 'web' && (
+            <button
+              type="button"
               onClick={() => acao(() => pedirTelaRemota(c.id), 'Pedido de tela remota enviado ao chat do cliente.')}
               title="Mostra no chat do site o botão para o cliente abrir o AnyDesk; ele informa o ID para você conectar"
               className={`${botao} border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40`}
@@ -531,6 +544,10 @@ const ChamadoAberto: React.FC<{
               </span>
               <Conectar id={ID_ANYDESK.exec(m.texto)![1]} />
               <span className="text-[10px] text-stone-400">{formatDateTimeBR(m.criado_em)}</span>
+            </div>
+          ) : m.texto === CUTUCAR ? (
+            <div key={m.id} className="self-end text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-full px-3 py-1 inline-flex items-center gap-1.5">
+              <Bell className="w-3.5 h-3.5" /> {m.usuario_nome || 'Equipe'} cutucou o cliente • {formatDateTimeBR(m.criado_em)}
             </div>
           ) : m.texto === TELA_REMOTA ? (
             <div key={m.id} className="self-end text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-full px-3 py-1 inline-flex items-center gap-1.5">

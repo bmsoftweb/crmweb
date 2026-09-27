@@ -15,6 +15,8 @@ const ENCERRADOS = "('encerrado','cancelado')";
 
 /** Texto da mensagem "Tela remota": o chat do site mostra o cartão com o botão que abre o AnyDesk */
 export const TELA_REMOTA = '[[anydesk]]';
+/** Texto da mensagem "Cutucar": o chat do site toca um som e treme para chamar a atenção do cliente */
+export const CUTUCAR = '[[cutucar]]';
 
 function erro(status: number, msg: string) {
   return Object.assign(new Error(msg), { status });
@@ -114,9 +116,22 @@ export function createChamadosRouter(): Router {
   }));
 
   /** Quantos na fila (etiqueta do menu) */
+  /**
+   * Quantos na fila (etiqueta do menu) e a última mensagem de cliente nos chamados abertos que o
+   * usuário atende (a tela toca o aviso quando ela muda)
+   */
   router.get('/chamados/contagem', rota(async (_req, res) => {
     const [r] = await pool.query<any[]>("SELECT COUNT(*) n FROM chamados WHERE empresa_id = ? AND status = 'aguardando' AND atendente_id IS NULL", [emp(res)]);
-    res.json({ fila: Number(r[0].n) });
+    const [m] = await pool.query<any[]>(
+      `SELECT m.id, c.id AS chamado_id, c.numero, COALESCE(p.nome, c.contato_nome) AS nome
+         FROM chamado_mensagens m
+         JOIN chamados c ON c.id = m.chamado_id
+         LEFT JOIN pessoas p ON p.id = c.pessoa_id
+        WHERE c.empresa_id = ? AND c.atendente_id = ? AND c.status NOT IN ${ENCERRADOS} AND m.autor = 'cliente'
+        ORDER BY m.id DESC LIMIT 1`,
+      [emp(res), eu(res)],
+    );
+    res.json({ fila: Number(r[0].n), mensagem: m[0] ?? null });
   }));
 
   /** Busca de cliente para o Novo chamado (a lista de pessoas passa do limite dos combos) */
@@ -255,6 +270,21 @@ export function createChamadosRouter(): Router {
     if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de pedir a tela remota.');
     if (c.canal !== 'web') throw erro(400, 'A tela remota abre no chat do site: este chamado não veio pelo site.');
     await pool.query("INSERT INTO chamado_mensagens (chamado_id, usuario_id, autor, texto) VALUES (?, ?, 'equipe', ?)", [c.id, eu(res), TELA_REMOTA]);
+    res.json({ success: true });
+  }));
+
+  /** Cutucar: chama a atenção do cliente no chat do site (som e tremida); no máximo um a cada 10 s */
+  router.post('/chamados/:id/cutucar', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    conferirDono(c, res);
+    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de cutucar o cliente.');
+    if (c.canal !== 'web') throw erro(400, 'O cutucão toca no chat do site: este chamado não veio pelo site.');
+    const [r] = await pool.query<any[]>(
+      'SELECT 1 FROM chamado_mensagens WHERE chamado_id = ? AND texto = ? AND criado_em > NOW() - INTERVAL 10 SECOND LIMIT 1',
+      [c.id, CUTUCAR],
+    );
+    if (r.length) throw erro(429, 'Aguarde uns segundos antes de cutucar de novo.');
+    await pool.query("INSERT INTO chamado_mensagens (chamado_id, usuario_id, autor, texto) VALUES (?, ?, 'equipe', ?)", [c.id, eu(res), CUTUCAR]);
     res.json({ success: true });
   }));
 
