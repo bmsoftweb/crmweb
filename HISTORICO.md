@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.28 — 2026-09-26
+
+- Widget de suporte (widget.js): funciona também quando o site insere o script depois de carregar (Wix › Código personalizado) ou no <head>.
+
 ## 0.0.27 — 2026-09-26
 
 Chamados de suporte, suporte pelo site, fotos de produtos e a Automação no lugar do Chatbot. Banco: tabelas chamados, chamado_mensagens e chamado_categorias; colunas chamados.contato_nome/contato_telefone/contato_documento e produtos.fotos. Vercel: Blob ligado ao projeto (BLOB_READ_WRITE_TOKEN).

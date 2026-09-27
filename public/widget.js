@@ -8,7 +8,9 @@
   if (window.__crmwebSuporte) return;
   window.__crmwebSuporte = true;
 
-  var script = document.currentScript;
+  // No Wix (Código personalizado) o script pode ser inserido depois: aí currentScript vem vazio
+  var script = document.currentScript || document.querySelector('script[src*="/widget.js"]');
+  if (!script) return;
   var origem = new URL(script.src).origin;
   var empresa = script.getAttribute('data-empresa') || '1';
   var cnpj = script.getAttribute('data-cnpj') || '';
@@ -51,5 +53,9 @@
 
   caixa.appendChild(painel);
   caixa.appendChild(botao);
-  document.body.appendChild(caixa);
+  // Script colocado no <head>: espera a página ter corpo
+  if (document.body) document.body.appendChild(caixa);
+  else document.addEventListener('DOMContentLoaded', function () {
+    document.body.appendChild(caixa);
+  });
 })();
