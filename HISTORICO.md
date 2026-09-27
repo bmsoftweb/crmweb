@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.33 — 2026-09-26
+
+- Suporte pelo site: ao terminar o atendimento, o chat volta direto ao formulário de novo atendimento (sem o botão "Novo atendimento"). Cancelado vai na hora; encerrado mostra a avaliação e, ao enviar (ou "Pular avaliação"), volta ao formulário com um aviso, os dados do cliente preenchidos e o foco no Assunto.
+
 ## 0.0.32 — 2026-09-26
 
 - Suporte pelo site: botão "Encerrar" no chat do cliente (com confirmação). Com atendente, o chamado fica encerrado e o cliente avalia; sem ninguém ter assumido, fica cancelado (saiu da fila), sem avaliação. A linha do tempo da equipe registra quem encerrou.

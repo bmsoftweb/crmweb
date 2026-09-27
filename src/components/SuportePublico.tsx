@@ -134,9 +134,12 @@ export const SuportePublico: React.FC<{ empresa: string; cnpj: string }> = ({ em
       .catch((e) => setErro(e.message));
   }, [empresa]);
 
-  const trocarToken = (t: string | null) => {
+  /** Aviso no topo do formulário (atendimento anterior que acabou de terminar) */
+  const [aviso, setAviso] = useState<string | null>(null);
+  const trocarToken = (t: string | null, msg: string | null = null) => {
     gravar(chaveToken, t);
     setToken(t);
+    setAviso(msg);
   };
 
   if (!info) {
@@ -157,9 +160,9 @@ export const SuportePublico: React.FC<{ empresa: string; cnpj: string }> = ({ em
         </div>
       </header>
       {token ? (
-        <Conversa token={token} onNovo={() => trocarToken(null)} />
+        <Conversa token={token} onNovo={(msg) => trocarToken(null, msg ?? null)} />
       ) : (
-        <Abrir empresa={empresa} cnpj={cnpj} categorias={info.categorias} chaveDados={chaveDados} onAberto={trocarToken} />
+        <Abrir empresa={empresa} cnpj={cnpj} categorias={info.categorias} chaveDados={chaveDados} aviso={aviso} onAberto={(t) => trocarToken(t)} />
       )}
     </div>
   );
@@ -170,8 +173,9 @@ const Abrir: React.FC<{
   cnpj: string;
   categorias: { id: number; nome: string }[];
   chaveDados: string;
+  aviso: string | null;
   onAberto: (token: string) => void;
-}> = ({ empresa, cnpj, categorias, chaveDados, onAberto }) => {
+}> = ({ empresa, cnpj, categorias, chaveDados, aviso, onAberto }) => {
   // Nome, WhatsApp e CNPJ da última vez vêm preenchidos
   const salvos = (() => {
     try {
@@ -212,6 +216,11 @@ const Abrir: React.FC<{
 
   return (
     <form onSubmit={enviar} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+      {aviso && (
+        <p className="p-2.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0" /> {aviso}
+        </p>
+      )}
       <p className="text-xs text-stone-600">Conte o que está acontecendo. O primeiro atendente livre continua a conversa por aqui.</p>
       <div className={FIELD_CLASS}>
         <label htmlFor="sp-doc" className={LABEL_CLASS}>CNPJ da empresa (ou CPF)</label>
@@ -253,7 +262,7 @@ const Abrir: React.FC<{
   );
 };
 
-const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNovo }) => {
+const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = ({ token, onNovo }) => {
   const [c, setC] = useState<Chamado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
@@ -285,6 +294,11 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
     const i = setInterval(carregar, 4000);
     return () => clearInterval(i);
   }, [carregar]);
+  // Cancelado, ou encerrado e já avaliado: não há mais nada aqui, vai direto para abrir um novo
+  useEffect(() => {
+    if (c?.status === 'cancelado') onNovoRef.current('Atendimento anterior cancelado.');
+    else if (c?.status === 'encerrado' && c.avaliado) onNovoRef.current('Atendimento anterior encerrado. Obrigado pela avaliação!');
+  }, [c?.status, c?.avaliado]);
   useEffect(() => {
     if (c && c.mensagens.length !== qtd.current) {
       qtd.current = c.mensagens.length;
@@ -401,8 +415,8 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
       )}
 
       {encerrado ? (
-        // Cancelado (encerrou antes de alguém atender): não há o que avaliar
-        <Avaliar url={url} avaliado={c.avaliado || c.status === 'cancelado'} onFeito={carregar} onNovo={onNovo} cancelado={c.status === 'cancelado'} />
+        // Encerrado: avalia (cancelado e já avaliado vão direto para o formulário, no efeito acima)
+        <Avaliar url={url} onFeito={carregar} onPular={() => onNovo('Atendimento anterior encerrado.')} />
       ) : (
         <form onSubmit={enviar} className="p-3 bg-white border-t border-stone-200 flex items-end gap-2 shrink-0">
           <textarea
@@ -430,26 +444,11 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
   );
 };
 
-const Avaliar: React.FC<{ url: string; avaliado: boolean; onFeito: () => void; onNovo: () => void; cancelado?: boolean }> = ({ url, avaliado, onFeito, onNovo, cancelado }) => {
+const Avaliar: React.FC<{ url: string; onFeito: () => void; onPular: () => void }> = ({ url, onFeito, onPular }) => {
   const [nota, setNota] = useState(0);
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const novo = (
-    <button type="button" onClick={onNovo} className="w-full py-2.5 rounded-lg border border-stone-300 text-sm font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer">
-      Novo atendimento
-    </button>
-  );
-  if (avaliado) {
-    return (
-      <div className="p-4 bg-white border-t border-stone-200 flex flex-col gap-3 shrink-0">
-        <p className="text-sm text-emerald-700 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4" /> {cancelado ? 'Atendimento cancelado. Se precisar, é só abrir um novo.' : 'Obrigado pela avaliação!'}
-        </p>
-        {novo}
-      </div>
-    );
-  }
   return (
     <div className="p-4 bg-white border-t border-stone-200 flex flex-col gap-2 shrink-0">
       <p className="text-sm font-semibold text-stone-800">Como foi o atendimento?</p>
@@ -482,7 +481,9 @@ const Avaliar: React.FC<{ url: string; avaliado: boolean; onFeito: () => void; o
       >
         Enviar avaliação
       </button>
-      {novo}
+      <button type="button" onClick={onPular} className="py-2 text-xs font-semibold text-stone-500 hover:text-stone-700 hover:underline cursor-pointer">
+        Pular avaliação
+      </button>
     </div>
   );
 };
