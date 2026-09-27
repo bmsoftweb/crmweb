@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.35 — 2026-09-26
+
+- Chamados Ativos e chat do site: o campo da mensagem não é mais desabilitado durante o envio (fica só leitura), então o cursor não sai dele e dá para escrever a próxima sem clicar; Enter repetido durante o envio é ignorado.
+
 ## 0.0.34 — 2026-09-26
 
 - Chamados Ativos e chat do site: depois de enviar a mensagem (Enter), o cursor volta para o campo, para escrever a próxima sem clicar.

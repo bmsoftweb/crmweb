@@ -330,7 +330,8 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
   const encerrado = ['encerrado', 'cancelado'].includes(c.status);
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!texto.trim()) return;
+    // Enter de novo enquanto envia: ignora (o campo fica só leitura, não desabilitado, para manter o foco)
+    if (!texto.trim() || enviando) return;
     setEnviando(true);
     try {
       await api(`${url}/mensagens`, { texto: texto.trim() });
@@ -432,7 +433,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
                 (e.currentTarget.form as HTMLFormElement).requestSubmit();
               }
             }}
-            disabled={enviando}
+            readOnly={enviando}
             rows={1}
             maxLength={4000}
             placeholder={enviando ? 'Enviando...' : 'Escreva a sua mensagem'}

@@ -434,7 +434,8 @@ const ChamadoAberto: React.FC<{
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!texto.trim()) return;
+    // Enter de novo enquanto envia: ignora (o campo fica só leitura, não desabilitado, para manter o foco)
+    if (!texto.trim() || enviando) return;
     setEnviando(true);
     setErro(null);
     try {
@@ -576,7 +577,7 @@ const ChamadoAberto: React.FC<{
                 (e.currentTarget.form as HTMLFormElement).requestSubmit();
               }
             }}
-            disabled={enviando}
+            readOnly={enviando}
             rows={2}
             maxLength={4000}
             placeholder={interna ? 'Nota interna: só a equipe vê' : c.canal === 'web' ? 'Resposta ao cliente (aparece no chat do site)' : c.pessoa_telefone ? 'Resposta ao cliente (vai pelo WhatsApp)' : 'Resposta (o cliente não tem WhatsApp: fica só no chamado)'}
