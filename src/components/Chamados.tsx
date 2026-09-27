@@ -393,6 +393,8 @@ const ChamadoAberto: React.FC<{
   const [dialogo, setDialogo] = useState<'encerrar' | 'transferir' | null>(null);
   const fim = useRef<HTMLDivElement>(null);
   const qtdMsgs = useRef(0);
+  /** Campo da resposta: o foco volta para ele depois de enviar (fica desabilitado enquanto envia) */
+  const campoResposta = useRef<HTMLTextAreaElement>(null);
 
   const carregar = useCallback(() => {
     fetchChamado(id)
@@ -445,6 +447,7 @@ const ChamadoAberto: React.FC<{
       setErro(err.message);
     } finally {
       setEnviando(false);
+      setTimeout(() => campoResposta.current?.focus(), 0);
     }
   };
 
@@ -564,6 +567,7 @@ const ChamadoAberto: React.FC<{
       {podeEscrever ? (
         <form onSubmit={enviar} className="px-5 py-3 border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 flex flex-col gap-2">
           <textarea
+            ref={campoResposta}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => {

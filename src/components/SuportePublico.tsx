@@ -270,6 +270,8 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
   const [enviando, setEnviando] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
   const qtd = useRef(0);
+  /** Campo da mensagem: o foco volta para ele depois de enviar (fica desabilitado enquanto envia) */
+  const campoMensagem = useRef<HTMLTextAreaElement>(null);
   /** Maior id de mensagem já visto (null = ainda não carregou): pedido de tela remota chegando depois tenta abrir o AnyDesk */
   const vistoAte = useRef<number | null>(null);
   const url = `/api/publico/suporte/chamado/${encodeURIComponent(token)}`;
@@ -338,6 +340,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
       setErro(err.message);
     } finally {
       setEnviando(false);
+      setTimeout(() => campoMensagem.current?.focus(), 0);
     }
   };
 
@@ -420,6 +423,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
       ) : (
         <form onSubmit={enviar} className="p-3 bg-white border-t border-stone-200 flex items-end gap-2 shrink-0">
           <textarea
+            ref={campoMensagem}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => {
