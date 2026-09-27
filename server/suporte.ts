@@ -159,6 +159,20 @@ export function createSuporteRouter(): Router {
     res.json({ success: true });
   }));
 
+  /**
+   * Número do AnyDesk que o cliente copiou do programa (cartão "Acesso remoto"): vai para o chamado
+   * e fica gravado na Pessoa, para o técnico conectar direto nas próximas vezes
+   */
+  router.post('/api/publico/suporte/chamado/:token/anydesk', rota(async (req, res) => {
+    const c = await doToken(req.params.token);
+    if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento foi encerrado.');
+    const id = digitos(req.body?.id, 12);
+    if (id.length < 9) throw erro(400, 'Digite o número que aparece em "Seu endereço" no AnyDesk (9 ou 10 dígitos).');
+    await pool.query("INSERT INTO chamado_mensagens (chamado_id, autor, texto) VALUES (?, 'cliente', ?)", [c.id, `[[anydesk-id:${id}]]`]);
+    if (c.pessoa_id) await pool.query('UPDATE pessoas SET anydesk_id = ? WHERE id = ?', [id, c.pessoa_id]);
+    res.json({ success: true });
+  }));
+
   /** Avaliação de 1 a 5 do atendimento encerrado (entra em Avaliações, como a do WhatsApp) */
   router.post('/api/publico/suporte/chamado/:token/avaliar', rota(async (req, res) => {
     const c = await doToken(req.params.token);

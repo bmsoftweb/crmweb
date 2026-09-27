@@ -138,7 +138,7 @@ export function createChamadosRouter(): Router {
     const [r] = await pool.query<any[]>(`${SELECT} WHERE c.id = ? AND c.empresa_id = ?`, [req.params.id, emp(res)]);
     if (!r[0]) throw erro(404, 'Chamado não encontrado.');
     const [extra] = await pool.query<any[]>(
-      `SELECT c.descricao, a.nome AS aberto_por_nome, COALESCE(NULLIF(p.whatsapp, ''), p.telefone, c.contato_telefone) AS pessoa_telefone,
+      `SELECT c.descricao, a.nome AS aberto_por_nome, p.anydesk_id, COALESCE(NULLIF(p.whatsapp, ''), p.telefone, c.contato_telefone) AS pessoa_telefone,
               c.contato_nome, c.contato_telefone, c.contato_documento
          FROM chamados c LEFT JOIN usuarios a ON a.id = c.aberto_por LEFT JOIN pessoas p ON p.id = c.pessoa_id WHERE c.id = ?`,
       [req.params.id],

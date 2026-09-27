@@ -48,29 +48,77 @@ const soDigitos = (v: string, max: number) => v.replace(/\D/g, '').slice(0, max)
 /** Pedido de tela remota do técnico (server/chamados.ts): vira o cartão com o botão do AnyDesk */
 const TELA_REMOTA = '[[anydesk]]';
 
+/** Número do AnyDesk que o cliente enviou (server/suporte.ts) */
+const ID_ANYDESK = /^\[\[anydesk-id:(\d+)\]\]$/;
+/** "123456789" → "123 456 789" (como o AnyDesk mostra) */
+const formatarAnydesk = (id: string) => id.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
 /**
  * Cartão "Tela remota": o navegador só abre o AnyDesk (protocolo anydesk:) com um clique da pessoa.
- * Sem o AnyDesk instalado, o clique não faz nada: por isso o link para baixar.
+ * Sem o AnyDesk instalado, o clique não faz nada: por isso o link para baixar. O cliente cola o
+ * número do AnyDesk no campo e o técnico conecta direto (fica gravado no cadastro dele).
  */
-const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: boolean }> = ({ tecnico, quando, ultimo }) => (
-  <div className={`self-start max-w-[90%] rounded-2xl rounded-bl-md border px-3 py-2.5 text-sm ${ultimo ? 'bg-rose-50 border-rose-200' : 'bg-white border-stone-200'}`}>
-    <div className="flex items-center gap-2 font-semibold text-rose-700">
-      <MonitorSmartphone className="w-4 h-4" /> Acesso remoto
+const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: boolean; enviado: boolean; url: string; onEnviado: () => void }> = ({
+  tecnico,
+  quando,
+  ultimo,
+  enviado,
+  url,
+  onEnviado,
+}) => {
+  const [id, setId] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const enviar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEnviando(true);
+    setErro(null);
+    try {
+      await api(`${url}/anydesk`, { id });
+      onEnviado();
+    } catch (err: any) {
+      setErro(err.message);
+    } finally {
+      setEnviando(false);
+    }
+  };
+  return (
+    <div className={`self-start max-w-[90%] rounded-2xl rounded-bl-md border px-3 py-2.5 text-sm ${ultimo ? 'bg-rose-50 border-rose-200' : 'bg-white border-stone-200'}`}>
+      <div className="flex items-center gap-2 font-semibold text-rose-700">
+        <MonitorSmartphone className="w-4 h-4" /> Acesso remoto
+      </div>
+      <p className="text-xs text-stone-600 mt-1">
+        {tecnico} pediu para ver a sua tela e ajudar. Abra o AnyDesk e informe abaixo o número que aparece em "Seu endereço".
+      </p>
+      <div className="flex flex-wrap gap-2 mt-2">
+        <a href="anydesk://" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">
+          <MonitorSmartphone className="w-3.5 h-3.5" /> Abrir AnyDesk
+        </a>
+        <a href="https://anydesk.com/pt/downloads" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs font-semibold">
+          <Download className="w-3.5 h-3.5" /> Não tenho o AnyDesk
+        </a>
+      </div>
+      {!enviado && (
+        <form onSubmit={enviar} className="flex gap-2 mt-2">
+          <input
+            value={id}
+            onChange={(e) => setId(e.target.value.replace(/[^\d ]/g, '').slice(0, 15))}
+            onFocus={(e) => e.target.select()}
+            inputMode="numeric"
+            placeholder="Número do AnyDesk"
+            aria-label="Número do AnyDesk"
+            className={`${INPUT_CLASS} flex-1 min-w-0 text-sm`}
+          />
+          <button type="submit" disabled={enviando || id.replace(/\D/g, '').length < 9} className="px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
+            {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Enviar'}
+          </button>
+        </form>
+      )}
+      {erro && <p className="text-xs text-rose-700 mt-1">{erro}</p>}
+      <div className="text-[10px] mt-1 text-right text-stone-400">{formatDateTimeBR(quando)}</div>
     </div>
-    <p className="text-xs text-stone-600 mt-1">
-      {tecnico} pediu para ver a sua tela e ajudar. Abra o AnyDesk e mande aqui no chat o número que aparece em "Seu endereço".
-    </p>
-    <div className="flex flex-wrap gap-2 mt-2">
-      <a href="anydesk://" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">
-        <MonitorSmartphone className="w-3.5 h-3.5" /> Abrir AnyDesk
-      </a>
-      <a href="https://anydesk.com/pt/downloads" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs font-semibold">
-        <Download className="w-3.5 h-3.5" /> Não tenho o AnyDesk
-      </a>
-    </div>
-    <div className="text-[10px] mt-1 text-right text-stone-400">{formatDateTimeBR(quando)}</div>
-  </div>
-);
+  );
+};
 
 export const SuportePublico: React.FC<{ empresa: string; cnpj: string }> = ({ empresa, cnpj }) => {
   const chaveToken = `crmweb_suporte_${empresa}`;
@@ -297,7 +345,15 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
         {c.mensagens.map((m, i) =>
           m.texto === TELA_REMOTA ? (
-            <CartaoTelaRemota key={m.id} tecnico={m.usuario_nome || 'O técnico'} quando={m.criado_em} ultimo={i === c.mensagens.length - 1} />
+            <CartaoTelaRemota
+              key={m.id}
+              tecnico={m.usuario_nome || 'O técnico'}
+              quando={m.criado_em}
+              ultimo={i === c.mensagens.length - 1}
+              enviado={c.mensagens.some((x) => x.id > m.id && ID_ANYDESK.test(x.texto))}
+              url={url}
+              onEnviado={carregar}
+            />
           ) : (
           <div
             key={m.id}
@@ -306,7 +362,7 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
             }`}
           >
             {m.autor === 'equipe' && <div className="text-[10px] font-semibold text-blue-600 mb-0.5">{m.usuario_nome || 'Suporte'}</div>}
-            {m.texto}
+            {ID_ANYDESK.test(m.texto) ? `Número do AnyDesk enviado: ${formatarAnydesk(ID_ANYDESK.exec(m.texto)![1])}` : m.texto}
             <div className={`text-[10px] mt-0.5 text-right ${m.autor === 'cliente' ? 'text-blue-100' : 'text-stone-400'}`}>{formatDateTimeBR(m.criado_em)}</div>
           </div>
           ),

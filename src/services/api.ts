@@ -650,6 +650,8 @@ export interface ChamadoDetalhe extends ChamadoResumo {
   descricao: string | null;
   aberto_por_nome: string | null;
   pessoa_telefone: string | null;
+  /** Número do AnyDesk do cadastro da pessoa */
+  anydesk_id: string | null;
   eu_atendo: boolean;
   sou_admin: boolean;
   mensagens: ChamadoMensagem[];

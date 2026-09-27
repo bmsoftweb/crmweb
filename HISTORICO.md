@@ -2,6 +2,14 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.31 — 2026-09-26
+
+Número do AnyDesk pelo chat e botão Conectar. Banco: coluna pessoas.anydesk_id.
+
+- Suporte pelo site: o cartão "Acesso remoto" tem o campo para o cliente enviar o número do AnyDesk ("Seu endereço").
+- Chamados Ativos: o número chega na linha do tempo com o botão "Conectar", que abre o AnyDesk do técnico já conectando no cliente (anydesk:<número>); o botão também fica no cabeçalho do chamado.
+- O número fica gravado na Pessoa (campo "ID AnyDesk", editável no cadastro): nos próximos chamados do cliente o "Conectar" já aparece.
+
 ## 0.0.30 — 2026-09-26
 
 - Suporte pelo site: pedido de Tela Remota que chega com o chat aberto tenta abrir o AnyDesk sozinho, uma vez (num quadro invisível, sem tirar o chat da tela). Se o navegador bloquear (sem clique recente do cliente), fica o cartão com o botão "Abrir AnyDesk".

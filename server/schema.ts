@@ -809,6 +809,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'telefone', label: 'Telefone', type: 'text', listed: true, searchable: true, maxLength: 50 },
       { name: 'whatsapp', label: 'WhatsApp', type: 'text', listed: true, searchable: true, maxLength: 20, hint: 'Com DDD. Usado nas campanhas e mensagens automáticas (sem ele, vale o telefone)' },
       { name: 'cpf', label: 'CPF', type: 'text', searchable: true, maxLength: 14, placeholder: '000.000.000-00' },
+      { name: 'anydesk_id', label: 'ID AnyDesk', type: 'text', maxLength: 20, hint: 'Número do AnyDesk do cliente: o técnico conecta direto pelo chamado (o cliente também envia pelo chat do site)' },
       { name: 'obs', label: 'Observação', type: 'textarea' },
       { name: 'personalizados', label: 'Campos Personalizados', type: 'personalizados' },
       { name: 'cod_integracao', label: 'Cód.Integração', type: 'text', readOnly: true, listed: true, filterable: true, searchable: true, hint: 'Preenchido pela importação do bmsoft (PESSOAS.ID)' },

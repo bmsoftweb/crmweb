@@ -31,6 +31,20 @@ import { Toggle } from './Toggle';
 
 /** Mensagem "Tela remota" (a mesma de server/chamados.ts) */
 const TELA_REMOTA = '[[anydesk]]';
+/** Número do AnyDesk que o cliente mandou pelo chat do site (server/suporte.ts) */
+const ID_ANYDESK = /^\[\[anydesk-id:(\d+)\]\]$/;
+const formatarAnydesk = (id: string) => id.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
+/** Abre o AnyDesk do técnico já conectando ao cliente (protocolo anydesk:<número>) */
+const Conectar: React.FC<{ id: string; grande?: boolean }> = ({ id, grande }) => (
+  <a
+    href={`anydesk:${id}`}
+    title={`Abre o seu AnyDesk conectando em ${formatarAnydesk(id)}`}
+    className={`inline-flex items-center gap-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold ${grande ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-[11px]'}`}
+  >
+    <MonitorSmartphone className="w-3.5 h-3.5" /> Conectar {formatarAnydesk(id)}
+  </a>
+);
 
 const PRIORIDADE: Record<string, string> = {
   urgente: 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300',
@@ -398,6 +412,9 @@ const ChamadoAberto: React.FC<{
   if (!c) return erro ? <div className="p-4"><AvisoErro mensagem={erro} onFechar={() => setErro(null)} /></div> : <Loader2 className="w-5 h-5 m-4 animate-spin text-stone-400" />;
 
   const encerrado = ['encerrado', 'cancelado'].includes(c.status);
+  // Número do AnyDesk: o último que o cliente mandou neste chamado, ou o do cadastro da pessoa
+  const ultimoId = [...c.mensagens].reverse().find((m) => ID_ANYDESK.test(m.texto));
+  const idAnydesk = ultimoId ? ID_ANYDESK.exec(ultimoId.texto)![1] : c.anydesk_id;
   const podeMexer = !encerrado && (!c.atendente_id || c.eu_atendo || c.sou_admin);
   const podeEscrever = !encerrado && (c.eu_atendo || (c.sou_admin && Boolean(c.atendente_id)));
 
@@ -454,6 +471,7 @@ const ChamadoAberto: React.FC<{
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {idAnydesk && <Conectar id={idAnydesk} grande />}
           {c.pessoa_id && c.pessoa_telefone && (
             <button type="button" onClick={() => onConversar(c.pessoa_id!)} title="Abre a conversa do WhatsApp deste cliente" className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}>
               <MessageCircle className="w-3.5 h-3.5 text-emerald-600" /> Conversa
@@ -502,7 +520,15 @@ const ChamadoAberto: React.FC<{
           </div>
         )}
         {c.mensagens.map((m) =>
-          m.texto === TELA_REMOTA ? (
+          ID_ANYDESK.test(m.texto) ? (
+            <div key={m.id} className="self-start rounded-xl px-3 py-2 bg-white dark:bg-stone-900 border border-rose-200 dark:border-rose-900 text-xs flex flex-wrap items-center gap-2">
+              <span className="text-stone-700 dark:text-stone-200">
+                Cliente enviou o número do AnyDesk: <strong>{formatarAnydesk(ID_ANYDESK.exec(m.texto)![1])}</strong>
+              </span>
+              <Conectar id={ID_ANYDESK.exec(m.texto)![1]} />
+              <span className="text-[10px] text-stone-400">{formatDateTimeBR(m.criado_em)}</span>
+            </div>
+          ) : m.texto === TELA_REMOTA ? (
             <div key={m.id} className="self-end text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-full px-3 py-1 inline-flex items-center gap-1.5">
               <MonitorSmartphone className="w-3.5 h-3.5" /> {m.usuario_nome || 'Equipe'} pediu a tela remota (AnyDesk) • {formatDateTimeBR(m.criado_em)}
             </div>
