@@ -38,10 +38,15 @@ const CUTUCAR = '[[cutucar]]';
 const ID_ANYDESK = /^\[\[anydesk-id:(\d+)\]\]$/;
 const formatarAnydesk = (id: string) => id.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
-/** Abre o AnyDesk do técnico já conectando ao cliente (protocolo anydesk:<número>) */
-const Conectar: React.FC<{ id: string; grande?: boolean }> = ({ id, grande }) => (
+/**
+ * Abre o AnyDesk do técnico já conectando ao cliente (protocolo anydesk:<número>).
+ * onClick roda antes (pedido de tela remota no chat do cliente); o link abre em seguida,
+ * ainda no clique, porque o navegador só chama o AnyDesk com um gesto do usuário.
+ */
+const Conectar: React.FC<{ id: string; grande?: boolean; onClick?: () => void }> = ({ id, grande, onClick }) => (
   <a
     href={`anydesk:${id}`}
+    onClick={onClick}
     title={`Abre o seu AnyDesk conectando em ${formatarAnydesk(id)}`}
     className={`inline-flex items-center gap-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold ${grande ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-[11px]'}`}
   >
@@ -137,85 +142,101 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
     }
   };
 
-  return (
-    <div className="flex-1 overflow-auto p-5">
-      <div className="max-w-6xl mx-auto flex flex-col gap-4">
-        {erro && <AvisoErro mensagem={erro} onFechar={() => setErro(null)} />}
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Chamados aguardando atendimento</h3>
-            <p className="text-xs text-stone-500 dark:text-stone-400">Em ordem de chegada. Quem assume passa a atender o chamado em Chamados Ativos.</p>
-          </div>
-          <span className="text-xs text-stone-500 dark:text-stone-400">
-            Na fila: <strong className="text-stone-900 dark:text-stone-100">{fila?.length ?? '…'}</strong>
-          </span>
-        </div>
+  // Mesmo visual das listas do app (CrudView): painel chapado, barra no topo e grade de ponta a ponta
+  const th = 'px-3 py-2.5 font-semibold text-stone-600 dark:text-stone-300 border-b border-r border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 whitespace-nowrap';
+  const td = 'px-3 py-[7.5px] border-b border-r border-stone-100 dark:border-stone-800/60';
 
-        {!fila ? (
-          <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
-        ) : !fila.length ? (
-          <div className="rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-12 text-center">
-            <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-3" />
-            <p className="text-sm font-semibold text-stone-700 dark:text-stone-200">Fila vazia</p>
-            <p className="text-xs text-stone-500 dark:text-stone-400">Nenhum chamado aguardando atendimento agora.</p>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-stone-50 dark:bg-stone-950 text-stone-500 dark:text-stone-400">
-                <tr>
-                  <th className="px-3 py-2.5 text-center font-semibold">Posição</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Nº</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">Chamado</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">Categoria</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">Prioridade</th>
-                  <th className="px-3 py-2.5 text-center font-semibold">Entrada</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Espera</th>
-                  <th className="px-3 py-2.5" />
+  return (
+    <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900">
+      <div className="px-4 py-2.5 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-3 shrink-0">
+        <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate min-w-0">
+          Chamados aguardando atendimento, em ordem de chegada. Quem assume passa a atender em Chamados Ativos.
+        </div>
+        <span className="text-xs text-stone-500 dark:text-stone-400 shrink-0">
+          Na fila: <strong className="text-stone-900 dark:text-stone-100">{fila?.length ?? '…'}</strong>
+        </span>
+      </div>
+      {erro && (
+        <div className="px-4 pt-3">
+          <AvisoErro mensagem={erro} onFechar={() => setErro(null)} />
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto min-h-0">
+        <table className="w-full text-xs border-separate border-spacing-0">
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <th className={`${th} text-center`}>Posição</th>
+              <th className={`${th} text-right`}>Nº</th>
+              <th className={`${th} text-left w-full`}>Chamado</th>
+              <th className={`${th} text-left`}>Categoria</th>
+              <th className={`${th} text-left`}>Prioridade</th>
+              <th className={`${th} text-center`}>Entrada</th>
+              <th className={`${th} text-right`}>Espera</th>
+              <th className={`${th} text-center border-r-0`}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!fila ? (
+              <tr>
+                <td colSpan={8} className="px-3 py-12 text-center">
+                  <div className="flex items-center justify-center gap-2 text-stone-500 dark:text-stone-400">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Carregando chamados…</span>
+                  </div>
+                </td>
+              </tr>
+            ) : !fila.length ? (
+              <tr>
+                <td colSpan={8} className="px-3 py-16 text-center">
+                  <div className="flex flex-col items-center gap-2 text-stone-400">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                    <span className="text-sm font-medium text-stone-600 dark:text-stone-300">Fila vazia</span>
+                    <span className="text-xs">Nenhum chamado aguardando atendimento agora.</span>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              fila.map((c) => (
+                <tr key={c.id} className="bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
+                  <td className={`${td} text-center`}>
+                    <span className="font-bold text-blue-600 dark:text-blue-400">{c.posicao}º</span>
+                  </td>
+                  <td className={`${td} text-right font-mono text-stone-500`}>{c.numero}</td>
+                  <td className={td}>
+                    <div className="font-semibold text-stone-900 dark:text-stone-100">{c.titulo}</div>
+                    <div className="text-[11px] text-stone-500 dark:text-stone-400">
+                      {c.pessoa_nome || 'Sem cliente'}
+                      {c.departamento_nome && ` • ${c.departamento_nome}`}
+                    </div>
+                  </td>
+                  <td className={td}>
+                    <Categoria c={c} />
+                  </td>
+                  <td className={td}>
+                    <Prioridade p={c.prioridade} />
+                  </td>
+                  <td className={`${td} text-center text-stone-500 whitespace-nowrap`}>{formatDateTimeBR(c.criado_em)}</td>
+                  <td className={`${td} text-right whitespace-nowrap`}>
+                    <div className="font-semibold text-stone-800 dark:text-stone-100">{tempoEspera(c.espera_min)}</div>
+                    {c.sla_vencido && <Sla />}
+                  </td>
+                  <td className={`${td} text-center border-r-0`}>
+                    <button
+                      type="button"
+                      onClick={() => assumir(c)}
+                      disabled={assumindo !== null}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      {assumindo === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Hand className="w-3.5 h-3.5" />}
+                      Assumir
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {fila.map((c) => (
-                  <tr key={c.id} className="border-t border-stone-100 dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-800/40">
-                    <td className="px-3 py-2.5 text-center">
-                      <span className="font-bold text-blue-600 dark:text-blue-400">{c.posicao}º</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-stone-500">{c.numero}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="font-semibold text-stone-900 dark:text-stone-100">{c.titulo}</div>
-                      <div className="text-[11px] text-stone-500 dark:text-stone-400">
-                        {c.pessoa_nome || 'Sem cliente'}
-                        {c.departamento_nome && ` • ${c.departamento_nome}`}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <Categoria c={c} />
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <Prioridade p={c.prioridade} />
-                    </td>
-                    <td className="px-3 py-2.5 text-center text-stone-500 whitespace-nowrap">{formatDateTimeBR(c.criado_em)}</td>
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      <div className="font-semibold text-stone-800 dark:text-stone-100">{tempoEspera(c.espera_min)}</div>
-                      {c.sla_vencido && <Sla />}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => assumir(c)}
-                        disabled={assumindo !== null}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
-                      >
-                        {assumindo === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Hand className="w-3.5 h-3.5" />}
-                        Assumir
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -457,6 +478,9 @@ const ChamadoAberto: React.FC<{
     }
   };
 
+  // Conectar: pede a tela remota no chat do site (o AnyDesk do cliente abre) e o link já sobe o AnyDesk do técnico
+  const conectar = podeEscrever && c.canal === 'web' ? () => void acao(() => pedirTelaRemota(c.id), 'Tela remota pedida ao cliente; abrindo o seu AnyDesk.') : undefined;
+
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
     // Enter de novo enquanto envia: ignora (o campo fica só leitura, não desabilitado, para manter o foco)
@@ -499,7 +523,7 @@ const ChamadoAberto: React.FC<{
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {idAnydesk && <Conectar id={idAnydesk} grande />}
+          {idAnydesk && <Conectar id={idAnydesk} grande onClick={conectar} />}
           {c.pessoa_id && c.pessoa_telefone && (
             <button type="button" onClick={() => onConversar(c.pessoa_id!)} title="Abre a conversa do WhatsApp deste cliente" className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}>
               <MessageCircle className="w-3.5 h-3.5 text-emerald-600" /> Conversa
@@ -544,7 +568,7 @@ const ChamadoAberto: React.FC<{
               <span className="text-stone-700 dark:text-stone-200">
                 Cliente enviou o número do AnyDesk: <strong>{formatarAnydesk(ID_ANYDESK.exec(m.texto)![1])}</strong>
               </span>
-              <Conectar id={ID_ANYDESK.exec(m.texto)![1]} />
+              <Conectar id={ID_ANYDESK.exec(m.texto)![1]} onClick={conectar} />
               <span className="text-[10px] text-stone-400">{formatDateTimeBR(m.criado_em)}</span>
             </div>
           ) : m.texto === CUTUCAR ? (

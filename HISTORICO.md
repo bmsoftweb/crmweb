@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.38 — 2026-09-27
+
+- Fila de Chamados: mesmo visual das listas do app (painel chapado, barra no topo, grade de ponta a ponta com cabeçalho fixo e coluna Ações).
+- Chamados Ativos: "Conectar" (no cabeçalho e na mensagem com o número do AnyDesk) pede a tela remota no chat do cliente e já abre o AnyDesk do técnico conectando.
+
 ## 0.0.37 — 2026-09-27
 
 - Chamados Ativos: os botões "Cutucar" e "Tela Remota" aparecem também ao lado do "Nota interna", junto do campo da mensagem (continuam no cabeçalho).
