@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Download, Headset, Loader2, MonitorSmartphone, Send, Star } from 'lucide-react';
 import { formatDateTimeBR } from '../utils/formatters';
+import { ConfirmDialog } from './ConfirmDialog';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 
 /**
@@ -256,6 +257,7 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
   const [c, setC] = useState<Chamado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
+  const [encerrando, setEncerrando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
   const qtd = useRef(0);
@@ -327,12 +329,23 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
 
   return (
     <>
-      <div className="px-4 py-2 bg-white border-b border-stone-200 text-xs shrink-0">
-        <div className="font-semibold text-stone-800 truncate">
+      <div className="px-4 py-2 bg-white border-b border-stone-200 text-xs shrink-0 relative">
+        {!encerrado && (
+          <button
+            type="button"
+            onClick={() => setEncerrando(true)}
+            className="absolute right-3 top-2 px-2.5 py-1 rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-50 hover:text-rose-700 text-[11px] font-semibold cursor-pointer"
+          >
+            Encerrar
+          </button>
+        )}
+        <div className={`font-semibold text-stone-800 truncate ${encerrado ? '' : 'pr-20'}`}>
           Atendimento nº {c.numero} • {c.titulo}
         </div>
         <div className="text-stone-500">
-          {encerrado
+          {c.status === 'cancelado'
+            ? 'Atendimento cancelado.'
+            : encerrado
             ? 'Atendimento encerrado.'
             : c.posicao
               ? `Você é o ${c.posicao}º da fila. Um atendente já vai falar com você.`
@@ -367,14 +380,29 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
           </div>
           ),
         )}
-        {!c.mensagens.length && <p className="text-xs text-stone-500 text-center mt-4">Recebemos o seu pedido. Se quiser, mande mais detalhes por aqui.</p>}
+        {!c.mensagens.length && !encerrado && <p className="text-xs text-stone-500 text-center mt-4">Recebemos o seu pedido. Se quiser, mande mais detalhes por aqui.</p>}
         <div ref={fim} />
       </div>
 
       {erro && <div className="mx-4 mb-2 p-2 rounded-lg bg-rose-50 text-rose-800 text-xs">{erro}</div>}
 
+      {encerrando && (
+        <ConfirmDialog
+          titulo="Encerrar o atendimento?"
+          mensagem={c.atendente ? 'A conversa termina e você poderá avaliar o atendimento.' : 'Você sai da fila e o pedido é cancelado.'}
+          confirmar="Encerrar"
+          onConfirmar={async () => {
+            await api(`${url}/encerrar`, {});
+            setEncerrando(false);
+            carregar();
+          }}
+          onCancelar={() => setEncerrando(false)}
+        />
+      )}
+
       {encerrado ? (
-        <Avaliar url={url} avaliado={c.avaliado} onFeito={carregar} onNovo={onNovo} />
+        // Cancelado (encerrou antes de alguém atender): não há o que avaliar
+        <Avaliar url={url} avaliado={c.avaliado || c.status === 'cancelado'} onFeito={carregar} onNovo={onNovo} cancelado={c.status === 'cancelado'} />
       ) : (
         <form onSubmit={enviar} className="p-3 bg-white border-t border-stone-200 flex items-end gap-2 shrink-0">
           <textarea
@@ -402,7 +430,7 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
   );
 };
 
-const Avaliar: React.FC<{ url: string; avaliado: boolean; onFeito: () => void; onNovo: () => void }> = ({ url, avaliado, onFeito, onNovo }) => {
+const Avaliar: React.FC<{ url: string; avaliado: boolean; onFeito: () => void; onNovo: () => void; cancelado?: boolean }> = ({ url, avaliado, onFeito, onNovo, cancelado }) => {
   const [nota, setNota] = useState(0);
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -416,7 +444,7 @@ const Avaliar: React.FC<{ url: string; avaliado: boolean; onFeito: () => void; o
     return (
       <div className="p-4 bg-white border-t border-stone-200 flex flex-col gap-3 shrink-0">
         <p className="text-sm text-emerald-700 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4" /> Obrigado pela avaliação!
+          <CheckCircle2 className="w-4 h-4" /> {cancelado ? 'Atendimento cancelado. Se precisar, é só abrir um novo.' : 'Obrigado pela avaliação!'}
         </p>
         {novo}
       </div>

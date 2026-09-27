@@ -160,6 +160,22 @@ export function createSuporteRouter(): Router {
   }));
 
   /**
+   * Cliente encerra pelo chat: com atendente, o chamado fica encerrado (e o cliente avalia); sem
+   * ninguém ter assumido, fica cancelado (desistiu da fila)
+   */
+  router.post('/api/publico/suporte/chamado/:token/encerrar', rota(async (req, res) => {
+    const c = await doToken(req.params.token);
+    if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento já foi encerrado.');
+    const cancelar = !c.atendente_id;
+    await pool.query('UPDATE chamados SET status = ?, encerrado_em = NOW() WHERE id = ?', [cancelar ? 'cancelado' : 'encerrado', c.id]);
+    await pool.query("INSERT INTO chamado_mensagens (chamado_id, autor, texto) VALUES (?, 'sistema', ?)", [
+      c.id,
+      cancelar ? 'Chamado cancelado pelo cliente antes do atendimento (saiu da fila).' : 'Chamado encerrado pelo cliente.',
+    ]);
+    res.json({ success: true, status: cancelar ? 'cancelado' : 'encerrado' });
+  }));
+
+  /**
    * Número do AnyDesk que o cliente copiou do programa (cartão "Acesso remoto"): vai para o chamado
    * e fica gravado na Pessoa, para o técnico conectar direto nas próximas vezes
    */

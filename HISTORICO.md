@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.32 — 2026-09-26
+
+- Suporte pelo site: botão "Encerrar" no chat do cliente (com confirmação). Com atendente, o chamado fica encerrado e o cliente avalia; sem ninguém ter assumido, fica cancelado (saiu da fila), sem avaliação. A linha do tempo da equipe registra quem encerrou.
+
 ## 0.0.31 — 2026-09-26
 
 Número do AnyDesk pelo chat e botão Conectar. Banco: coluna pessoas.anydesk_id.
