@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.30 — 2026-09-26
+
+- Suporte pelo site: pedido de Tela Remota que chega com o chat aberto tenta abrir o AnyDesk sozinho, uma vez (num quadro invisível, sem tirar o chat da tela). Se o navegador bloquear (sem clique recente do cliente), fica o cartão com o botão "Abrir AnyDesk".
+
 ## 0.0.29 — 2026-09-26
 
 - Chamados Ativos: botão "Tela Remota" (chamado do site, já assumido). O chat do cliente mostra o cartão "Acesso remoto" com "Abrir AnyDesk" (protocolo anydesk://) e o link para baixar; o cliente manda no chat o número do AnyDesk para o técnico conectar. O pedido fica na linha do tempo do chamado.

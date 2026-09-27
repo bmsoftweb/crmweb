@@ -211,6 +211,8 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
   const [enviando, setEnviando] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
   const qtd = useRef(0);
+  /** Maior id de mensagem já visto (null = ainda não carregou): pedido de tela remota chegando depois tenta abrir o AnyDesk */
+  const vistoAte = useRef<number | null>(null);
   const url = `/api/publico/suporte/chamado/${encodeURIComponent(token)}`;
   const onNovoRef = useRef(onNovo);
   onNovoRef.current = onNovo;
@@ -238,6 +240,23 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
       qtd.current = c.mensagens.length;
       fim.current?.scrollIntoView({ block: 'end' });
     }
+    if (!c) return;
+    const maior = c.mensagens.reduce((m, x) => Math.max(m, x.id), 0);
+    // Pedido de tela remota que chegou agora (com o chat aberto): tenta abrir o AnyDesk uma vez.
+    // O navegador só deixa se o cliente mexeu no chat há poucos segundos; senão bloqueia e fica o cartão
+    if (vistoAte.current !== null && c.mensagens.some((m) => m.texto === TELA_REMOTA && m.id > vistoAte.current!)) {
+      // Num quadro invisível e temporário: sem o AnyDesk instalado, o erro fica nele e o chat continua na tela
+      try {
+        const q = document.createElement('iframe');
+        q.style.display = 'none';
+        q.src = 'anydesk://';
+        document.body.appendChild(q);
+        setTimeout(() => q.remove(), 3000);
+      } catch {
+        // bloqueado: o cliente usa o botão do cartão
+      }
+    }
+    vistoAte.current = maior;
   }, [c]);
 
   if (!c) return <div className="flex-1 flex items-center justify-center">{erro ?? <Loader2 className="w-6 h-6 animate-spin text-stone-400" />}</div>;
