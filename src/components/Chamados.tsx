@@ -422,6 +422,28 @@ const ChamadoAberto: React.FC<{
   const idAnydesk = ultimoId ? ID_ANYDESK.exec(ultimoId.texto)![1] : c.anydesk_id;
   const podeMexer = !encerrado && (!c.atendente_id || c.eu_atendo || c.sou_admin);
   const podeEscrever = !encerrado && (c.eu_atendo || (c.sou_admin && Boolean(c.atendente_id)));
+  const botao = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50';
+  // Cutucar e Tela Remota: no cabeçalho e também ao lado do "Nota interna", perto de onde se digita
+  const botoesSite = podeEscrever && c.canal === 'web' && (
+    <>
+      <button
+        type="button"
+        onClick={() => acao(() => cutucarCliente(c.id), 'Cliente cutucado: tocou um som no chat dele.')}
+        title="Toca um som e faz o chat do cliente tremer, para chamar a atenção dele"
+        className={`${botao} border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40`}
+      >
+        <Bell className="w-3.5 h-3.5" /> Cutucar
+      </button>
+      <button
+        type="button"
+        onClick={() => acao(() => pedirTelaRemota(c.id), 'Pedido de tela remota enviado ao chat do cliente.')}
+        title="Mostra no chat do site o botão para o cliente abrir o AnyDesk; ele informa o ID para você conectar"
+        className={`${botao} border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40`}
+      >
+        <MonitorSmartphone className="w-3.5 h-3.5" /> Tela Remota
+      </button>
+    </>
+  );
 
   const acao = async (fn: () => Promise<any>, ok: string) => {
     setErro(null);
@@ -455,7 +477,6 @@ const ChamadoAberto: React.FC<{
     }
   };
 
-  const botao = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50';
 
   return (
     <>
@@ -489,26 +510,7 @@ const ChamadoAberto: React.FC<{
               <Hand className="w-3.5 h-3.5" /> Assumir
             </button>
           )}
-          {podeEscrever && c.canal === 'web' && (
-            <button
-              type="button"
-              onClick={() => acao(() => cutucarCliente(c.id), 'Cliente cutucado: tocou um som no chat dele.')}
-              title="Toca um som e faz o chat do cliente tremer, para chamar a atenção dele"
-              className={`${botao} border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40`}
-            >
-              <Bell className="w-3.5 h-3.5" /> Cutucar
-            </button>
-          )}
-          {podeEscrever && c.canal === 'web' && (
-            <button
-              type="button"
-              onClick={() => acao(() => pedirTelaRemota(c.id), 'Pedido de tela remota enviado ao chat do cliente.')}
-              title="Mostra no chat do site o botão para o cliente abrir o AnyDesk; ele informa o ID para você conectar"
-              className={`${botao} border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40`}
-            >
-              <MonitorSmartphone className="w-3.5 h-3.5" /> Tela Remota
-            </button>
-          )}
+          {botoesSite}
           {podeMexer && (
             <button type="button" onClick={() => setDialogo('transferir')} className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}>
               <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir
@@ -601,7 +603,10 @@ const ChamadoAberto: React.FC<{
             className={`${INPUT_CLASS} w-full resize-y ${interna ? 'bg-amber-50 dark:bg-amber-950/30' : ''}`}
           />
           <div className="flex items-center justify-between gap-3">
-            <Toggle checked={interna} onChange={setInterna} size="sm" label={<span className="inline-flex items-center gap-1 text-xs"><StickyNote className="w-3.5 h-3.5 text-amber-600" /> Nota interna</span>} />
+            <div className="flex flex-wrap items-center gap-2">
+              <Toggle checked={interna} onChange={setInterna} size="sm" label={<span className="inline-flex items-center gap-1 text-xs"><StickyNote className="w-3.5 h-3.5 text-amber-600" /> Nota interna</span>} />
+              {botoesSite}
+            </div>
             <button type="submit" disabled={enviando || !texto.trim()} className={`${botao} ${interna ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}>
               {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               {enviando ? 'Enviando...' : interna ? 'Gravar nota' : 'Enviar'}

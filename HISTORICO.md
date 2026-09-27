@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.37 — 2026-09-27
+
+- Chamados Ativos: os botões "Cutucar" e "Tela Remota" aparecem também ao lado do "Nota interna", junto do campo da mensagem (continuam no cabeçalho).
+
 ## 0.0.36 — 2026-09-26
 
 - Chamados: aviso sonoro (três notas, diferente do bipe do WhatsApp) e aviso na tela quando o cliente escreve num chamado aberto que o usuário atende; a conversa aberta se atualiza. A verificação passou a cada 5 s.
