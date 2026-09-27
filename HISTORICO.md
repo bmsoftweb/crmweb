@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.29 — 2026-09-26
+
+- Chamados Ativos: botão "Tela Remota" (chamado do site, já assumido). O chat do cliente mostra o cartão "Acesso remoto" com "Abrir AnyDesk" (protocolo anydesk://) e o link para baixar; o cliente manda no chat o número do AnyDesk para o técnico conectar. O pedido fica na linha do tempo do chamado.
+
 ## 0.0.28 — 2026-09-26
 
 - Widget de suporte (widget.js): funciona também quando o site insere o script depois de carregar (Wix › Código personalizado) ou no <head>.

@@ -677,5 +677,7 @@ export const assumirChamado = (id: number) => enviar('POST', `/api/chamados/${id
 export const encerrarChamado = (id: number) => enviar('POST', `/api/chamados/${id}/encerrar`);
 export const transferirChamado = (id: number, destino: { usuario_id?: number; departamento_id?: number; observacao?: string }) =>
   enviar('POST', `/api/chamados/${id}/transferir`, destino);
+/** Pede ao cliente (chat do site) para abrir o AnyDesk */
+export const pedirTelaRemota = (id: number) => enviar('POST', `/api/chamados/${id}/tela-remota`);
 export const enviarMensagemChamado = (id: number, texto: string, interna: boolean): Promise<{ success: boolean; aviso: string | null }> =>
   enviar('POST', `/api/chamados/${id}/mensagens`, { texto, interna });

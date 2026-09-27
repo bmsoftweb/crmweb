@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, Hand, Inbox, Loader2, Lock, MessageCircle, Search, Send, StickyNote } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, CheckCircle2, Hand, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Search, Send, StickyNote } from 'lucide-react';
 import {
   assumirChamado,
   buscarPessoasChamado,
@@ -13,6 +13,7 @@ import {
   fetchFilaChamados,
   fetchOptions,
   FiltroChamados,
+  pedirTelaRemota,
   transferirChamado,
 } from '../services/api';
 import { OpcaoRef } from '../types';
@@ -27,6 +28,9 @@ import { Toggle } from './Toggle';
  * em ordem de chegada com "Assumir"; os ativos em lista (filtros rápidos) + chamado aberto, com
  * resposta ao cliente (vai pelo WhatsApp) ou nota interna, transferir e encerrar.
  */
+
+/** Mensagem "Tela remota" (a mesma de server/chamados.ts) */
+const TELA_REMOTA = '[[anydesk]]';
 
 const PRIORIDADE: Record<string, string> = {
   urgente: 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300',
@@ -460,6 +464,16 @@ const ChamadoAberto: React.FC<{
               <Hand className="w-3.5 h-3.5" /> Assumir
             </button>
           )}
+          {podeEscrever && c.canal === 'web' && (
+            <button
+              type="button"
+              onClick={() => acao(() => pedirTelaRemota(c.id), 'Pedido de tela remota enviado ao chat do cliente.')}
+              title="Mostra no chat do site o botão para o cliente abrir o AnyDesk; ele informa o ID para você conectar"
+              className={`${botao} border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40`}
+            >
+              <MonitorSmartphone className="w-3.5 h-3.5" /> Tela Remota
+            </button>
+          )}
           {podeMexer && (
             <button type="button" onClick={() => setDialogo('transferir')} className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}>
               <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir
@@ -488,7 +502,11 @@ const ChamadoAberto: React.FC<{
           </div>
         )}
         {c.mensagens.map((m) =>
-          m.autor === 'sistema' ? (
+          m.texto === TELA_REMOTA ? (
+            <div key={m.id} className="self-end text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-full px-3 py-1 inline-flex items-center gap-1.5">
+              <MonitorSmartphone className="w-3.5 h-3.5" /> {m.usuario_nome || 'Equipe'} pediu a tela remota (AnyDesk) • {formatDateTimeBR(m.criado_em)}
+            </div>
+          ) : m.autor === 'sistema' ? (
             <div key={m.id} className="self-center text-[11px] text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-900 rounded-full px-3 py-1">
               {m.texto} • {formatDateTimeBR(m.criado_em)}
             </div>

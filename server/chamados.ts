@@ -13,6 +13,9 @@ import { enviarWhatsApp, telefoneWhatsApp } from './whatsapp.js';
 
 const ENCERRADOS = "('encerrado','cancelado')";
 
+/** Texto da mensagem "Tela remota": o chat do site mostra o cartão com o botão que abre o AnyDesk */
+export const TELA_REMOTA = '[[anydesk]]';
+
 function erro(status: number, msg: string) {
   return Object.assign(new Error(msg), { status });
 }
@@ -242,6 +245,16 @@ export function createChamadosRouter(): Router {
     conferirDono(c, res);
     await pool.query("UPDATE chamados SET status = 'encerrado', encerrado_em = NOW() WHERE id = ?", [c.id]);
     await evento(c.id, eu(res), `Chamado encerrado por ${res.locals.usuario.nome}.`);
+    res.json({ success: true });
+  }));
+
+  /** Tela remota: pede ao cliente, no chat do site, para abrir o AnyDesk (o botão usa o protocolo anydesk:) */
+  router.post('/chamados/:id/tela-remota', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    conferirDono(c, res);
+    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de pedir a tela remota.');
+    if (c.canal !== 'web') throw erro(400, 'A tela remota abre no chat do site: este chamado não veio pelo site.');
+    await pool.query("INSERT INTO chamado_mensagens (chamado_id, usuario_id, autor, texto) VALUES (?, ?, 'equipe', ?)", [c.id, eu(res), TELA_REMOTA]);
     res.json({ success: true });
   }));
 

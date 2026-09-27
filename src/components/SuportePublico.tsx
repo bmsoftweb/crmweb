@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Headset, Loader2, Send, Star } from 'lucide-react';
+import { CheckCircle2, Download, Headset, Loader2, MonitorSmartphone, Send, Star } from 'lucide-react';
 import { formatDateTimeBR } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 
@@ -44,6 +44,33 @@ const gravar = (k: string, v: string | null) => {
 };
 
 const soDigitos = (v: string, max: number) => v.replace(/\D/g, '').slice(0, max);
+
+/** Pedido de tela remota do técnico (server/chamados.ts): vira o cartão com o botão do AnyDesk */
+const TELA_REMOTA = '[[anydesk]]';
+
+/**
+ * Cartão "Tela remota": o navegador só abre o AnyDesk (protocolo anydesk:) com um clique da pessoa.
+ * Sem o AnyDesk instalado, o clique não faz nada: por isso o link para baixar.
+ */
+const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: boolean }> = ({ tecnico, quando, ultimo }) => (
+  <div className={`self-start max-w-[90%] rounded-2xl rounded-bl-md border px-3 py-2.5 text-sm ${ultimo ? 'bg-rose-50 border-rose-200' : 'bg-white border-stone-200'}`}>
+    <div className="flex items-center gap-2 font-semibold text-rose-700">
+      <MonitorSmartphone className="w-4 h-4" /> Acesso remoto
+    </div>
+    <p className="text-xs text-stone-600 mt-1">
+      {tecnico} pediu para ver a sua tela e ajudar. Abra o AnyDesk e mande aqui no chat o número que aparece em "Seu endereço".
+    </p>
+    <div className="flex flex-wrap gap-2 mt-2">
+      <a href="anydesk://" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">
+        <MonitorSmartphone className="w-3.5 h-3.5" /> Abrir AnyDesk
+      </a>
+      <a href="https://anydesk.com/pt/downloads" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs font-semibold">
+        <Download className="w-3.5 h-3.5" /> Não tenho o AnyDesk
+      </a>
+    </div>
+    <div className="text-[10px] mt-1 text-right text-stone-400">{formatDateTimeBR(quando)}</div>
+  </div>
+);
 
 export const SuportePublico: React.FC<{ empresa: string; cnpj: string }> = ({ empresa, cnpj }) => {
   const chaveToken = `crmweb_suporte_${empresa}`;
@@ -249,7 +276,10 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
-        {c.mensagens.map((m) => (
+        {c.mensagens.map((m, i) =>
+          m.texto === TELA_REMOTA ? (
+            <CartaoTelaRemota key={m.id} tecnico={m.usuario_nome || 'O técnico'} quando={m.criado_em} ultimo={i === c.mensagens.length - 1} />
+          ) : (
           <div
             key={m.id}
             className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${
@@ -260,7 +290,8 @@ const Conversa: React.FC<{ token: string; onNovo: () => void }> = ({ token, onNo
             {m.texto}
             <div className={`text-[10px] mt-0.5 text-right ${m.autor === 'cliente' ? 'text-blue-100' : 'text-stone-400'}`}>{formatDateTimeBR(m.criado_em)}</div>
           </div>
-        ))}
+          ),
+        )}
         {!c.mensagens.length && <p className="text-xs text-stone-500 text-center mt-4">Recebemos o seu pedido. Se quiser, mande mais detalhes por aqui.</p>}
         <div ref={fim} />
       </div>
