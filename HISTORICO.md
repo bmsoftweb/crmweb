@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.39 — 2026-09-27
+
+- Menu: ícone de cadeado ao lado do nome do usuário para alterar a própria senha (confere a atual, nova com pelo menos 4 caracteres, gravada em bcrypt).
+- Chat do site: "Recebemos o seu pedido" passou a "Recebemos sua mensagem...".
+
 ## 0.0.38 — 2026-09-27
 
 - Fila de Chamados: mesmo visual das listas do app (painel chapado, barra no topo, grade de ponta a ponta com cabeçalho fixo e coluna Ações).

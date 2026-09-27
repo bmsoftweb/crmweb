@@ -238,6 +238,21 @@ export function createApp() {
     res.json({ valida: true, usuario: usuarioPublico(u), empresa: { id: String(u.empresa_id), nome: u.empresa_nome } });
   });
 
+  /** Troca da própria senha (ícone ao lado do nome, no menu): confere a atual antes */
+  app.post('/api/minha-senha', async (req: Request, res: Response) => {
+    try {
+      const u = res.locals.usuario;
+      const { atual, nova } = req.body || {};
+      const semSenha = !u.senha_hash || String(u.senha_hash).trim() === '' || String(u.senha_hash).toUpperCase() === 'NULL';
+      if (!semSenha && !verifyPasswordMatch(String(atual ?? ''), u.senha_hash)) return res.status(400).json({ error: 'A senha atual não confere.' });
+      if (typeof nova !== 'string' || nova.length < 4) return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 4 caracteres.' });
+      await pool.query('UPDATE usuarios SET senha_hash = ? WHERE id = ?', [bcrypt.hashSync(nova, 10), u.id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Permissões de acesso de um usuário (Usuários › Permissões): só administradores
   app.put('/api/usuarios/:id/permissoes', async (req: Request, res: Response) => {
     try {

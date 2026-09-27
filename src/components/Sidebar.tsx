@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, KeyRound, LogOut, X, User, type LucideIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, KeyRound, LockKeyhole, LogOut, X, User, type LucideIcon } from 'lucide-react';
 import { Usuario, ResourceDef } from '../types';
 import { gruposDoMenu, podeAcessar } from '../utils/menu';
+import { trocarMinhaSenha } from '../services/api';
+import { ConfirmDialog } from './ConfirmDialog';
+import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 
 const CHAVE_RECOLHIDO = 'crmweb_menu_recolhido';
 
@@ -57,6 +60,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
       return !r;
     });
+
+  const [trocandoSenha, setTrocandoSenha] = useState(false);
+  const [senhaOk, setSenhaOk] = useState(false);
 
   const handleNavClick = (tabId: string) => {
     setActiveTab(tabId);
@@ -189,14 +195,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        <button
-          id="sidebar-btn-logout"
-          onClick={onLogout}
-          title="Encerrar sessão"
-          className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:text-rose-400 dark:hover:bg-rose-950/50 transition-colors cursor-pointer shrink-0"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
+        <div className={`flex ${rec ? 'flex-col' : ''} items-center gap-1 shrink-0`}>
+          <button
+            onClick={() => setTrocandoSenha(true)}
+            title={senhaOk ? 'Senha alterada' : 'Alterar a minha senha'}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${senhaOk ? 'text-emerald-600' : 'text-stone-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/50'}`}
+          >
+            <LockKeyhole className="w-4 h-4" />
+          </button>
+          <button
+            id="sidebar-btn-logout"
+            onClick={onLogout}
+            title="Encerrar sessão"
+            className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:text-rose-400 dark:hover:bg-rose-950/50 transition-colors cursor-pointer shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -230,6 +245,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       )}
+
+      {trocandoSenha && (
+        <TrocarSenha
+          onFechar={() => setTrocandoSenha(false)}
+          onFeito={() => {
+            setTrocandoSenha(false);
+            setSenhaOk(true);
+            setTimeout(() => setSenhaOk(false), 4000);
+          }}
+        />
+      )}
     </>
+  );
+};
+
+/** Troca da própria senha: atual + nova duas vezes (mínimo de 4, como no primeiro acesso) */
+const TrocarSenha: React.FC<{ onFechar: () => void; onFeito: () => void }> = ({ onFechar, onFeito }) => {
+  const [v, setV] = useState({ atual: '', nova: '', repetir: '' });
+  const campo = (k: 'atual' | 'nova' | 'repetir', rotulo: string, primeiro = false) => (
+    <div className={FIELD_CLASS}>
+      <label htmlFor={`senha-${k}`} className={LABEL_CLASS}>{rotulo}</label>
+      <input
+        id={`senha-${k}`}
+        type="password"
+        required
+        autoFocus={primeiro}
+        autoComplete={k === 'atual' ? 'current-password' : 'new-password'}
+        value={v[k]}
+        onChange={(e) => setV({ ...v, [k]: e.target.value })}
+        onFocus={(e) => e.target.select()}
+        className={`${INPUT_CLASS} w-full`}
+      />
+    </div>
+  );
+  return (
+    <ConfirmDialog
+      titulo="Alterar a minha senha"
+      mensagem="Informe a senha atual e a nova (pelo menos 4 caracteres)."
+      confirmar="Alterar senha"
+      tom="normal"
+      onConfirmar={async () => {
+        if (v.nova.length < 4) throw new Error('A nova senha precisa ter pelo menos 4 caracteres.');
+        if (v.nova !== v.repetir) throw new Error('A confirmação não é igual à nova senha.');
+        await trocarMinhaSenha(v.atual, v.nova);
+        onFeito();
+      }}
+      onCancelar={onFechar}
+    >
+      <div className="flex flex-col gap-3">
+        {campo('atual', 'Senha atual', true)}
+        {campo('nova', 'Nova senha')}
+        {campo('repetir', 'Repita a nova senha')}
+      </div>
+    </ConfirmDialog>
   );
 };

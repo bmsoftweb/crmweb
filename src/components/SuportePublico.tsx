@@ -419,7 +419,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
           </div>
           ),
         )}
-        {!c.mensagens.length && !encerrado && <p className="text-xs text-stone-500 text-center mt-4">Recebemos o seu pedido. Se quiser, mande mais detalhes por aqui.</p>}
+        {!c.mensagens.length && !encerrado && <p className="text-xs text-stone-500 text-center mt-4">Recebemos sua mensagem... Se quiser, mande mais detalhes por aqui.</p>}
         <div ref={fim} />
       </div>
 

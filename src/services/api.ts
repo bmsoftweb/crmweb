@@ -91,6 +91,9 @@ export async function validarSessao(): Promise<{ valida: boolean | null; error?:
   }
 }
 
+/** Troca da própria senha (confere a atual no servidor) */
+export const trocarMinhaSenha = (atual: string, nova: string) => enviar('POST', '/api/minha-senha', { atual, nova });
+
 export const fetchConfigListas = (): Promise<Record<string, unknown>> => get('/api/config-listas');
 
 export async function saveConfigListas(config: Record<string, unknown>): Promise<void> {
