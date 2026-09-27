@@ -619,7 +619,7 @@ export interface ChamadoResumo {
   id: number;
   numero: number;
   titulo: string;
-  status: 'aguardando' | 'em_andamento' | 'pendente_cliente' | 'encerrado' | 'cancelado';
+  status: 'aguardando' | 'em_andamento' | 'pendente_cliente' | 'pausado' | 'encerrado' | 'cancelado';
   prioridade: 'baixa' | 'normal' | 'alta' | 'urgente';
   canal: string;
   pessoa_id: number | null;
@@ -665,6 +665,10 @@ export type FiltroChamados = 'meus' | 'todos' | 'aguardando' | 'andamento' | 'en
 export const fetchFilaChamados = (): Promise<ChamadoResumo[]> => get('/api/chamados/fila');
 export const fetchContagemChamados = (): Promise<{
   fila: number;
+  /** Último chamado da fila (o mais novo) */
+  novo: { id: number; numero: number; nome: string | null } | null;
+  /** O usuário é do departamento Suporte: ouve o aviso de chamado novo */
+  suporte: boolean;
   /** Última mensagem de cliente nos chamados abertos que o usuário atende */
   mensagem: { id: number; chamado_id: number; numero: number; nome: string | null } | null;
 }> => get('/api/chamados/contagem');
@@ -688,6 +692,8 @@ export const transferirChamado = (id: number, destino: { usuario_id?: number; de
   enviar('POST', `/api/chamados/${id}/transferir`, destino);
 /** Pede ao cliente (chat do site) para abrir o AnyDesk */
 /** Chama a atenção do cliente no chat do site (som e tremida) */
+/** Pausa o atendimento: volta para a fila, sem atendente */
+export const pausarChamado = (id: number): Promise<{ success: boolean; aviso: string | null }> => enviar('POST', `/api/chamados/${id}/pausar`);
 export const cutucarCliente = (id: number) => enviar('POST', `/api/chamados/${id}/cutucar`);
 export const pedirTelaRemota = (id: number) => enviar('POST', `/api/chamados/${id}/tela-remota`);
 export const enviarMensagemChamado = (id: number, texto: string, interna: boolean): Promise<{ success: boolean; aviso: string | null }> =>

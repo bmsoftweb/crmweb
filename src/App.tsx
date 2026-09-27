@@ -117,10 +117,18 @@ export default function App() {
   const veChamados = podeAcessar(sessao?.usuario ?? null, 'chamados_fila') || podeAcessar(sessao?.usuario ?? null, 'chamados_ativos');
   /** Última mensagem de cliente já vista nos meus chamados (null = ainda não carregou: sem som na abertura) */
   const ultimaMsgChamado = useRef<number | null>(null);
+  const ultimoChamadoFila = useRef<number | null>(null);
+  /** Acabou de entrar (login ou sessão guardada): quem é do Suporte começa na Fila de Chamados */
+  const recemEntrou = useRef(true);
   const atualizarFilaChamados = useCallback(() => {
     fetchContagemChamados()
       .then((r) => {
         setFilaChamados(r.fila);
+        if (recemEntrou.current) {
+          recemEntrou.current = false;
+          // Só se ainda está na tela inicial (não tira o usuário de onde ele já foi)
+          if (r.suporte) setActiveTab((t) => (t === 'kanban' ? 'chamados_fila' : t));
+        }
         const m = r.mensagem;
         // Cliente escreveu num chamado meu: aviso sonoro, aviso na tela e a conversa aberta se atualiza
         if (m && ultimaMsgChamado.current !== null && m.id > ultimaMsgChamado.current) {
@@ -129,6 +137,13 @@ export default function App() {
           setRefreshToken((t) => t + 1);
         }
         ultimaMsgChamado.current = Math.max(ultimaMsgChamado.current ?? 0, m?.id ?? 0);
+        // Chamado novo na fila: aviso com som próprio para quem é do departamento Suporte
+        const n = r.novo;
+        if (r.suporte && n && ultimoChamadoFila.current !== null && n.id > ultimoChamadoFila.current) {
+          tocarAviso('chamado');
+          showToast(`Novo chamado nº ${n.numero} na fila${n.nome ? ` (${n.nome})` : ''}.`);
+        }
+        ultimoChamadoFila.current = Math.max(ultimoChamadoFila.current ?? 0, n?.id ?? 0);
       })
       .catch(() => {}); // sem as tabelas ou sem conexão: fica sem etiqueta
   }, [showToast]);
@@ -283,6 +298,7 @@ export default function App() {
           setTokenSessao(token);
           setSessao(nova);
           setActiveTab('kanban');
+          recemEntrou.current = true;
           salvarSessao(nova, lembrar);
           setAvisoLogin(null);
           showToast(`Bem-vindo, ${novoUsuario.nome}!`);
@@ -298,7 +314,7 @@ export default function App() {
     dashboard: ['Painel de Vendas', 'Indicadores do funil, follow-ups, propostas e pedidos'],
     kanban: ['Funil de Vendas', 'Arraste os negócios entre as etapas; solte em Ganho ou Perdido para encerrar'],
     configuracoes: ['Configurações', 'Preferências da empresa, por grupo'],
-    conversas: ['Conversas', 'Mensagens do WhatsApp da empresa'],
+    conversas: ['Whatsapp', 'Mensagens do WhatsApp da empresa'],
     chamados_fila: ['Fila de Chamados', 'Chamados aguardando atendimento, em ordem de chegada'],
     chamados_ativos: ['Chamados Ativos', 'Atendimento dos chamados de suporte'],
   };
@@ -379,6 +395,10 @@ export default function App() {
               onMudou={atualizarFilaChamados}
               onConversar={(pessoaId) => pedirConversa({ pessoaId })}
               onToast={showToast}
+              onVoltarFila={() => {
+                setChamadoAbrir(null);
+                navegar('chamados_fila');
+              }}
             />
           </main>
         ) : activeTab === 'configuracoes' ? (

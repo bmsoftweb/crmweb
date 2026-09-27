@@ -384,6 +384,8 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
             ? 'Atendimento encerrado.'
             : c.posicao
               ? `Você é o ${c.posicao}º da fila. Um atendente já vai falar com você.`
+              : c.status === 'pausado'
+                ? `Atendimento em pausa${c.atendente ? ` com ${c.atendente}` : ''}. Já voltamos a falar com você.`
               : c.atendente
                 ? `Em atendimento com ${c.atendente}.`
                 : 'Aguardando um atendente.'}
@@ -419,7 +421,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
           </div>
           ),
         )}
-        {!c.mensagens.length && !encerrado && <p className="text-xs text-stone-500 text-center mt-4">Recebemos sua mensagem... Se quiser, mande mais detalhes por aqui.</p>}
+        {!c.mensagens.length && !encerrado && <p className="text-xs text-stone-500 text-center mt-4">Recebemos sua mensagem.<br />Se quiser, mande mais detalhes por aqui.</p>}
         <div ref={fim} />
       </div>
 

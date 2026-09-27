@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
+import { fecharSecao, gravarMensagem } from './chamados.js';
 
 /**
  * Suporte pelo site (widget público, sem login): public/widget.js abre a página /suporte?e=<empresa>,
@@ -122,10 +123,11 @@ export function createSuporteRouter(): Router {
     } finally {
       conn.release();
     }
-    await pool.query("INSERT INTO chamado_mensagens (chamado_id, autor, texto) VALUES (?, 'sistema', ?)", [
-      id,
-      `Chamado aberto pelo cliente no site: ${nome}, WhatsApp ${telefone}${pessoaId ? '' : ` (CNPJ/CPF ${documento} não está no CRM)`}.`,
-    ]);
+    await gravarMensagem({
+      chamado_id: id,
+      autor: 'sistema',
+      texto: `Chamado aberto pelo cliente no site: ${nome}, WhatsApp ${telefone}${pessoaId ? '' : ` (CNPJ/CPF ${documento} não está no CRM)`}.`,
+    });
     res.json({ token: tokenSuporte(id), numero });
   }));
 
@@ -155,7 +157,7 @@ export function createSuporteRouter(): Router {
     if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento foi encerrado. Abra um novo, se precisar.');
     const msg = texto(req.body?.texto, 4000);
     if (!msg) throw erro(400, 'Escreva a mensagem.');
-    await pool.query("INSERT INTO chamado_mensagens (chamado_id, autor, texto) VALUES (?, 'cliente', ?)", [c.id, msg]);
+    await gravarMensagem({ chamado_id: c.id, autor: 'cliente', texto: msg });
     res.json({ success: true });
   }));
 
@@ -168,10 +170,12 @@ export function createSuporteRouter(): Router {
     if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento já foi encerrado.');
     const cancelar = !c.atendente_id;
     await pool.query('UPDATE chamados SET status = ?, encerrado_em = NOW() WHERE id = ?', [cancelar ? 'cancelado' : 'encerrado', c.id]);
-    await pool.query("INSERT INTO chamado_mensagens (chamado_id, autor, texto) VALUES (?, 'sistema', ?)", [
-      c.id,
-      cancelar ? 'Chamado cancelado pelo cliente antes do atendimento (saiu da fila).' : 'Chamado encerrado pelo cliente.',
-    ]);
+    await gravarMensagem({
+      chamado_id: c.id,
+      autor: 'sistema',
+      texto: cancelar ? 'Chamado cancelado pelo cliente antes do atendimento (saiu da fila).' : 'Chamado encerrado pelo cliente.',
+    });
+    await fecharSecao(c.id, 'encerrado');
     res.json({ success: true, status: cancelar ? 'cancelado' : 'encerrado' });
   }));
 
@@ -184,7 +188,7 @@ export function createSuporteRouter(): Router {
     if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento foi encerrado.');
     const id = digitos(req.body?.id, 12);
     if (id.length < 9) throw erro(400, 'Digite o número que aparece em "Seu endereço" no AnyDesk (9 ou 10 dígitos).');
-    await pool.query("INSERT INTO chamado_mensagens (chamado_id, autor, texto) VALUES (?, 'cliente', ?)", [c.id, `[[anydesk-id:${id}]]`]);
+    await gravarMensagem({ chamado_id: c.id, autor: 'cliente', texto: `[[anydesk-id:${id}]]` });
     if (c.pessoa_id) await pool.query('UPDATE pessoas SET anydesk_id = ? WHERE id = ?', [id, c.pessoa_id]);
     res.json({ success: true });
   }));
@@ -202,10 +206,11 @@ export function createSuporteRouter(): Router {
        VALUES (?, ?, ?, ?, ?, 'atendente', ?, ?, 'respondida', NOW(), NOW())`,
       [c.empresa_id, c.contato_telefone || '', c.pessoa_id, c.atendente_id, c.departamento_id, nota, comentario],
     );
-    await pool.query("INSERT INTO chamado_mensagens (chamado_id, autor, texto) VALUES (?, 'sistema', ?)", [
-      c.id,
-      `Cliente avaliou ${'⭐'.repeat(nota)} (${nota})${comentario ? `: ${comentario}` : ''}`,
-    ]);
+    await gravarMensagem({
+      chamado_id: c.id,
+      autor: 'sistema',
+      texto: `Cliente avaliou ${'⭐'.repeat(nota)} (${nota})${comentario ? `: ${comentario}` : ''}`,
+    });
     res.json({ success: true });
   }));
 

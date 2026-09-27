@@ -2,6 +2,17 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.40 — 2026-09-27
+
+- Banco: `chamados.status` ganhou 'pausado'; nova tabela `chamado_secoes`; `chamado_mensagens.secao_id` (SQL em extras/crmweb_schema.sql).
+- Chamados: seções de atendimento. Assumir, abrir já atendendo ou receber por transferência abre uma seção (atendente e início); pausa, transferência e encerramento a fecham (fim e motivo). Toda mensagem grava a seção aberta.
+- Chamados Ativos: botão "Pausar". O chamado volta para a Fila sem atendente, com a etiqueta "Pausado" (qualquer um assume), e o cliente recebe a mensagem de pausa (chat do site ou WhatsApp). Cutucar e Tela Remota saíram do cabeçalho (ficam ao lado de "Nota interna").
+- Chamados Ativos: ao encerrar ou pausar, a tela vai para a Fila de Chamados.
+- Chamados: quem é do departamento Suporte ouve um som próprio ("dim-dim-dom") e vê um aviso quando entra chamado novo na fila, e começa o sistema na Fila de Chamados.
+- Chamados: o aviso de mensagem do cliente só conta mensagens que chegaram depois que o técnico assumiu (assumir um chamado pausado não dispara mais aviso falso).
+- Chat do site: "Recebemos sua mensagem." e, na linha de baixo, "Se quiser, mande mais detalhes por aqui."
+- Menu: "Conversas" passou a "Whatsapp".
+
 ## 0.0.39 — 2026-09-27
 
 - Menu: ícone de cadeado ao lado do nome do usuário para alterar a própria senha (confere a atual, nova com pelo menos 4 caracteres, gravada em bcrypt).

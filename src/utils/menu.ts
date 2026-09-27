@@ -81,7 +81,7 @@ export function gruposDoMenu(resources: ResourceDef[]): { titulo: string; itens:
       itens: [
         { id: 'dashboard', label: 'Painel de Vendas', descricao: 'Indicadores do funil', icone: LayoutDashboard },
         { id: 'kanban', label: 'Funil de Vendas', descricao: 'Kanban dos negócios', icone: KanbanSquare },
-        { id: 'conversas', label: 'Conversas', descricao: 'Mensagens do WhatsApp', icone: MessageCircle },
+        { id: 'conversas', label: 'Whatsapp', descricao: 'Mensagens do WhatsApp', icone: MessageCircle },
       ],
     },
     {

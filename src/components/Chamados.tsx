@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Hand, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Search, Send, StickyNote } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Hand, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote } from 'lucide-react';
 import {
   assumirChamado,
   buscarPessoasChamado,
@@ -12,6 +12,7 @@ import {
   fetchChamados,
   fetchFilaChamados,
   cutucarCliente,
+  pausarChamado,
   fetchOptions,
   FiltroChamados,
   pedirTelaRemota,
@@ -63,6 +64,7 @@ const PRIORIDADE: Record<string, string> = {
 const STATUS: Record<string, [string, string]> = {
   aguardando: ['Aguardando', 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'],
   em_andamento: ['Em andamento', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'],
+  pausado: ['Pausado', 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'],
   pendente_cliente: ['Pendente cliente', 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300'],
   encerrado: ['Encerrado', 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'],
   cancelado: ['Cancelado', 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400'],
@@ -204,7 +206,10 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
                   </td>
                   <td className={`${td} text-right font-mono text-stone-500`}>{c.numero}</td>
                   <td className={td}>
-                    <div className="font-semibold text-stone-900 dark:text-stone-100">{c.titulo}</div>
+                    <div className="font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                      {c.titulo}
+                      {c.status === 'pausado' && <Status s="pausado" />}
+                    </div>
                     <div className="text-[11px] text-stone-500 dark:text-stone-400">
                       {c.pessoa_nome || 'Sem cliente'}
                       {c.departamento_nome && ` • ${c.departamento_nome}`}
@@ -263,9 +268,11 @@ interface AtivosProps {
   onMudou: () => void;
   onConversar: (pessoaId: number) => void;
   onToast: (msg: string) => void;
+  /** Chamado encerrado ou pausado pelo técnico: volta para a Fila de Chamados */
+  onVoltarFila: () => void;
 }
 
-export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToken, abrir, onMudou, onConversar, onToast }) => {
+export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToken, abrir, onMudou, onConversar, onToast, onVoltarFila }) => {
   const [filtro, setFiltro] = useState<FiltroChamados>('meus');
   const [busca, setBusca] = useState('');
   const [lista, setLista] = useState<ChamadoResumo[] | null>(null);
@@ -374,7 +381,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
       {/* Chamado aberto */}
       <div className="flex-1 min-w-0 flex flex-col min-h-0 bg-stone-50 dark:bg-stone-950">
         {aberto ? (
-          <ChamadoAberto key={aberto} id={aberto} refreshToken={refreshToken} onMudou={mudou} onConversar={onConversar} onToast={onToast} />
+          <ChamadoAberto key={aberto} id={aberto} refreshToken={refreshToken} onMudou={mudou} onConversar={onConversar} onToast={onToast} onVoltarFila={onVoltarFila} />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-stone-400 gap-2">
             <Inbox className="w-10 h-10" />
@@ -408,7 +415,8 @@ const ChamadoAberto: React.FC<{
   onMudou: () => void;
   onConversar: (pessoaId: number) => void;
   onToast: (msg: string) => void;
-}> = ({ id, refreshToken, onMudou, onConversar, onToast }) => {
+  onVoltarFila: () => void;
+}> = ({ id, refreshToken, onMudou, onConversar, onToast, onVoltarFila }) => {
   const [c, setC] = useState<ChamadoDetalhe | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
@@ -444,7 +452,7 @@ const ChamadoAberto: React.FC<{
   const podeMexer = !encerrado && (!c.atendente_id || c.eu_atendo || c.sou_admin);
   const podeEscrever = !encerrado && (c.eu_atendo || (c.sou_admin && Boolean(c.atendente_id)));
   const botao = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50';
-  // Cutucar e Tela Remota: no cabeçalho e também ao lado do "Nota interna", perto de onde se digita
+  // Cutucar e Tela Remota: ao lado do "Nota interna", perto de onde se digita
   const botoesSite = podeEscrever && c.canal === 'web' && (
     <>
       <button
@@ -534,7 +542,26 @@ const ChamadoAberto: React.FC<{
               <Hand className="w-3.5 h-3.5" /> Assumir
             </button>
           )}
-          {botoesSite}
+          {podeEscrever && (
+            <button
+              type="button"
+              onClick={async () => {
+                setErro(null);
+                try {
+                  const r = await pausarChamado(c.id);
+                  onToast(r.aviso ? `Chamado nº ${c.numero} pausado. ${r.aviso}` : `Chamado nº ${c.numero} pausado: voltou para a fila.`);
+                  onMudou();
+                  onVoltarFila();
+                } catch (e: any) {
+                  setErro(e.message);
+                }
+              }}
+              title="Devolve o chamado para a fila, marcado como pausado: qualquer um pode assumir (o cliente vê que está em pausa)"
+              className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}
+            >
+              <Pause className="w-3.5 h-3.5" /> Pausar
+            </button>
+          )}
           {podeMexer && (
             <button type="button" onClick={() => setDialogo('transferir')} className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}>
               <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir
@@ -658,8 +685,8 @@ const ChamadoAberto: React.FC<{
             await encerrarChamado(c.id);
             setDialogo(null);
             onToast(`Chamado nº ${c.numero} encerrado.`);
-            carregar();
             onMudou();
+            onVoltarFila();
           }}
           onCancelar={() => setDialogo(null)}
         />

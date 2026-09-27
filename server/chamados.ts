@@ -12,6 +12,10 @@ import { enviarWhatsApp, telefoneWhatsApp } from './whatsapp.js';
  */
 
 const ENCERRADOS = "('encerrado','cancelado')";
+/** Aviso ao cliente quando o técnico pausa o atendimento */
+const PAUSA = 'Seu atendimento foi colocado em pausa. Assim que possível, um técnico continua com você por aqui.';
+/** Na fila, sem atendente: os novos e os pausados (qualquer um pode assumir) */
+const NA_FILA = "('aguardando','pausado')";
 
 /** Texto da mensagem "Tela remota": o chat do site mostra o cartão com o botão que abre o AnyDesk */
 export const TELA_REMOTA = '[[anydesk]]';
@@ -58,9 +62,41 @@ const SELECT = `
 
 const numeros = (r: any) => ({ ...r, espera_min: Number(r.espera_min), sla_vencido: Boolean(Number(r.sla_vencido)) });
 
+// ------------------------------------------------------------
+// Seções: cada vez que alguém pega o chamado (assumir, abrir já atendendo, receber por transferência) abre uma
+// seção com o atendente e o início; pausa, transferência e encerramento a fecham (fim + motivo). Um chamado
+// pausado e terminado por outro técnico fica com duas seções. As mensagens gravam a seção aberta (na fila: nenhuma).
+// ------------------------------------------------------------
+
+const SECAO_ABERTA = '(SELECT s.id FROM chamado_secoes s WHERE s.chamado_id = ? AND s.fim IS NULL ORDER BY s.id DESC LIMIT 1)';
+
+/** Mensagem na linha do tempo do chamado, ligada à seção aberta */
+export function gravarMensagem(m: {
+  chamado_id: number;
+  autor: 'equipe' | 'cliente' | 'sistema';
+  texto: string;
+  usuario_id?: number | null;
+  interna?: boolean;
+  whatsapp_id?: number | null;
+}) {
+  return pool.query(
+    `INSERT INTO chamado_mensagens (chamado_id, secao_id, usuario_id, autor, texto, interna, whatsapp_id) VALUES (?, ${SECAO_ABERTA}, ?, ?, ?, ?, ?)`,
+    [m.chamado_id, m.chamado_id, m.usuario_id ?? null, m.autor, m.texto, m.interna ? 1 : 0, m.whatsapp_id ?? null],
+  );
+}
+
+export function fecharSecao(chamadoId: number, motivo: 'pausa' | 'transferencia' | 'encerrado') {
+  return pool.query('UPDATE chamado_secoes SET fim = NOW(), motivo_fim = ? WHERE chamado_id = ? AND fim IS NULL', [motivo, chamadoId]);
+}
+
+/** Nova seção para quem pegou o chamado (a anterior, se ficou aberta, fecha como transferência) */
+async function abrirSecao(chamadoId: number, atendenteId: number) {
+  await fecharSecao(chamadoId, 'transferencia');
+  await pool.query('INSERT INTO chamado_secoes (chamado_id, atendente_id, inicio) VALUES (?, ?, NOW())', [chamadoId, atendenteId]);
+}
+
 /** Linha "de sistema" na linha do tempo do chamado */
-const evento = (chamadoId: number, usuarioId: number | null, texto: string) =>
-  pool.query("INSERT INTO chamado_mensagens (chamado_id, usuario_id, autor, texto) VALUES (?, ?, 'sistema', ?)", [chamadoId, usuarioId, texto]);
+const evento = (chamadoId: number, usuarioId: number | null, texto: string) => gravarMensagem({ chamado_id: chamadoId, usuario_id: usuarioId, autor: 'sistema', texto });
 
 async function chamadoDaEmpresa(id: string | number, emp: string) {
   const [r] = await pool.query<any[]>('SELECT * FROM chamados WHERE id = ? AND empresa_id = ?', [id, emp]);
@@ -82,10 +118,10 @@ export function createChamadosRouter(): Router {
   const emp = (res: Response) => String(res.locals.empresaId);
   const eu = (res: Response) => Number(res.locals.usuarioId);
 
-  /** Fila: aguardando, sem atendente, na ordem de chegada */
+  /** Fila: aguardando ou pausado, sem atendente, na ordem de chegada */
   router.get('/chamados/fila', rota(async (_req, res) => {
     const [r] = await pool.query<any[]>(
-      `${SELECT} WHERE c.empresa_id = ? AND c.status = 'aguardando' AND c.atendente_id IS NULL ORDER BY c.criado_em, c.id`,
+      `${SELECT} WHERE c.empresa_id = ? AND c.status IN ${NA_FILA} AND c.atendente_id IS NULL ORDER BY c.criado_em, c.id`,
       [emp(res)],
     );
     res.json(r.map((x, i) => ({ ...numeros(x), posicao: i + 1 })));
@@ -99,7 +135,7 @@ export function createChamadosRouter(): Router {
     if (filtro === 'meus') {
       onde.push(`c.atendente_id = ? AND c.status NOT IN ${ENCERRADOS}`);
       params.push(eu(res));
-    } else if (filtro === 'aguardando') onde.push("c.status = 'aguardando'");
+    } else if (filtro === 'aguardando') onde.push(`c.status IN ${NA_FILA}`);
     else if (filtro === 'andamento') onde.push("c.status IN ('em_andamento','pendente_cliente')");
     else if (filtro === 'encerrados') onde.push(`c.status IN ${ENCERRADOS}`);
     else onde.push(`c.status NOT IN ${ENCERRADOS}`);
@@ -121,17 +157,32 @@ export function createChamadosRouter(): Router {
    * usuário atende (a tela toca o aviso quando ela muda)
    */
   router.get('/chamados/contagem', rota(async (_req, res) => {
-    const [r] = await pool.query<any[]>("SELECT COUNT(*) n FROM chamados WHERE empresa_id = ? AND status = 'aguardando' AND atendente_id IS NULL", [emp(res)]);
+    const [r] = await pool.query<any[]>(
+      `SELECT COUNT(*) n, MAX(c.id) ultimo, c2.numero, COALESCE(p.nome, c2.contato_nome) AS nome,
+              (SELECT d.nome FROM usuarios u JOIN departamentos d ON d.id = u.departamento_id WHERE u.id = ?) AS departamento
+         FROM chamados c
+         LEFT JOIN chamados c2 ON c2.id = (SELECT MAX(id) FROM chamados WHERE empresa_id = ? AND status = 'aguardando' AND atendente_id IS NULL)
+         LEFT JOIN pessoas p ON p.id = c2.pessoa_id
+        WHERE c.empresa_id = ? AND c.status IN ${NA_FILA} AND c.atendente_id IS NULL`,
+      [eu(res), emp(res), emp(res)],
+    );
     const [m] = await pool.query<any[]>(
       `SELECT m.id, c.id AS chamado_id, c.numero, COALESCE(p.nome, c.contato_nome) AS nome
          FROM chamado_mensagens m
          JOIN chamados c ON c.id = m.chamado_id
          LEFT JOIN pessoas p ON p.id = c.pessoa_id
         WHERE c.empresa_id = ? AND c.atendente_id = ? AND c.status NOT IN ${ENCERRADOS} AND m.autor = 'cliente'
+          AND m.criado_em >= COALESCE(c.assumido_em, c.criado_em)
         ORDER BY m.id DESC LIMIT 1`,
       [emp(res), eu(res)],
     );
-    res.json({ fila: Number(r[0].n), mensagem: m[0] ?? null });
+    res.json({
+      fila: Number(r[0].n),
+      // Último chamado da fila: quem é do departamento Suporte ouve o aviso de chamado novo
+      novo: r[0].ultimo ? { id: Number(r[0].ultimo), numero: r[0].numero, nome: r[0].nome } : null,
+      suporte: /^suporte/i.test(String(r[0].departamento || '').trim()),
+      mensagem: m[0] ?? null,
+    });
   }));
 
   /** Busca de cliente para o Novo chamado (a lista de pessoas passa do limite dos combos) */
@@ -215,19 +266,22 @@ export function createChamadosRouter(): Router {
       conn.release();
     }
     const nome = res.locals.usuario.nome;
+    if (atender) await abrirSecao(id, eu(res));
     await evento(id, eu(res), atender ? `Chamado aberto e assumido por ${nome}.` : `Chamado aberto por ${nome}. Aguardando na fila.`);
     res.json({ id, numero });
   }));
 
-  /** Assumir: só chamado sem atendente (dois ao mesmo tempo: só um consegue) */
+  /** Assumir: só chamado sem atendente (dois ao mesmo tempo: só um consegue). assumido_em = a última vez que alguém
+   *  pegou o chamado: o aviso de mensagem do cliente (contagem) só conta as que chegaram depois */
   router.post('/chamados/:id/assumir', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
     if (['encerrado', 'cancelado'].includes(c.status)) throw erro(400, 'Chamado encerrado.');
     const [r] = await pool.query<any>(
-      "UPDATE chamados SET atendente_id = ?, status = 'em_andamento', assumido_em = COALESCE(assumido_em, NOW()) WHERE id = ? AND atendente_id IS NULL",
+      "UPDATE chamados SET atendente_id = ?, status = 'em_andamento', assumido_em = NOW() WHERE id = ? AND atendente_id IS NULL",
       [eu(res), c.id],
     );
     if (!r.affectedRows) throw erro(409, 'Outro atendente já assumiu este chamado.');
+    await abrirSecao(c.id, eu(res));
     await evento(c.id, eu(res), `${res.locals.usuario.nome} assumiu o chamado.`);
     res.json({ success: true });
   }));
@@ -243,7 +297,7 @@ export function createChamadosRouter(): Router {
     if (usuarioId) {
       const [u] = await pool.query<any[]>('SELECT nome FROM usuarios WHERE id = ? AND empresa_id = ? AND ativo = 1', [usuarioId, emp(res)]);
       if (!u[0]) throw erro(400, 'Usuário de destino não encontrado ou inativo.');
-      await pool.query("UPDATE chamados SET atendente_id = ?, status = 'em_andamento', assumido_em = COALESCE(assumido_em, NOW()) WHERE id = ?", [usuarioId, c.id]);
+      await pool.query("UPDATE chamados SET atendente_id = ?, status = 'em_andamento', assumido_em = NOW() WHERE id = ?", [usuarioId, c.id]);
       texto = `Chamado transferido para ${u[0].nome} por ${res.locals.usuario.nome}.`;
     } else if (departamentoId) {
       const [d] = await pool.query<any[]>('SELECT nome FROM departamentos WHERE id = ? AND empresa_id = ?', [departamentoId, emp(res)]);
@@ -251,7 +305,10 @@ export function createChamadosRouter(): Router {
       await pool.query("UPDATE chamados SET atendente_id = NULL, departamento_id = ?, status = 'aguardando' WHERE id = ?", [departamentoId, c.id]);
       texto = `Chamado transferido para o departamento ${d[0].nome} por ${res.locals.usuario.nome}. Voltou para a fila.`;
     } else throw erro(400, 'Escolha o usuário ou o departamento de destino.');
+    // O aviso fica na seção de quem transferiu; depois ela fecha (e abre a do destino, se for um usuário)
     await evento(c.id, eu(res), obs ? `${texto} Obs.: ${obs}` : texto);
+    if (usuarioId) await abrirSecao(c.id, usuarioId);
+    else await fecharSecao(c.id, 'transferencia');
     res.json({ success: true });
   }));
 
@@ -260,45 +317,17 @@ export function createChamadosRouter(): Router {
     conferirDono(c, res);
     await pool.query("UPDATE chamados SET status = 'encerrado', encerrado_em = NOW() WHERE id = ?", [c.id]);
     await evento(c.id, eu(res), `Chamado encerrado por ${res.locals.usuario.nome}.`);
+    await fecharSecao(c.id, 'encerrado');
     res.json({ success: true });
   }));
 
-  /** Tela remota: pede ao cliente, no chat do site, para abrir o AnyDesk (o botão usa o protocolo anydesk:) */
-  router.post('/chamados/:id/tela-remota', rota(async (req, res) => {
-    const c = await chamadoDaEmpresa(req.params.id, emp(res));
-    conferirDono(c, res);
-    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de pedir a tela remota.');
-    if (c.canal !== 'web') throw erro(400, 'A tela remota abre no chat do site: este chamado não veio pelo site.');
-    await pool.query("INSERT INTO chamado_mensagens (chamado_id, usuario_id, autor, texto) VALUES (?, ?, 'equipe', ?)", [c.id, eu(res), TELA_REMOTA]);
-    res.json({ success: true });
-  }));
-
-  /** Cutucar: chama a atenção do cliente no chat do site (som e tremida); no máximo um a cada 10 s */
-  router.post('/chamados/:id/cutucar', rota(async (req, res) => {
-    const c = await chamadoDaEmpresa(req.params.id, emp(res));
-    conferirDono(c, res);
-    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de cutucar o cliente.');
-    if (c.canal !== 'web') throw erro(400, 'O cutucão toca no chat do site: este chamado não veio pelo site.');
-    const [r] = await pool.query<any[]>(
-      'SELECT 1 FROM chamado_mensagens WHERE chamado_id = ? AND texto = ? AND criado_em > NOW() - INTERVAL 10 SECOND LIMIT 1',
-      [c.id, CUTUCAR],
-    );
-    if (r.length) throw erro(429, 'Aguarde uns segundos antes de cutucar de novo.');
-    await pool.query("INSERT INTO chamado_mensagens (chamado_id, usuario_id, autor, texto) VALUES (?, ?, 'equipe', ?)", [c.id, eu(res), CUTUCAR]);
-    res.json({ success: true });
-  }));
-
-  /** Resposta ao cliente (vai pelo WhatsApp da pessoa, se tiver) ou nota interna (só a equipe vê) */
-  router.post('/chamados/:id/mensagens', rota(async (req, res) => {
-    const c = await chamadoDaEmpresa(req.params.id, emp(res));
-    conferirDono(c, res);
-    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de responder.');
-    const texto = String(req.body?.texto ?? '').trim().slice(0, 4000);
-    if (!texto) throw erro(400, 'Escreva a mensagem.');
-    const interna = Boolean(req.body?.interna);
+  /**
+   * Mensagem da equipe no chamado. Chamado do site: o cliente lê no chat do site; dos outros canais: vai pelo WhatsApp da
+   * pessoa, se tiver. Devolve um aviso quando não deu para mandar ao cliente.
+   */
+  async function mensagemEquipe(c: any, res: Response, texto: string, interna = false): Promise<string | null> {
     let whatsappId: number | null = null;
     let aviso: string | null = null;
-    // Chamado do site: o cliente lê a resposta no chat do site (não vai WhatsApp)
     if (!interna && c.canal !== 'web') {
       const [p] = c.pessoa_id
         ? await pool.query<any[]>("SELECT COALESCE(NULLIF(whatsapp, ''), telefone) AS tel FROM pessoas WHERE id = ?", [c.pessoa_id])
@@ -315,13 +344,57 @@ export function createChamadosRouter(): Router {
         whatsappId = w[0]?.id ?? null;
       }
     }
-    await pool.query("INSERT INTO chamado_mensagens (chamado_id, usuario_id, autor, texto, interna, whatsapp_id) VALUES (?, ?, 'equipe', ?, ?, ?)", [
-      c.id,
-      eu(res),
-      texto,
-      interna ? 1 : 0,
-      whatsappId,
-    ]);
+    await gravarMensagem({ chamado_id: c.id, usuario_id: eu(res), autor: 'equipe', texto, interna, whatsapp_id: whatsappId });
+    return aviso;
+  }
+
+  /** Pausar: o chamado volta para a fila sem atendente, marcado como pausado (qualquer um assume; o cliente vê no chat) */
+  router.post('/chamados/:id/pausar', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    conferirDono(c, res);
+    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de pausar.');
+    await pool.query("UPDATE chamados SET status = 'pausado', atendente_id = NULL WHERE id = ?", [c.id]);
+    await evento(c.id, eu(res), `Atendimento pausado por ${res.locals.usuario.nome}: voltou para a fila.`);
+    // O cliente fica sabendo (chat do site ou WhatsApp); falha no envio não desfaz a pausa
+    const aviso = await mensagemEquipe(c, res, PAUSA).catch((e) => `O aviso de pausa não chegou ao cliente: ${e.message}`);
+    await fecharSecao(c.id, 'pausa');
+    res.json({ success: true, aviso });
+  }));
+
+  /** Tela remota: pede ao cliente, no chat do site, para abrir o AnyDesk (o botão usa o protocolo anydesk:) */
+  router.post('/chamados/:id/tela-remota', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    conferirDono(c, res);
+    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de pedir a tela remota.');
+    if (c.canal !== 'web') throw erro(400, 'A tela remota abre no chat do site: este chamado não veio pelo site.');
+    await gravarMensagem({ chamado_id: c.id, usuario_id: eu(res), autor: 'equipe', texto: TELA_REMOTA });
+    res.json({ success: true });
+  }));
+
+  /** Cutucar: chama a atenção do cliente no chat do site (som e tremida); no máximo um a cada 10 s */
+  router.post('/chamados/:id/cutucar', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    conferirDono(c, res);
+    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de cutucar o cliente.');
+    if (c.canal !== 'web') throw erro(400, 'O cutucão toca no chat do site: este chamado não veio pelo site.');
+    const [r] = await pool.query<any[]>(
+      'SELECT 1 FROM chamado_mensagens WHERE chamado_id = ? AND texto = ? AND criado_em > NOW() - INTERVAL 10 SECOND LIMIT 1',
+      [c.id, CUTUCAR],
+    );
+    if (r.length) throw erro(429, 'Aguarde uns segundos antes de cutucar de novo.');
+    await gravarMensagem({ chamado_id: c.id, usuario_id: eu(res), autor: 'equipe', texto: CUTUCAR });
+    res.json({ success: true });
+  }));
+
+  /** Resposta ao cliente (vai pelo WhatsApp da pessoa, se tiver) ou nota interna (só a equipe vê) */
+  router.post('/chamados/:id/mensagens', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    conferirDono(c, res);
+    if (!c.atendente_id) throw erro(400, 'Assuma o chamado antes de responder.');
+    const texto = String(req.body?.texto ?? '').trim().slice(0, 4000);
+    if (!texto) throw erro(400, 'Escreva a mensagem.');
+    const interna = Boolean(req.body?.interna);
+    const aviso = await mensagemEquipe(c, res, texto, interna);
     res.json({ success: true, aviso });
   }));
 
