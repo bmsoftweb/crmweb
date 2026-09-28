@@ -243,16 +243,16 @@ const Abrir: React.FC<{
       <p className="text-xs text-stone-600">Conte o que está acontecendo. O primeiro atendente livre continua a conversa por aqui.</p>
       <div className={FIELD_CLASS}>
         <label htmlFor="sp-doc" className={LABEL_CLASS}>CNPJ da empresa (ou CPF)</label>
-        <input id="sp-doc" autoFocus={primeiroVazio === 'sp-doc'} inputMode="numeric" value={v.documento} onChange={(e) => alterar({ documento: soDigitos(e.target.value, 14) })} onFocus={(e) => e.target.select()} placeholder="Só os números" className={campo} />
+        <input id="sp-doc" autoFocus={primeiroVazio === 'sp-doc'} inputMode="numeric" value={v.documento} onChange={(e) => alterar({ documento: soDigitos(e.target.value, 14) })} onFocus={(e) => e.target.select()} placeholder="Só os números" required pattern="\d{11}|\d{14}" title="CNPJ com 14 dígitos ou CPF com 11" className={campo} />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className={FIELD_CLASS}>
           <label htmlFor="sp-nome" className={LABEL_CLASS}>Seu nome</label>
-          <input id="sp-nome" autoFocus={primeiroVazio === 'sp-nome'} value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} maxLength={120} autoComplete="name" className={campo} />
+          <input id="sp-nome" autoFocus={primeiroVazio === 'sp-nome'} value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} maxLength={120} autoComplete="name" required minLength={2} className={campo} />
         </div>
         <div className={FIELD_CLASS}>
           <label htmlFor="sp-tel" className={LABEL_CLASS}>WhatsApp</label>
-          <input id="sp-tel" autoFocus={primeiroVazio === 'sp-tel'} inputMode="tel" value={v.telefone} onChange={(e) => alterar({ telefone: soDigitos(e.target.value, 13) })} onFocus={(e) => e.target.select()} placeholder="DDD + número" className={campo} />
+          <input id="sp-tel" autoFocus={primeiroVazio === 'sp-tel'} inputMode="tel" value={v.telefone} onChange={(e) => alterar({ telefone: soDigitos(e.target.value, 13) })} onFocus={(e) => e.target.select()} placeholder="DDD + número" required pattern="\d{10,13}" title="WhatsApp com DDD (só os números)" className={campo} />
         </div>
       </div>
       {categorias.length > 0 && (
@@ -270,7 +270,7 @@ const Abrir: React.FC<{
       )}
       <div className={FIELD_CLASS}>
         <label htmlFor="sp-desc" className={LABEL_CLASS}>Como podemos ajudar?</label>
-        <textarea id="sp-desc" autoFocus={primeiroVazio === 'sp-desc'} value={v.descricao} onChange={(e) => alterar({ descricao: e.target.value })} rows={5} maxLength={4000} className={`${campo} resize-none`} />
+        <textarea id="sp-desc" autoFocus={primeiroVazio === 'sp-desc'} value={v.descricao} onChange={(e) => alterar({ descricao: e.target.value })} rows={5} maxLength={4000} required minLength={5} className={`${campo} resize-none`} />
       </div>
       {erro && <div className="p-2.5 rounded-lg bg-rose-50 text-rose-800 text-xs">{erro}</div>}
       <button type="submit" disabled={enviando} className="flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-50">

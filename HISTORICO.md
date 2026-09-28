@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.49 — 2026-09-28
+
+- Suporte pelo site (/suporte): CNPJ/CPF, nome, WhatsApp e descrição obrigatórios na tela (barra âmbar), com as mesmas regras do servidor: o navegador avisa antes de enviar.
+
 ## 0.0.48 — 2026-09-28
 
 - Suporte pelo link direto (/suporte?e=<empresa>&cnpj=<opcional>, para mandar ao cliente): no computador abre como o painel do widget, centralizado; no celular, a tela toda. Dentro do widget, no site, nada muda.
