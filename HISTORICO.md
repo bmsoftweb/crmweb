@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.48 — 2026-09-28
+
+- Suporte pelo link direto (/suporte?e=<empresa>&cnpj=<opcional>, para mandar ao cliente): no computador abre como o painel do widget, centralizado; no celular, a tela toda. Dentro do widget, no site, nada muda.
+
 ## 0.0.47 — 2026-09-28
 
 - Chamados Ativos: depois de gravar uma nota interna, o interruptor "Nota interna" volta a desligado (a próxima mensagem é resposta ao cliente).

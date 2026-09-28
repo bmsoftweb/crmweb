@@ -145,12 +145,19 @@ export const SuportePublico: React.FC<{ empresa: string; cnpj: string }> = ({ em
     setAviso(msg);
   };
 
+  // Link direto (fora do iframe do widget): o mesmo painel do widget, centralizado; no celular, a tela toda
+  const caixa = avulso
+    ? 'h-[100dvh] sm:h-[640px] sm:max-h-[calc(100dvh-2rem)] w-full sm:w-[400px] sm:rounded-2xl sm:shadow-2xl overflow-hidden'
+    : 'h-screen';
+  const moldura = (filho: React.ReactNode) =>
+    avulso ? <div className="min-h-[100dvh] bg-stone-200 sm:flex sm:items-center sm:justify-center sm:p-4">{filho}</div> : filho;
+
   if (!info) {
-    return <div className="h-screen flex items-center justify-center text-sm text-stone-500 p-4">{erro ?? <Loader2 className="w-6 h-6 animate-spin text-stone-400" />}</div>;
+    return moldura(<div className={`${caixa} bg-stone-50 flex items-center justify-center text-sm text-stone-500 p-4`}>{erro ?? <Loader2 className="w-6 h-6 animate-spin text-stone-400" />}</div>);
   }
 
-  return (
-    <div className="h-screen flex flex-col bg-stone-50 text-stone-800">
+  return moldura(
+    <div className={`${caixa} flex flex-col bg-stone-50 text-stone-800`}>
       <header className="px-4 py-3 bg-blue-600 text-white flex items-center gap-3 shrink-0">
         {info.empresa.logo ? (
           <img src={info.empresa.logo} alt="" className="h-8 w-8 rounded-full bg-white object-contain p-0.5" />
@@ -167,9 +174,18 @@ export const SuportePublico: React.FC<{ empresa: string; cnpj: string }> = ({ em
       ) : (
         <Abrir empresa={empresa} cnpj={cnpj} categorias={info.categorias} chaveDados={chaveDados} aviso={aviso} onAberto={(t) => trocarToken(t)} />
       )}
-    </div>
+    </div>,
   );
 };
+
+/** Aberto pelo link direto (não dentro do iframe do widget num site) */
+const avulso = (() => {
+  try {
+    return window.self === window.top;
+  } catch {
+    return false; // iframe de outro site: o navegador não deixa comparar
+  }
+})();
 
 const Abrir: React.FC<{
   empresa: string;
