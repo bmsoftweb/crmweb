@@ -1,7 +1,7 @@
 {
   "name": "crmweb",
   "private": true,
-  "version": "0.0.41",
+  "version": "0.0.42",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@google/genai": "^2.24.0",
     "@sparticuz/chromium": "^153.0.0",
     "@tailwindcss/vite": "^4.1.14",

@@ -590,7 +590,7 @@ export const atenderConversa = (telefone: string): Promise<{ success: boolean }>
 /** Transferir para um atendente ou um departamento */
 export const transferirConversa = (telefone: string, destino: { usuario_id?: number; departamento_id?: number }): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/transferir`, destino);
-/** Pergunta curta ao Gemini com a chave e o modelo gravados em Configurações › Chatbot */
+/** Pergunta curta à IA (Gemini, Claude ou DeepSeek) com a chave e o modelo gravados em Configurações › Chatbot */
 export const testarChatbot = (): Promise<{ mensagem: string }> => enviar('POST', '/api/config/whatsapp/chatbot/testar');
 
 /** Para quem dá para abrir uma conversa: pessoa, contato ou o número digitado */

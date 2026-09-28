@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { chatbotPublica, escolhaDoTexto, explicarErro, listaMenu, minutosDevolver, prepararChatbot } from './chatbot.js';
+import { chatbotPublica, escolhaDoTexto, explicarErro, temChave, listaMenu, minutosDevolver, prepararChatbot } from './chatbot.js';
 
 // Sem nada gravado: modelo e nome padrão, sem chave
 const vazio = chatbotPublica(null);
@@ -31,7 +31,36 @@ assert.strictEqual(prepararChatbot({ ...gravada, chave: '', ultimo_vendedor_id: 
 // Só modelos da lista
 assert.strictEqual(prepararChatbot({ ...gravada, chave: '', modelo: 'gemini-3.8-flash' }, gravada).modelo, 'gemini-3.8-flash');
 assert.throws(() => prepararChatbot({ ...gravada, chave: '', modelo: 'gemini-inexistente' }, gravada), /não está na lista/);
-assert.deepStrictEqual(chatbotPublica(null).modelos.map((m) => m.value), ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
+assert.deepStrictEqual(chatbotPublica(null).ias[0].modelos.map((m) => m.value), ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
+// Configuração de antes da escolha da IA: Gemini
+assert.strictEqual(chatbotPublica(gravada).ia, 'gemini');
+
+// Claude: modelo da lista dele, chave própria; a chave do Gemini continua gravada
+const claude = prepararChatbot({ ...gravada, ia: 'claude', modelo: 'claude-opus-5', chave: 'chave-claude' }, gravada);
+assert.strictEqual(claude.ia, 'claude');
+assert.ok(claude.chave_claude_cifrada && !claude.chave_claude_cifrada.includes('chave-claude'));
+assert.strictEqual(claude.chave_cifrada, gravada.chave_cifrada);
+assert.deepStrictEqual(chatbotPublica(claude).chaves, { gemini: true, claude: true, deepseek: false });
+
+// DeepSeek: modelo deepseek-flash por padrão, chave própria; as outras continuam gravadas
+const deepseek = prepararChatbot({ ia: 'deepseek', nome: 'Eloisa', minutos_devolver: 60, chave: 'sk-deepseek' }, claude);
+assert.strictEqual(deepseek.modelo, 'deepseek-flash');
+assert.ok(deepseek.chave_deepseek_cifrada && !deepseek.chave_deepseek_cifrada.includes('sk-deepseek'));
+assert.strictEqual(deepseek.chave_claude_cifrada, claude.chave_claude_cifrada);
+assert.deepStrictEqual(chatbotPublica(deepseek).chaves, { gemini: true, claude: true, deepseek: true });
+assert.strictEqual('chave_deepseek_cifrada' in chatbotPublica(deepseek), false);
+assert.strictEqual(temChave({ ...gravada, ia: 'deepseek' }), false);
+assert.strictEqual('chave_claude_cifrada' in chatbotPublica(claude), false);
+// Modelo do Gemini com o Claude escolhido não passa; IA fora da lista também não
+assert.throws(() => prepararChatbot({ ...claude, chave: '', modelo: 'gemini-3.8-flash' }, claude), /lista do Claude/);
+assert.throws(() => prepararChatbot({ ...claude, chave: '', ia: 'outra' }, claude), /não é uma das opções/);
+// Sem modelo informado: o primeiro da IA escolhida
+assert.strictEqual(prepararChatbot({ ia: 'claude', chave: '' }, claude).modelo, 'claude-opus-5');
+// Chave do Claude digitada com o Gemini escolhido fica no Gemini: só a da IA escolhida muda
+assert.strictEqual(prepararChatbot({ ...claude, ia: 'gemini', modelo: 'gemini-3.8-flash', chave: '' }, claude).chave_claude_cifrada, claude.chave_claude_cifrada);
+// Só a chave do Gemini gravada e o Claude escolhido: sem chave
+assert.strictEqual(temChave({ ...gravada, ia: 'claude' }), false);
+assert.strictEqual(temChave(claude), true);
 // Modelo gravado que saiu da lista: a tela recebe o primeiro da lista
 assert.strictEqual(chatbotPublica({ ...gravada, modelo: 'gemini-flash-latest' }).modelo, 'gemini-3.8-flash');
 
@@ -63,6 +92,13 @@ assert.strictEqual(escolhaDoTexto('bom dia', opcoes), null);
 console.log('chatbot: ok');
 
 // Erro do Gemini traduzido na linha de falha da automação
-assert.match(explicarErro('{"error":{"code":503,"message":"high demand","status":"UNAVAILABLE"}}'), /sobrecarregado/);
+assert.match(explicarErro('{"error":{"code":503,"message":"high demand","status":"UNAVAILABLE"}}'), /sobrecarregada/);
+// Erro do Claude: o código vem no começo da mensagem (às vezes depois de "nó X: ")
+assert.match(explicarErro('nó IA: 529 {"type":"error","error":{"type":"overloaded_error"}}'), /sobrecarregada agora \(529\)/);
+assert.match(explicarErro('401 {"type":"error","error":{"type":"authentication_error"}}'), /chave da IA inválida/);
+assert.match(explicarErro('400 {"type":"error","error":{"message":"Your credit balance is too low"}}'), /créditos da conta Anthropic/);
+// DeepSeek: "code" é texto (não confunde com o código HTTP); 402 = saldo acabou
+assert.match(explicarErro('401 {"error":{"message":"Authentication Fails","code":"invalid_request_error"}}'), /chave da IA inválida/);
+assert.match(explicarErro('402 {"error":{"message":"Insufficient Balance"}}'), /saldo da conta da IA acabou/);
 assert.match(explicarErro('{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}'), /limite de uso/);
 assert.strictEqual(explicarErro('timeout'), 'timeout');

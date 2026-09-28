@@ -6,15 +6,25 @@ import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/form
 import { NumberField } from './NumberField';
 import { AvisoErro } from './AvisoErro';
 
+type Ia = 'gemini' | 'claude' | 'deepseek';
+
 interface Chatbot {
+  ia: Ia;
   modelo: string;
   nome: string;
   minutos_devolver: number;
-  /** Digitada agora; em branco mantém a gravada */
+  /** Digitada agora; em branco mantém a gravada (da IA escolhida) */
   chave: string;
-  /** Modelos do Gemini que dá para escolher (vêm do servidor) */
-  modelos: { value: string; label: string }[];
+  /** IAs e os modelos de cada uma (vêm do servidor) */
+  ias: { value: Ia; label: string; modelos: { value: string; label: string }[] }[];
 }
+
+/** Onde pegar a chave e o que muda entre os modelos, por IA */
+const AJUDA: Record<Ia, { nome: string; chave: string; modelos: string }> = {
+  gemini: { nome: 'Gemini', chave: 'Google AI Studio › Get API key', modelos: 'Flash: respostas melhores. Flash-Lite: mais rápido e mais barato.' },
+  claude: { nome: 'Claude', chave: 'console.anthropic.com › API Keys', modelos: 'Opus: respostas melhores. Sonnet: equilíbrio. Haiku: mais rápido e mais barato.' },
+  deepseek: { nome: 'DeepSeek', chave: 'platform.deepseek.com › API keys', modelos: 'Flash: rápido e barato.' },
+};
 
 interface Props {
   somenteLeitura: boolean;
@@ -22,13 +32,15 @@ interface Props {
 }
 
 /**
- * Configurações › Chatbot: a IA (Gemini) usada pela Automação (chave, modelo e nome do assistente),
+ * Configurações › Chatbot: o nome do assistente e a IA usada pela Automação (Gemini, Claude ou DeepSeek, com chave e modelo),
  * o tempo para a conversa voltar ao bot, o revezamento de leads e a pesquisa de satisfação.
  * O atendimento em si (ligar, texto-base, menus) fica em Configurações › Automação.
  */
 export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
   const [v, setV] = useState<Chatbot | null>(null);
-  const [chaveGravada, setChaveGravada] = useState(false);
+  /** Qual IA já tem chave gravada, e a IA gravada (o Testar usa o que está gravado) */
+  const [chaves, setChaves] = useState<Record<Ia, boolean>>({ gemini: false, claude: false, deepseek: false });
+  const [iaGravada, setIaGravada] = useState<Ia>('gemini');
   const [usuarios, setUsuarios] = useState<OpcaoRef[]>([]);
   const [ocupado, setOcupado] = useState<'salvar' | 'testar' | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -37,7 +49,8 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     fetchConfig<any>('whatsapp', 'chatbot')
       .then(({ valor }) => {
         setV({ ...valor, chave: '' });
-        setChaveGravada(Boolean(valor?.chave_definida));
+        setChaves({ gemini: Boolean(valor?.chaves?.gemini), claude: Boolean(valor?.chaves?.claude), deepseek: Boolean(valor?.chaves?.deepseek) });
+        setIaGravada(valor?.ia ?? 'gemini');
       })
       .catch((e) => setErro(e.message));
     // Quem está no revezamento (ligado no cadastro de Usuários), só para mostrar
@@ -53,14 +66,21 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     setErro(null);
   };
   const campo = `${INPUT_CLASS} w-full`;
+  const ajuda = AJUDA[v.ia];
+  const modelos = v.ias.find((i) => i.value === v.ia)?.modelos ?? [];
+  const chaveGravada = chaves[v.ia];
+  /** Trocar de IA: o modelo passa para o primeiro da lista dela; a chave digitada é descartada */
+  const trocarIa = (ia: Ia) => alterar({ ia, modelo: v.ias.find((i) => i.value === ia)?.modelos[0]?.value ?? '', chave: '' });
+  const podeTestar = chaveGravada && v.ia === iaGravada;
 
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
     setOcupado('salvar');
     try {
-      const { modelos, ...valor } = v;
+      const { ias, ...valor } = v;
       await salvarConfig('whatsapp', 'chatbot', valor);
-      if (v.chave) setChaveGravada(true);
+      if (v.chave) setChaves({ ...chaves, [v.ia]: true });
+      setIaGravada(v.ia);
       setV({ ...v, chave: '' });
       onToast('Configuração do chatbot gravada.');
     } catch (err: any) {
@@ -86,7 +106,7 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
       {erro && <AvisoErro mensagem={erro} onFechar={() => setErro(null)} />}
 
       <p className="text-xs text-stone-600 dark:text-stone-300">
-        A IA (Gemini) que a Automação usa nos nós de IA, com uma espera de 1 a 30 segundos e "digitando..." antes de responder. Ligar o atendimento, o
+        A IA (Gemini, Claude ou DeepSeek) que a Automação usa nos nós de IA, com uma espera de 1 a 30 segundos e "digitando..." antes de responder. Ligar o atendimento, o
         texto-base e os menus ficam em Configurações › Automação. Na tela Conversas dá para assumir ou devolver cada conversa ao bot.
       </p>
 
@@ -94,7 +114,23 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className={FIELD_CLASS}>
-            <label htmlFor="bot-chave" className={LABEL_CLASS}>Chave do Gemini</label>
+            <label htmlFor="bot-nome" className={LABEL_CLASS}>Nome do assistente</label>
+            <input id="bot-nome" value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} maxLength={60} required className={campo} />
+            <span className={HINT_CLASS}>Como o assistente se apresenta ao cliente no WhatsApp</span>
+          </div>
+          <div className={FIELD_CLASS}>
+            <label htmlFor="bot-ia" className={LABEL_CLASS}>IA</label>
+            <select id="bot-ia" value={v.ia} onChange={(e) => trocarIa(e.target.value as Ia)} required className={`${campo} cursor-pointer`}>
+              {v.ias.map((i) => (
+                <option key={i.value} value={i.value}>
+                  {i.label}
+                </option>
+              ))}
+            </select>
+            <span className={HINT_CLASS}>Cada IA tem a sua chave; trocar não apaga a chave da outra</span>
+          </div>
+          <div className={FIELD_CLASS}>
+            <label htmlFor="bot-chave" className={LABEL_CLASS}>Chave do {ajuda.nome}</label>
             <input
               id="bot-chave"
               type="password"
@@ -103,7 +139,7 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
               maxLength={500}
               autoComplete="new-password"
               required={!chaveGravada}
-              placeholder={chaveGravada ? 'Gravada — deixe em branco para manter' : 'Google AI Studio › Get API key'}
+              placeholder={chaveGravada ? 'Gravada — deixe em branco para manter' : ajuda.chave}
               className={campo}
             />
             <span className={HINT_CLASS}>Gravada cifrada; não é exibida de volta</span>
@@ -111,17 +147,13 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
           <div className={FIELD_CLASS}>
             <label htmlFor="bot-modelo" className={LABEL_CLASS}>Modelo</label>
             <select id="bot-modelo" value={v.modelo} onChange={(e) => alterar({ modelo: e.target.value })} required className={`${campo} cursor-pointer`}>
-              {v.modelos.map((m) => (
+              {modelos.map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
                 </option>
               ))}
             </select>
-            <span className={HINT_CLASS}>Flash: respostas melhores. Flash-Lite: mais rápido e mais barato.</span>
-          </div>
-          <div className={FIELD_CLASS}>
-            <label htmlFor="bot-nome" className={LABEL_CLASS}>Nome do assistente</label>
-            <input id="bot-nome" value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} maxLength={60} required className={campo} />
+            <span className={HINT_CLASS}>{ajuda.modelos}</span>
           </div>
           <div className={FIELD_CLASS}>
             <label htmlFor="bot-minutos" className={LABEL_CLASS}>Devolver ao bot depois de (minutos)</label>
@@ -163,12 +195,12 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
           <button
             type="button"
             onClick={testar}
-            disabled={ocupado !== null || !chaveGravada}
-            title={chaveGravada ? 'Faz uma pergunta curta ao Gemini com a chave e o modelo gravados' : 'Grave a chave antes'}
+            disabled={ocupado !== null || !podeTestar}
+            title={podeTestar ? `Faz uma pergunta curta ao ${ajuda.nome} com a chave e o modelo gravados` : `Salve a configuração com a chave do ${ajuda.nome} antes de testar`}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50"
           >
             {ocupado === 'testar' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-            Testar Gemini
+            Testar {ajuda.nome}
           </button>
         </div>
       )}

@@ -49,9 +49,9 @@ export const TIPOS_NO: Record<TipoNo, { nome: string; icone: LucideIcon; cor: st
   case: { nome: 'Condição múltipla', icone: GitFork, cor: 'amber', ajuda: 'Compara uma variável com vários casos; o primeiro que bater decide a saída.' },
   esperar: { nome: 'Esperar', icone: Clock, cor: 'stone', ajuda: 'Pausa X minutos e continua sozinho.' },
   api: { nome: 'Chamar API', icone: Globe, cor: 'cyan', ajuda: 'Chama outro sistema (https) e guarda campos da resposta em variáveis.' },
-  ia: { nome: 'IA (Gemini)', icone: Bot, cor: 'fuchsia', ajuda: 'Conversa com o texto-base do nó até passar para humano.' },
+  ia: { nome: 'IA', icone: Bot, cor: 'fuchsia', ajuda: 'Conversa com o texto-base do nó até passar para humano.' },
   iaex: {
-    nome: 'IA (Gemini) Ex',
+    nome: 'IA Ex',
     icone: BrainCircuit,
     cor: 'fuchsia',
     ajuda: 'A IA conversa pelo texto-base do nó até entender o que o cliente quer; cada opção é uma saída. Espera a resposta.',

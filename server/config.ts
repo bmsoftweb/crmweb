@@ -181,7 +181,7 @@ export function createConfigRouter(): Router {
     }
   });
 
-  /** Pergunta curta ao Gemini com a chave e o modelo gravados */
+  /** Pergunta curta à IA escolhida com a chave e o modelo gravados */
   router.post('/config/whatsapp/chatbot/testar', async (_req: Request, res: Response) => {
     try {
       somenteAdmin(res);

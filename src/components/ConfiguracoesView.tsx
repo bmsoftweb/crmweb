@@ -34,7 +34,7 @@ const ABAS = [
   {
     id: 'chatbot',
     titulo: 'Chatbot',
-    descricao: 'IA (Gemini) usada pela Automação: chave, modelo e nome do assistente, tempo para devolver ao bot, revezamento de leads e pesquisa de satisfação.',
+    descricao: 'Nome do assistente e IA usada pela Automação (Gemini, Claude ou DeepSeek, com chave e modelo), tempo para devolver ao bot, revezamento de leads e pesquisa de satisfação.',
   },
   {
     id: 'jornada',

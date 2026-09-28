@@ -13,6 +13,7 @@ import {
   gerarRespostaIa,
   iaComOpcoes,
   lerChatbot,
+  temChave,
   marcarEncerramento,
   mudarAtendimento,
   registrarLead,
@@ -33,7 +34,7 @@ import { enviarPesquisa } from './pesquisa.js';
 
 const ONDE = 'Configurações › Automação';
 const MAX_NOS = 200;
-/** Ao cliente, quando o Gemini falha e a conversa passa para a equipe */
+/** Ao cliente, quando a IA falha e a conversa passa para a equipe */
 const AVISO_IA_FALHOU = 'No momento não consegui responder por aqui. Vou te passar para um atendente, que já continua a conversa.';
 /** Passos por mensagem: laço sem nó de espera (Mensagem → Mensagem → ...) para aqui */
 const MAX_PASSOS = 50;
@@ -493,7 +494,7 @@ class Execucao {
     return avisarFalha(this.ctx.empresaId, this.ctx.telefone, no ? `nó ${rotulo(no)}: ${msg}` : msg, depois);
   }
 
-  /** O Gemini falhou: o cliente não fica sem retorno; a conversa vai para a equipe (aguardando atendente) */
+  /** A IA falhou: o cliente não fica sem retorno; a conversa vai para a equipe (aguardando atendente) */
   private async iaFalhou(no: No, msg: string): Promise<'fim'> {
     delete this.estado.vars._iaex;
     await this.falha(no, msg, ' Conversa passada para um atendente.');
@@ -533,7 +534,7 @@ class Execucao {
       case 'menu': {
         const opcoes = this.opcoesMenu(no);
         let escolha = entrada ? escolhaDoTexto(entrada, opcoes) : null;
-        if (!escolha && entrada && this.bot?.chave_cifrada) escolha = await escolhaPelaIa(this.bot, entrada, opcoes).catch(async (e) => (await this.falha(no, e.message), null));
+        if (!escolha && entrada && temChave(this.bot)) escolha = await escolhaPelaIa(this.bot, entrada, opcoes).catch(async (e) => (await this.falha(no, e.message), null));
         if (escolha) return this.destino(no, (escolha as any).id) ?? 'fim';
         const invalida = this.destino(no, 'invalida');
         if (invalida) return invalida;
@@ -560,8 +561,8 @@ class Execucao {
   private async ia(no: No): Promise<No | null | 'fim'> {
     // Texto-base do nó; sem ele, o texto-base antigo do Chatbot (automações feitas antes da mudança)
     const textoBase = String(no.dados.texto ?? '').trim() || String(this.bot?.texto_base ?? '').trim();
-    if (!this.bot?.chave_cifrada || !textoBase) {
-      await this.falha(no, `sem a chave do Gemini (Configurações › Chatbot) ou sem texto-base (${ONDE}).`);
+    if (!temChave(this.bot) || !textoBase) {
+      await this.falha(no, `sem a chave da IA (Configurações › Chatbot) ou sem texto-base (${ONDE}).`);
       return this.destino(no, 'humano') ?? 'fim';
     }
     this.ctx.jornada = { transferencia: null };
@@ -584,7 +585,7 @@ class Execucao {
   }
 
   /**
-   * IA (Gemini) Ex: a IA conversa pelo texto-base do nó até o cliente indicar uma das saídas (vai para
+   * IA Ex: a IA conversa pelo texto-base do nó até o cliente indicar uma das saídas (vai para
    * ela, com a escolha em {{ia_opcao}}). Sem entender depois das tentativas, ou sem IA: saída "nenhuma".
    */
   private async iaex(no: No, abertura: boolean): Promise<No | null | 'fim'> {
@@ -594,8 +595,8 @@ class Execucao {
       delete this.estado.vars._iaex;
       return this.destino(no, 'nenhuma') ?? 'fim';
     };
-    if (!this.bot?.chave_cifrada) {
-      await this.falha(no, 'sem a chave do Gemini (Configurações › Chatbot).');
+    if (!temChave(this.bot)) {
+      await this.falha(no, 'sem a chave da IA (Configurações › Chatbot).');
       return nenhuma();
     }
     if (!abertura) this.estado.vars._iaex = (Number(this.estado.vars._iaex) || 0) + 1;

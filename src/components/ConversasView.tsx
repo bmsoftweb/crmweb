@@ -71,6 +71,38 @@ const tipoDoArquivo = (mime: string): ArquivoConversa['tipo'] =>
 
 const tamanhoLegivel = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1).replace('.', ',')} MB`);
 
+/** Documento da mensagem (PDF, planilha...): ao clicar, baixa do WhatsApp e salva com o nome original */
+const Documento: React.FC<{ id: number; nome: string | null }> = ({ id, nome }) => {
+  const [estado, setEstado] = useState<'pronto' | 'baixando' | 'falhou'>('pronto');
+  const baixar = async () => {
+    setEstado('baixando');
+    try {
+      const url = await fetchMidiaMensagem(id);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nome || 'arquivo';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setEstado('pronto');
+    } catch {
+      setEstado('falhou');
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={baixar}
+      disabled={estado === 'baixando'}
+      title={estado === 'falhou' ? 'Não foi possível baixar o arquivo do WhatsApp. Clique para tentar de novo.' : 'Baixar o arquivo'}
+      className="flex items-center gap-1.5 not-italic underline underline-offset-2 cursor-pointer disabled:opacity-60 text-left"
+    >
+      {estado === 'baixando' ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <FileText className="w-3.5 h-3.5 shrink-0" />}
+      {nome || TIPOS.documento}
+      {estado === 'falhou' && <span className="no-underline text-rose-500"> (não disponível)</span>}
+    </button>
+  );
+};
+
 /**
  * Imagem, figurinha, áudio ou vídeo da mensagem, baixado do WhatsApp (o CRM não guarda o
  * arquivo). Imagem e áudio carregam ao aparecer; vídeo só ao clicar, por ser pesado.
@@ -744,8 +776,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             {MIDIA.includes(m.tipo) && <MidiaMensagem id={m.id} tipo={m.tipo} />}
                             {m.tipo !== 'texto' && !MIDIA.includes(m.tipo) && (
                               <div className={`flex items-center gap-1.5 italic text-xs mb-0.5 ${minha ? 'text-blue-100' : 'text-stone-500 dark:text-stone-400'}`}>
-                                {m.tipo === 'documento' && <FileText className="w-3.5 h-3.5 shrink-0" />}
-                                {m.tipo === 'documento' && m.arquivo_nome ? m.arquivo_nome : TIPOS[m.tipo] || m.tipo}
+                                {m.tipo === 'documento' ? <Documento id={m.id} nome={m.arquivo_nome} /> : TIPOS[m.tipo] || m.tipo}
                               </div>
                             )}
                             {m.texto && <div className="whitespace-pre-wrap break-words">{m.texto}</div>}

@@ -387,17 +387,22 @@ export function createConversasRouter(): Router {
     }
   });
 
-  /** Imagem, figurinha, áudio ou vídeo da mensagem, buscado no provedor (o arquivo não fica no CRM) */
+  /**
+   * Imagem, figurinha, áudio, vídeo ou documento da mensagem, buscado no provedor (o arquivo não fica no CRM).
+   * Documento vai como anexo (a tela baixa com o nome original): nunca é exibido pelo navegador no CRM.
+   */
   router.get('/whatsapp/mensagens/:id/midia', async (req: Request, res: Response) => {
     try {
-      const [rows] = await pool.query<any[]>("SELECT wa_id FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video')", [
-        Number(req.params.id) || 0,
-        res.locals.empresaId,
-      ]);
+      const [rows] = await pool.query<any[]>(
+        "SELECT wa_id, tipo, arquivo_nome FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video', 'documento')",
+        [Number(req.params.id) || 0, res.locals.empresaId],
+      );
       if (!rows[0]?.wa_id) return res.status(404).json({ error: 'Arquivo não encontrado.' });
       const { mimetype, dados } = await midiaDaMensagem(res.locals.empresaId, rows[0].wa_id);
+      res.set({ 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+      if (rows[0].tipo === 'documento') return res.attachment(rows[0].arquivo_nome || 'arquivo').type(mimetype).send(dados);
       if (!/^(image|audio|video)\//.test(mimetype)) return res.status(415).json({ error: 'Tipo de arquivo não exibível.' });
-      res.set('Cache-Control', 'private, max-age=86400').type(mimetype).send(dados);
+      res.type(mimetype).send(dados);
     } catch (err: any) {
       falha(res, err);
     }

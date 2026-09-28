@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI, Type, type Content, type FunctionDeclaration, type Part } from '@google/genai';
 import { pool } from './db.js';
 import { lerConfig } from './config.js';
@@ -6,7 +7,7 @@ import { aposGravar, sincronizarNegocio } from './regras.js';
 import { chaveTelefone, donoDoTelefone, enviarAutomatica, enviarReservada, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type Dono, type MensagemNova } from './whatsapp.js';
 
 /**
- * Chatbot do WhatsApp com IA (Gemini). Configuração em Configurações › Chatbot (tabela config,
+ * Chatbot do WhatsApp com IA (Gemini, Claude ou DeepSeek, à escolha da empresa). Configuração em Configurações › Chatbot (tabela config,
  * grupo "whatsapp", chave "chatbot"). Mensagem recebida numa conversa que está com o bot
  * (whatsapp_conversas.atendimento) é respondida depois de um atraso aleatório de 1 a 30 s, com
  * "digitando..." (resposta instantânea é o que mais faz número não oficial ser bloqueado). Se o
@@ -30,13 +31,59 @@ export const MODELOS_GEMINI = [
   { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite' },
 ];
 
-/** Modelo gravado, ou o primeiro da lista quando o gravado saiu dela */
-const modeloDe = (cfg: { modelo?: string }) => (MODELOS_GEMINI.some((m) => m.value === cfg.modelo) ? cfg.modelo! : MODELOS_GEMINI[0].value);
+/** Modelos do Claude que dá para escolher */
+export const MODELOS_CLAUDE = [
+  { value: 'claude-opus-5', label: 'Claude Opus 5' },
+  { value: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
+  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+];
 
-/** Como fica no banco. A chave só cifrada, e nunca volta para a tela */
+/** Modelos do DeepSeek que dá para escolher */
+export const MODELOS_DEEPSEEK = [{ value: 'deepseek-flash', label: 'DeepSeek Flash' }];
+
+/**
+ * IAs que a empresa pode usar: cada uma com a sua chave (campo no banco) e os seus modelos. O DeepSeek
+ * aceita o formato da API do Claude (outro endereço): usa o mesmo cliente
+ */
+export const IAS = [
+  { value: 'gemini', label: 'Gemini (Google)', nome: 'Gemini', modelos: MODELOS_GEMINI, campo: 'chave_cifrada' },
+  { value: 'claude', label: 'Claude (Anthropic)', nome: 'Claude', modelos: MODELOS_CLAUDE, campo: 'chave_claude_cifrada' },
+  { value: 'deepseek', label: 'DeepSeek', nome: 'DeepSeek', modelos: MODELOS_DEEPSEEK, campo: 'chave_deepseek_cifrada' },
+] as const;
+type Ia = (typeof IAS)[number]['value'];
+type CampoChave = (typeof IAS)[number]['campo'];
+
+/** Endereço do DeepSeek no formato da API do Claude (api-docs.deepseek.com › Anthropic API) */
+const URL_DEEPSEEK = 'https://api.deepseek.com/anthropic';
+
+/** IA escolhida (configuração de antes da escolha: Gemini) */
+const iaDe = (cfg: { ia?: string } | null | undefined): Ia => IAS.find((i) => i.value === cfg?.ia)?.value ?? 'gemini';
+const dadosIa = (ia: Ia) => IAS.find((i) => i.value === ia)!;
+/** Nome da IA escolhida, para as mensagens ("Gemini", "Claude") */
+export const nomeIa = (cfg: { ia?: string } | null | undefined) => dadosIa(iaDe(cfg)).nome;
+
+/** Modelo gravado, ou o primeiro da lista da IA quando o gravado não é dela (ou saiu da lista) */
+const modeloDe = (cfg: { ia?: string; modelo?: string }) => {
+  const lista: readonly { value: string }[] = dadosIa(iaDe(cfg)).modelos;
+  return lista.some((m) => m.value === cfg.modelo) ? cfg.modelo! : lista[0].value;
+};
+
+/** Chave cifrada da IA escolhida */
+const chaveCifrada = (cfg: ConfigChatbot) => cfg[dadosIa(iaDe(cfg)).campo];
+/** A IA escolhida tem chave gravada (sem ela, os nós de IA da Automação não chamam a IA) */
+export const temChave = (cfg: ConfigChatbot | null | undefined): cfg is ConfigChatbot => Boolean(cfg && chaveCifrada(cfg));
+
+/** Como fica no banco. As chaves só cifradas, e nunca voltam para a tela */
 export interface ConfigChatbot {
+  /** IA usada: gemini (padrão, inclusive nas configurações antigas), claude ou deepseek */
+  ia?: Ia;
+  /** Chave do Gemini */
   chave_cifrada?: string;
-  /** Modelo do Gemini (um de MODELOS_GEMINI) */
+  /** Chave do Claude (Anthropic) */
+  chave_claude_cifrada?: string;
+  /** Chave do DeepSeek */
+  chave_deepseek_cifrada?: string;
+  /** Modelo da IA escolhida (um de IAS[].modelos) */
   modelo: string;
   /** Nome com que o assistente se apresenta */
   nome: string;
@@ -55,31 +102,38 @@ export interface ConfigChatbot {
   ultimo_vendedor_id?: number | null;
 }
 
-const PADRAO: Omit<ConfigChatbot, 'chave_cifrada'> = {
+const PADRAO: Omit<ConfigChatbot, CampoChave> = {
+  ia: 'gemini',
   modelo: 'gemini-3.8-flash',
   nome: 'Assistente',
   minutos_devolver: 240,
   ultimo_vendedor_id: null,
 };
 
-/** Valor que veio da tela → o que vai para o banco. Chave em branco mantém a gravada */
+/** Valor que veio da tela → o que vai para o banco. Chave em branco mantém a gravada; a da outra IA fica como estava */
 export function prepararChatbot(valor: any, anterior: ConfigChatbot | null): ConfigChatbot {
+  if (valor?.ia && !IAS.some((i) => i.value === valor.ia)) throw new Error(`Chatbot: IA "${valor.ia}" não é uma das opções.`);
+  const ia = iaDe(valor);
   const cfg: ConfigChatbot = {
-    modelo: String(valor?.modelo ?? '').trim() || PADRAO.modelo,
+    ia,
+    modelo: String(valor?.modelo ?? '').trim() || dadosIa(ia).modelos[0].value,
     nome: textoConfig(valor?.nome, 60, 'Chatbot: nome do assistente') || PADRAO.nome,
     minutos_devolver: Number(valor?.minutos_devolver ?? PADRAO.minutos_devolver),
     ultimo_vendedor_id: anterior?.ultimo_vendedor_id ?? null,
   };
   // Texto-base antigo: fica como estava (o nó IA sem texto-base próprio ainda usa)
   if (anterior?.texto_base) cfg.texto_base = anterior.texto_base;
-  if (!MODELOS_GEMINI.some((m) => m.value === cfg.modelo)) throw new Error(`Chatbot: modelo "${cfg.modelo}" não está na lista.`);
+  if (!dadosIa(ia).modelos.some((m) => m.value === cfg.modelo)) throw new Error(`Chatbot: modelo "${cfg.modelo}" não está na lista do ${dadosIa(ia).nome}.`);
   if (!Number.isInteger(cfg.minutos_devolver) || cfg.minutos_devolver < 1 || cfg.minutos_devolver > 43_200) {
     throw new Error('Chatbot: os minutos para devolver a conversa ao bot devem ser de 1 a 43.200 (30 dias).');
   }
   const chave = String(valor?.chave ?? '').trim();
   if (chave.length > 500) throw new Error('Chatbot: chave grande demais.');
-  const cifrada = chave ? cifrar(chave) : anterior?.chave_cifrada;
-  if (cifrada) cfg.chave_cifrada = cifrada;
+  // A chave digitada é da IA escolhida; as das outras ficam como estavam
+  for (const i of IAS) {
+    const cifrada = chave && ia === i.value ? cifrar(chave) : anterior?.[i.campo];
+    if (cifrada) cfg[i.campo] = cifrada;
+  }
   return cfg;
 }
 
@@ -90,31 +144,86 @@ export const minutosDevolver = (cfg: Partial<ConfigChatbot> | null | undefined):
 /** Valor do banco → o que a tela recebe (sem a chave) */
 export function chatbotPublica(cfg: ConfigChatbot | null) {
   // ativo, menu e menu_texto: da versão antiga, não vão mais para a tela
-  const { chave_cifrada, horas_devolver, vendedores, texto_base, ativo, menu, menu_texto, ...resto } = { ...PADRAO, ...(cfg ?? {}) } as ConfigChatbot & Record<string, any>;
-  return { ...resto, minutos_devolver: minutosDevolver(cfg), modelo: modeloDe(resto), chave_definida: Boolean(chave_cifrada), modelos: MODELOS_GEMINI };
+  const tudo = { ...PADRAO, ...(cfg ?? {}) } as ConfigChatbot & Record<string, any>;
+  const { horas_devolver, vendedores, texto_base, ativo, menu, menu_texto, ...resto } = tudo;
+  for (const i of IAS) delete resto[i.campo];
+  return {
+    ...resto,
+    ia: iaDe(resto),
+    minutos_devolver: minutosDevolver(cfg),
+    modelo: modeloDe(resto),
+    /** Qual IA já tem chave gravada */
+    chaves: Object.fromEntries(IAS.map((i) => [i.value, Boolean(tudo[i.campo])])) as Record<Ia, boolean>,
+    chave_definida: Boolean(chaveCifrada(tudo)),
+    ias: IAS.map(({ value, label, modelos }) => ({ value, label, modelos })),
+  };
 }
 
 export const lerChatbot = async (empresaId: string | number): Promise<ConfigChatbot | null> => lerConfig(String(empresaId), 'whatsapp', 'chatbot');
 
+/** Chave da IA escolhida, decifrada */
+function chaveDa(cfg: ConfigChatbot): string {
+  const cifrada = chaveCifrada(cfg);
+  if (!cifrada) throw new Error(`Chatbot: chave do ${nomeIa(cfg)} não configurada. Preencha ${ONDE}.`);
+  return decifrar(cifrada, ONDE);
+}
+
 function clienteGemini(cfg: ConfigChatbot) {
-  if (!cfg.chave_cifrada) throw new Error(`Chatbot: chave do Gemini não configurada. Preencha ${ONDE}.`);
   // Sobrecarga momentânea do Gemini (503) e limite de uso (429): tenta de novo, esperando 2 s e depois mais
   return new GoogleGenAI({
-    apiKey: decifrar(cfg.chave_cifrada, ONDE),
+    apiKey: chaveDa(cfg),
     httpOptions: { timeout: 30_000, retryOptions: { attempts: 3, initialDelay: 2, maxDelay: 10 } },
   });
 }
+
+type ParamsClaude = Omit<Anthropic.Beta.MessageCreateParamsNonStreaming, 'model'>;
+
+/** Claude ou DeepSeek: as duas falam o formato da API do Claude */
+const formatoClaude = (cfg: ConfigChatbot) => iaDe(cfg) !== 'gemini';
+
+/**
+ * Uma chamada ao Claude (ou ao DeepSeek, pelo endereço dele) com a chave e o modelo gravados. O SDK já tenta
+ * de novo na sobrecarga (529/5xx) e no limite de uso (429). Claude: esforço baixo, é conversa de WhatsApp e a
+ * resposta rápida vale mais (o Haiku 4.5 não tem esse ajuste); no Opus 5, se o filtro de segurança recusar, a
+ * própria API refaz a pergunta no modelo que ela indica (fallbacks). Recusa que sobrar vira erro (a Automação
+ * passa a conversa para a equipe). DeepSeek: só texto, ferramentas e o esforço (fica o padrão dele).
+ */
+async function perguntarClaude(cfg: ConfigChatbot, params: ParamsClaude): Promise<Anthropic.Beta.BetaMessage> {
+  const model = modeloDe(cfg);
+  const deepseek = iaDe(cfg) === 'deepseek';
+  const cliente = new Anthropic({ apiKey: chaveDa(cfg), timeout: 60_000, maxRetries: 3, ...(deepseek && { baseURL: URL_DEEPSEEK }) });
+  const r = await cliente.beta.messages.create({
+    ...params,
+    model,
+    ...(!deepseek && { output_config: { ...(model !== 'claude-haiku-4-5' && { effort: 'low' as const }), ...params.output_config } }),
+    ...(model === 'claude-opus-5' && { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }),
+  });
+  if (r.stop_reason === 'refusal') throw new Error(`o ${nomeIa(cfg)} recusou responder a esta conversa.`);
+  return r;
+}
+
+/** Texto da resposta do Claude (junta os blocos de texto) */
+const textoClaude = (r: Anthropic.Beta.BetaMessage) =>
+  r.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+
+/** Histórico no formato do Gemini → mensagens do Claude (model = assistant) */
+const paraClaude = (contents: Content[]): Anthropic.Beta.BetaMessageParam[] =>
+  contents.map((c) => ({ role: c.role === 'model' ? 'assistant' : 'user', content: (c.parts ?? []).map((p) => p.text ?? '').join('\n') }));
 
 /** "Testar" da tela: uma pergunta curta com a chave e o modelo gravados */
 export async function testarChatbot(empresaId: string): Promise<string> {
   const cfg = await lerChatbot(empresaId);
   if (!cfg) throw new Error(`Chatbot: grave a configuração em ${ONDE} antes de testar.`);
-  const r = await clienteGemini(cfg).models.generateContent({
-    model: modeloDe(cfg),
-    contents: 'Responda apenas com a palavra OK.',
-    config: { maxOutputTokens: 256 },
-  });
-  return `Gemini (${modeloDe(cfg)}) respondeu: ${(r.text ?? '').trim().slice(0, 100) || '(vazio)'}`;
+  const pergunta = 'Responda apenas com a palavra OK.';
+  const texto =
+    formatoClaude(cfg)
+      ? textoClaude(await perguntarClaude(cfg, { max_tokens: 1024, messages: [{ role: 'user', content: pergunta }] }))
+      : ((await clienteGemini(cfg).models.generateContent({ model: modeloDe(cfg), contents: pergunta, config: { maxOutputTokens: 256 } })).text ?? '').trim();
+  return `${nomeIa(cfg)} (${modeloDe(cfg)}) respondeu: ${texto.slice(0, 100) || '(vazio)'}`;
 }
 
 // ------------------------------------------------------------
@@ -187,13 +296,18 @@ export async function marcarEvento(empresaId: string | number, telefone: string,
 /** Início da linha de falha da automação na conversa (a tela mostra em vermelho) */
 export const FALHA_AUTOMACAO = 'Automação falhou';
 
-/** Erro do Gemini (vem como JSON, com o código HTTP) em português; outro erro fica como veio */
+/**
+ * Erro da IA em português; outro erro fica como veio. O código HTTP vem no JSON do Gemini ("code": 503) ou no
+ * começo da mensagem do Claude ("429 {...}"). A mensagem pode ter um prefixo ("nó X: ").
+ */
 export function explicarErro(msg: string): string {
-  const codigo = Number(/"code"\s*:\s*(\d{3})/.exec(msg)?.[1]);
-  if (codigo === 429) return 'limite de uso do Gemini excedido (cota/tokens da chave). Aguarde ou aumente o plano.';
-  if (codigo === 503) return 'Gemini sobrecarregado agora (503). Se continuar, troque o modelo em Configurações › Chatbot.';
-  if (codigo === 401 || codigo === 403) return 'chave do Gemini inválida ou sem permissão (Configurações › Chatbot).';
-  if (codigo === 404) return 'modelo do Gemini não encontrado (Configurações › Chatbot).';
+  const codigo = Number(/"code"\s*:\s*(\d{3})/.exec(msg)?.[1] ?? /(?:^|: )(\d{3}) [{"]/.exec(msg)?.[1]);
+  if (/credit balance/i.test(msg)) return 'os créditos da conta Anthropic (Claude) acabaram. Recarregue em console.anthropic.com › Billing.';
+  if (codigo === 402 || /insufficient balance/i.test(msg)) return 'o saldo da conta da IA acabou (DeepSeek: platform.deepseek.com › Top up).';
+  if (codigo === 429) return 'limite de uso da IA excedido (cota/tokens da chave). Aguarde ou aumente o plano.';
+  if (codigo === 503 || codigo === 529) return `IA sobrecarregada agora (${codigo}). Se continuar, troque o modelo ou a IA em Configurações › Chatbot.`;
+  if (codigo === 401 || codigo === 403) return 'chave da IA inválida ou sem permissão (Configurações › Chatbot).';
+  if (codigo === 404) return 'modelo da IA não encontrado (Configurações › Chatbot).';
   return msg;
 }
 
@@ -470,12 +584,12 @@ export function escolhaDoTexto(texto: string, opcoes: OpcaoMenu[]): OpcaoMenu | 
 
 /** Escolha escrita de outro jeito ("quero falar com o financeiro, boleto"): a IA diz qual opção, ou nenhuma */
 export async function escolhaPelaIa(cfg: ConfigChatbot, texto: string, opcoes: OpcaoMenu[]): Promise<OpcaoMenu | null> {
-  const r = await clienteGemini(cfg).models.generateContent({
-    model: modeloDe(cfg),
-    contents: `Opções do menu de atendimento:\n${listaMenu(opcoes)}\n\nMensagem do cliente: "${texto.slice(0, 500)}"\n\nResponda só com o número da opção que o cliente escolheu, ou 0 se a mensagem não indica nenhuma.`,
-    config: { maxOutputTokens: 256 },
-  });
-  const n = Number(/\d+/.exec(r.text ?? '')?.[0]);
+  const pergunta = `Opções do menu de atendimento:\n${listaMenu(opcoes)}\n\nMensagem do cliente: "${texto.slice(0, 500)}"\n\nResponda só com o número da opção que o cliente escolheu, ou 0 se a mensagem não indica nenhuma.`;
+  const resposta =
+    formatoClaude(cfg)
+      ? textoClaude(await perguntarClaude(cfg, { max_tokens: 2048, messages: [{ role: 'user', content: pergunta }] }))
+      : (await clienteGemini(cfg).models.generateContent({ model: modeloDe(cfg), contents: pergunta, config: { maxOutputTokens: 256 } })).text;
+  const n = Number(/\d+/.exec(resposta ?? '')?.[0]);
   return opcoes.find((o) => o.numero === n) ?? null;
 }
 
@@ -627,6 +741,7 @@ export async function gerarRespostaIa(ctx: Contexto, cfg: ConfigChatbot, textoBa
   const contents = await historico(ctx);
   if (!contents.length) return '';
   const systemInstruction = instrucoes(cfg, textoBase, e[0]?.nome ?? '', hojeBrasilia(), await dadosDoCliente(ctx), ctx.departamento?.nome ?? null);
+  if (formatoClaude(cfg)) return respostaClaude(ctx, cfg, systemInstruction, paraClaude(contents));
   for (let volta = 0; volta < MAX_VOLTAS; volta++) {
     const r = await ai.models.generateContent({
       model: modeloDe(cfg),
@@ -646,8 +761,33 @@ export async function gerarRespostaIa(ctx: Contexto, cfg: ConfigChatbot, textoBa
   return '';
 }
 
+/** Ferramentas do bot no formato do Claude (as mesmas do Gemini) */
+const FERRAMENTAS_CLAUDE: Anthropic.Beta.BetaTool[] = FERRAMENTAS.map((f) => ({
+  name: f.name!,
+  description: f.description,
+  input_schema: f.parametersJsonSchema as Anthropic.Beta.BetaTool.InputSchema,
+}));
+
+/** gerarRespostaIa no Claude: responde, e quando ele pede uma ferramenta (lead, transferir) executa e devolve o resultado */
+async function respostaClaude(ctx: Contexto, cfg: ConfigChatbot, system: string, messages: Anthropic.Beta.BetaMessageParam[]): Promise<string> {
+  for (let volta = 0; volta < MAX_VOLTAS; volta++) {
+    const r = await perguntarClaude(cfg, { system, messages, tools: FERRAMENTAS_CLAUDE, max_tokens: 16000 });
+    const usos = r.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
+    if (r.stop_reason !== 'tool_use' || !usos.length) return textoClaude(r);
+    // A vez do Claude inteira (com o raciocínio) e depois todos os resultados numa mensagem só
+    messages.push({ role: 'assistant', content: r.content });
+    const resultados: Anthropic.Beta.BetaToolResultBlockParam[] = [];
+    for (const u of usos) {
+      const saida = await executarFerramenta(ctx, u.name, (u.input ?? {}) as Record<string, unknown>);
+      resultados.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(saida) });
+    }
+    messages.push({ role: 'user', content: resultados });
+  }
+  return '';
+}
+
 /**
- * Nó "IA (Gemini) Ex" da jornada: a IA conversa seguindo o texto-base do nó até o cliente indicar uma
+ * Nó "IA Ex" da jornada: a IA conversa seguindo o texto-base do nó até o cliente indicar uma
  * das opções. Devolve o número da opção (0 = ainda não indicou) e a mensagem a mandar quando for 0.
  * abertura = primeira vez no nó: só escolhe direto se a última mensagem já disser o que o cliente quer.
  */
@@ -685,22 +825,46 @@ ${
       ? '- Esta é a abertura da etapa: só escolha uma opção se a última mensagem do cliente já disser, com palavras, o que ele quer. Saudação, número solto ou resposta de uma etapa anterior não contam: nesse caso faça a pergunta.'
       : '- Considere sobretudo a última mensagem do cliente, que responde à sua pergunta; ele pode responder com o número ou com palavras.'
   }`;
-  const r = await clienteGemini(cfg).models.generateContent({
-    model: modeloDe(cfg),
-    contents,
-    config: {
-      systemInstruction,
-      maxOutputTokens: 1024,
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: { opcao: { type: Type.INTEGER }, mensagem: { type: Type.STRING } },
-        required: ['opcao', 'mensagem'],
-      },
-    },
-  });
+  const bruto =
+    formatoClaude(cfg)
+      ? textoClaude(
+          await perguntarClaude(cfg, {
+            system: systemInstruction,
+            messages: paraClaude(contents),
+            max_tokens: 16000,
+            // DeepSeek não aceita o esquema: o JSON vem pelas instruções do system (lido do texto abaixo)
+            output_config: iaDe(cfg) === 'deepseek' ? undefined : {
+              format: {
+                type: 'json_schema',
+                schema: {
+                  type: 'object',
+                  properties: { opcao: { type: 'integer' }, mensagem: { type: 'string' } },
+                  required: ['opcao', 'mensagem'],
+                  additionalProperties: false,
+                },
+              },
+            },
+          }),
+        )
+      : (
+          await clienteGemini(cfg).models.generateContent({
+            model: modeloDe(cfg),
+            contents,
+            config: {
+              systemInstruction,
+              maxOutputTokens: 1024,
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: { opcao: { type: Type.INTEGER }, mensagem: { type: Type.STRING } },
+                required: ['opcao', 'mensagem'],
+              },
+            },
+          })
+        ).text;
   try {
-    const j = JSON.parse(r.text ?? '{}');
+    // Só o objeto: sem esquema (DeepSeek), a resposta pode vir com texto ou ```json em volta
+    const j = JSON.parse(/\{[\s\S]*\}/.exec(bruto ?? '')?.[0] ?? '{}');
     return { opcao: soPerguntar ? 0 : Number(j.opcao) || 0, mensagem: String(j.mensagem ?? '').trim() };
   } catch {
     return { opcao: 0, mensagem: '' };

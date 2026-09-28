@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.42 — 2026-09-28
+
+- Chatbot: escolha da IA usada pela Automação: Gemini, Claude (Opus 5, Sonnet 5, Haiku 4.5) ou DeepSeek (deepseek-flash). Cada IA com a sua chave (gravada cifrada; trocar de IA não apaga a chave da outra). O nome do assistente é o primeiro campo da tela.
+- Chatbot: Claude e DeepSeek pelo SDK oficial da Anthropic (`@anthropic-ai/sdk`); o DeepSeek pelo endereço compatível (api.deepseek.com/anthropic). Claude com esforço baixo e, no Opus 5, fallback automático da Anthropic quando o filtro de segurança recusa.
+- Automação: os nós passaram a se chamar "IA" e "IA Ex"; a linha de falha explica também os erros do Claude e do DeepSeek (créditos/saldo acabaram, sobrecarga 529, chave inválida).
+- Whatsapp: documento enviado pelo cliente (PDF, planilha...) baixa ao clicar, com o nome original.
+
 ## 0.0.41 — 2026-09-28
 
 - Banco: `pessoas.tecnico_padrao_id` (SQL em extras/crmweb_schema.sql).
