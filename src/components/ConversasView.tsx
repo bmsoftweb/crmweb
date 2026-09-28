@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
-import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
-import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, atenderConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
+import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, limparConversa, atenderConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -206,6 +206,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   /** Segundos de gravação do áudio em andamento; null = não está gravando */
   const [gravando, setGravando] = useState<number | null>(null);
   const [descartar, setDescartar] = useState<'anexo' | 'gravacao' | null>(null);
+  /** Diálogo "Limpar a conversa" aberto (só administrador) */
+  const [limpando, setLimpando] = useState(false);
   const gravadorRef = useRef<{ rec: MediaRecorder; partes: Blob[]; enviar: boolean; timer: number } | null>(null);
   const arquivoRef = useRef<HTMLInputElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
@@ -697,6 +699,16 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                       Encerrar
                     </button>
                   )}
+                  {conversa.sou_admin && (
+                    <button
+                      onClick={() => setLimpando(true)}
+                      title="Limpar a conversa: apaga todas as mensagens deste número no CRM (só administrador)"
+                      aria-label="Limpar a conversa"
+                      className="flex items-center justify-center px-2 py-1.5 rounded-lg text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               )}
               {conversa && !nomeAberta && (
@@ -961,6 +973,22 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   </div>
                 </div>
               </div>
+            )}
+            {limpando && (
+              <ConfirmDialog
+                titulo="Limpar a conversa?"
+                mensagem={`Apaga todas as mensagens de ${nomeAberta || formatarTelefoneWa(aberta)} no CRM e a situação do atendimento (a próxima mensagem do cliente começa do zero). No WhatsApp do cliente nada muda. Não dá para desfazer.`}
+                confirmar="Limpar"
+                tom="perigo"
+                onConfirmar={async () => {
+                  const r = await limparConversa(aberta);
+                  setLimpando(false);
+                  setAberta(null);
+                  onToast(`Conversa limpa: ${r.apagadas} mensagem(ns) apagada(s).`);
+                  await carregarLista();
+                }}
+                onCancelar={() => setLimpando(false)}
+              />
             )}
             {descartar && (
               <ConfirmDialog

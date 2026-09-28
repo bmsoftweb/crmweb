@@ -582,6 +582,9 @@ export const fetchNaoVistas = (): Promise<{ total: number; encaminhadas: Encamin
 /** Encerrar a sessão da conversa: como se o tempo de devolver ao bot tivesse passado */
 export const encerrarConversa = (telefone: string): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/encerrar`);
+/** Limpar a conversa (só administrador): apaga as mensagens do número no CRM */
+export const limparConversa = (telefone: string): Promise<{ success: boolean; apagadas: number }> =>
+  enviar('DELETE', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`);
 /** Assumir a conversa (o chatbot para) ou devolvê-la ao chatbot */
 export const mudarAtendimentoConversa = (telefone: string, atendimento: 'bot' | 'humano'): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atendimento`, { atendimento });

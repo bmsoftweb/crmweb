@@ -242,6 +242,43 @@ export function createConversasRouter(): Router {
     }
   });
 
+  /**
+   * Limpar (só administrador): apaga o histórico do número no CRM (mensagens e situação do atendimento, com a
+   * automação); a conversa sai da lista e a próxima mensagem do cliente começa do zero. No WhatsApp do cliente nada muda.
+   * Chamados que citavam uma resposta enviada perdem só a ligação; pesquisa pendente expira.
+   */
+  router.delete('/whatsapp/conversas/:telefone', async (req: Request, res: Response) => {
+    try {
+      const telefone = req.params.telefone;
+      if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
+      if (res.locals.usuario?.tipo !== 'admin') return res.status(403).json({ error: 'Só o administrador pode limpar a conversa.' });
+      const emp = res.locals.empresaId;
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await conn.query(
+          'UPDATE chamado_mensagens SET whatsapp_id = NULL WHERE whatsapp_id IN (SELECT id FROM (SELECT id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?) x)',
+          [emp, telefone],
+        );
+        await conn.query(
+          "UPDATE avaliacoes SET situacao = 'expirada' WHERE empresa_id = ? AND telefone = ? AND situacao IN ('aguardando_nota', 'aguardando_comentario')",
+          [emp, telefone],
+        );
+        const [r] = await conn.query<any>('DELETE FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?', [emp, telefone]);
+        await conn.query('DELETE FROM whatsapp_conversas WHERE empresa_id = ? AND telefone = ?', [emp, telefone]);
+        await conn.commit();
+        res.json({ success: true, apagadas: Number(r.affectedRows) });
+      } catch (e) {
+        await conn.rollback();
+        throw e;
+      } finally {
+        conn.release();
+      }
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
   /** Atender: pega a conversa (o bot para, o aviso sonoro para e só este usuário responde) */
   router.post('/whatsapp/conversas/:telefone/atender', async (req: Request, res: Response) => {
     try {

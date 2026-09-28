@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.44 — 2026-09-28
+
+- Whatsapp: ícone "Limpar a conversa" no cabeçalho (só administrador, com confirmação): apaga as mensagens do número no CRM e a situação do atendimento; a próxima mensagem do cliente começa do zero. Pesquisa pendente expira; chamados perdem só a ligação com a resposta apagada.
+
 ## 0.0.43 — 2026-09-28
 
 - Whatsapp: encerramento por falta de interação. Cliente sem responder X minutos à última mensagem do bot ou do técnico (Configurações › Chatbot, padrão 10; 0 desliga): o bot avisa que vai encerrar e, 30 s depois sem resposta, encerra (pesquisa se um técnico atendia). Não vale para conversa aguardando atendente, parada num Esperar da Automação ou campanhas. Roda no cron do WhatsApp e no servidor local, com trava no banco.
