@@ -237,7 +237,17 @@ export function createChamadosRouter(): Router {
     const [r] = await pool.query<any[]>(`${SELECT} WHERE c.id = ? AND c.empresa_id = ?`, [req.params.id, emp(res)]);
     if (!r[0]) throw erro(404, 'Chamado não encontrado.');
     const [extra] = await pool.query<any[]>(
-      `SELECT c.descricao, a.nome AS aberto_por_nome, p.anydesk_id, COALESCE(NULLIF(p.whatsapp, ''), p.telefone, c.contato_telefone) AS pessoa_telefone,
+      // AnyDesk: o do cadastro da pessoa; sem ele (ou sem pessoa), o último que o mesmo cliente mandou em qualquer chamado
+      // (mesma pessoa ou mesmo CNPJ/CPF informado no site). '[[anydesk-id:' tem 13 caracteres e termina em ']]'
+      `SELECT c.descricao, c.conclusao, a.nome AS aberto_por_nome,
+              COALESCE(NULLIF(p.anydesk_id, ''),
+                       (SELECT SUBSTRING(m.texto, 14, CHAR_LENGTH(m.texto) - 15)
+                          FROM chamado_mensagens m JOIN chamados o ON o.id = m.chamado_id
+                         WHERE o.empresa_id = c.empresa_id AND m.autor = 'cliente' AND m.texto LIKE '[[anydesk-id:%'
+                           AND ((c.pessoa_id IS NOT NULL AND o.pessoa_id = c.pessoa_id)
+                                OR (c.contato_documento IS NOT NULL AND c.contato_documento <> '' AND o.contato_documento = c.contato_documento))
+                         ORDER BY m.id DESC LIMIT 1)) AS anydesk_id,
+              COALESCE(NULLIF(p.whatsapp, ''), p.telefone, c.contato_telefone) AS pessoa_telefone,
               c.contato_nome, c.contato_telefone, c.contato_documento
          FROM chamados c LEFT JOIN usuarios a ON a.id = c.aberto_por LEFT JOIN pessoas p ON p.id = c.pessoa_id WHERE c.id = ?`,
       [req.params.id],
@@ -345,10 +355,13 @@ export function createChamadosRouter(): Router {
     res.json({ success: true });
   }));
 
+  /** Encerrar: o técnico escreve a conclusão (o que foi feito, a solução); obrigatória */
   router.post('/chamados/:id/encerrar', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
     conferirDono(c, res);
-    await pool.query("UPDATE chamados SET status = 'encerrado', encerrado_em = NOW() WHERE id = ?", [c.id]);
+    const conclusao = String(req.body?.conclusao ?? '').trim().slice(0, 4000);
+    if (!conclusao) throw erro(400, 'Escreva a conclusão do atendimento: o que foi feito, a solução.');
+    await pool.query("UPDATE chamados SET status = 'encerrado', encerrado_em = NOW(), conclusao = ? WHERE id = ?", [conclusao, c.id]);
     await evento(c.id, eu(res), `Chamado encerrado por ${res.locals.usuario.nome}.`);
     await fecharSecao(c.id, 'encerrado');
     res.json({ success: true });

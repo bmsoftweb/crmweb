@@ -672,6 +672,8 @@ export interface ChamadoMensagem {
 
 export interface ChamadoDetalhe extends ChamadoResumo {
   descricao: string | null;
+  /** Conclusão escrita pelo técnico ao encerrar */
+  conclusao: string | null;
   aberto_por_nome: string | null;
   pessoa_telefone: string | null;
   /** Número do AnyDesk do cadastro da pessoa */
@@ -712,7 +714,7 @@ export const criarChamado = (dados: {
   atender: boolean;
 }): Promise<{ id: number; numero: number }> => enviar('POST', '/api/chamados', dados);
 export const assumirChamado = (id: number) => enviar('POST', `/api/chamados/${id}/assumir`);
-export const encerrarChamado = (id: number) => enviar('POST', `/api/chamados/${id}/encerrar`);
+export const encerrarChamado = (id: number, conclusao: string) => enviar('POST', `/api/chamados/${id}/encerrar`, { conclusao });
 export const transferirChamado = (id: number, destino: { usuario_id?: number; departamento_id?: number; observacao?: string }) =>
   enviar('POST', `/api/chamados/${id}/transferir`, destino);
 /** Pede ao cliente (chat do site) para abrir o AnyDesk */

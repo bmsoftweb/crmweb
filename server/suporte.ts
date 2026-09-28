@@ -189,7 +189,12 @@ export function createSuporteRouter(): Router {
     const id = digitos(req.body?.id, 12);
     if (id.length < 9) throw erro(400, 'Digite o número que aparece em "Seu endereço" no AnyDesk (9 ou 10 dígitos).');
     await gravarMensagem({ chamado_id: c.id, autor: 'cliente', texto: `[[anydesk-id:${id}]]` });
-    if (c.pessoa_id) await pool.query('UPDATE pessoas SET anydesk_id = ? WHERE id = ?', [id, c.pessoa_id]);
+    // Na pessoa do chamado; chamado sem pessoa: na pessoa com o CNPJ/CPF informado, se ela existir no cadastro
+    await pool.query(
+      `UPDATE pessoas p JOIN chamados c ON c.id = ? SET p.anydesk_id = ?
+        WHERE p.empresa_id = c.empresa_id AND (p.id = c.pessoa_id OR (c.pessoa_id IS NULL AND c.contato_documento <> '' AND p.cpf = c.contato_documento))`,
+      [c.id, id],
+    );
     res.json({ success: true });
   }));
 

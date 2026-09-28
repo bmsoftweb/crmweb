@@ -430,6 +430,8 @@ const ChamadoAberto: React.FC<{
   const [interna, setInterna] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [dialogo, setDialogo] = useState<'encerrar' | 'transferir' | null>(null);
+  /** Conclusão digitada no diálogo de encerrar */
+  const [conclusao, setConclusao] = useState('');
   const fim = useRef<HTMLDivElement>(null);
   const qtdMsgs = useRef(0);
   /** Linha do tempo: fica na última mensagem enquanto o técnico está no fim */
@@ -642,6 +644,14 @@ const ChamadoAberto: React.FC<{
             </div>
           ),
         )}
+        {c.conclusao && (
+          <div className="self-stretch rounded-xl px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 text-xs text-stone-800 dark:text-stone-100 whitespace-pre-wrap">
+            <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 mb-0.5">
+              Conclusão{c.atendente_nome ? ` • ${c.atendente_nome}` : ''}{c.encerrado_em ? ` • ${formatDateTimeBR(c.encerrado_em)}` : ''}
+            </div>
+            {c.conclusao}
+          </div>
+        )}
         <div ref={fim} />
       </div>
 
@@ -703,14 +713,32 @@ const ChamadoAberto: React.FC<{
           confirmar="Encerrar"
           tom="normal"
           onConfirmar={async () => {
-            await encerrarChamado(c.id);
+            if (!conclusao.trim()) throw new Error('Escreva a conclusão do atendimento.');
+            await encerrarChamado(c.id, conclusao);
+            setConclusao('');
             setDialogo(null);
             onToast(`Chamado nº ${c.numero} encerrado.`);
             onMudou();
             onVoltarFila();
           }}
           onCancelar={() => setDialogo(null)}
-        />
+        >
+          <div className={FIELD_CLASS}>
+            <label htmlFor="chamado-conclusao" className={LABEL_CLASS}>Conclusão</label>
+            <textarea
+              id="chamado-conclusao"
+              autoFocus
+              value={conclusao}
+              onChange={(e) => setConclusao(e.target.value)}
+              rows={4}
+              maxLength={4000}
+              required
+              placeholder="O que foi feito, a solução, o que ficou combinado com o cliente"
+              className={`${INPUT_CLASS} w-full resize-y`}
+            />
+            <span className={HINT_CLASS}>Fica no chamado; só a equipe vê</span>
+          </div>
+        </ConfirmDialog>
       )}
       {dialogo === 'transferir' && (
         <Transferir

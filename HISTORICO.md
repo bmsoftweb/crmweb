@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.46 — 2026-09-28
+
+- Banco: `chamados.conclusao` (SQL em extras/crmweb_schema.sql).
+- Chamados Ativos: ao encerrar, o técnico escreve a conclusão do atendimento (obrigatória); ela aparece no fim da conversa do chamado encerrado, com o técnico e a hora. Só a equipe vê.
+- Chamados: o "Conectar" do AnyDesk usa o número do cadastro da pessoa ou, sem ele (ou sem pessoa), o último que o mesmo cliente mandou em qualquer chamado (mesma pessoa ou mesmo CNPJ/CPF). O número enviado pelo site vai também para a pessoa com o CNPJ/CPF informado, quando o chamado não tem pessoa.
+
 ## 0.0.45 — 2026-09-28
 
 - Banco: nova tabela `templates_mensagens` (SQL em extras/crmweb_schema.sql).
