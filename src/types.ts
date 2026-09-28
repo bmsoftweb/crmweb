@@ -48,7 +48,7 @@ export interface FieldDef {
   json?: { campo: string; chave: string };
 }
 
-export type ResourceGroup = 'vendas' | 'marketing' | 'cadastros' | 'acesso';
+export type ResourceGroup = 'vendas' | 'marketing' | 'cadastros' | 'acesso' | 'suporte';
 
 /** Grade filha exibida ao selecionar uma linha da listagem (mestre-detalhe) */
 export interface DetailDef {

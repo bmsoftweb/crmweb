@@ -17,6 +17,9 @@ const PAUSA = 'Seu atendimento foi colocado em pausa. Assim que possível, um t�
 /** Na fila, sem atendente: os novos e os pausados (qualquer um pode assumir) */
 const NA_FILA = "('aguardando','pausado')";
 
+/** Começo do evento de transferência para um usuário: a contagem acha por ele a última transferida para quem consulta */
+const TRANSFERIDO_PARA = 'Chamado transferido para ';
+
 /** Texto da mensagem "Tela remota": o chat do site mostra o cartão com o botão que abre o AnyDesk */
 export const TELA_REMOTA = '[[anydesk]]';
 /** Texto da mensagem "Cutucar": o chat do site toca um som e treme para chamar a atenção do cliente */
@@ -178,8 +181,36 @@ export function createChamadosRouter(): Router {
         ORDER BY m.id DESC LIMIT 1`,
       [emp(res), eu(res)],
     );
+    // Último chamado transferido para mim (evento de outro usuário num chamado aberto que agora é meu): campainha
+    const [t] = await pool.query<any[]>(
+      `SELECT m.id, c.id AS chamado_id, c.numero, COALESCE(p.nome, c.contato_nome) AS nome, u.nome AS de
+         FROM chamado_mensagens m
+         JOIN chamados c ON c.id = m.chamado_id
+         LEFT JOIN pessoas p ON p.id = c.pessoa_id
+         LEFT JOIN usuarios u ON u.id = m.usuario_id
+        WHERE c.empresa_id = ? AND c.atendente_id = ? AND c.status NOT IN ${ENCERRADOS}
+          AND m.autor = 'sistema' AND m.usuario_id <> ? AND m.texto LIKE ?
+        ORDER BY m.id DESC LIMIT 1`,
+      [emp(res), eu(res), eu(res), `${TRANSFERIDO_PARA}%`],
+    );
+    // Último chamado transferido para o meu departamento por outra pessoa (voltou para a fila, sem atendente): campainha
+    const [td] = await pool.query<any[]>(
+      `SELECT m.id, c.id AS chamado_id, c.numero, COALESCE(p.nome, c.contato_nome) AS nome, u.nome AS de, d.nome AS departamento
+         FROM chamado_mensagens m
+         JOIN chamados c ON c.id = m.chamado_id
+         JOIN departamentos d ON d.id = c.departamento_id
+         LEFT JOIN pessoas p ON p.id = c.pessoa_id
+         LEFT JOIN usuarios u ON u.id = m.usuario_id
+        WHERE c.empresa_id = ? AND c.atendente_id IS NULL AND c.status IN ${NA_FILA}
+          AND c.departamento_id = (SELECT x.departamento_id FROM usuarios x WHERE x.id = ?)
+          AND m.autor = 'sistema' AND m.usuario_id <> ? AND m.texto LIKE ?
+        ORDER BY m.id DESC LIMIT 1`,
+      [emp(res), eu(res), eu(res), `${TRANSFERIDO_PARA}o departamento %`],
+    );
     res.json({
       fila: Number(r[0].n),
+      transferido: t[0] ?? null,
+      transferido_departamento: td[0] ?? null,
       // Último chamado da fila: quem é do departamento Suporte ouve o aviso de chamado novo
       novo: r[0].ultimo ? { id: Number(r[0].ultimo), numero: r[0].numero, nome: r[0].nome } : null,
       suporte: /^suporte/i.test(String(r[0].departamento || '').trim()),
@@ -300,12 +331,12 @@ export function createChamadosRouter(): Router {
       const [u] = await pool.query<any[]>('SELECT nome FROM usuarios WHERE id = ? AND empresa_id = ? AND ativo = 1', [usuarioId, emp(res)]);
       if (!u[0]) throw erro(400, 'Usuário de destino não encontrado ou inativo.');
       await pool.query("UPDATE chamados SET atendente_id = ?, status = 'em_andamento', assumido_em = NOW() WHERE id = ?", [usuarioId, c.id]);
-      texto = `Chamado transferido para ${u[0].nome} por ${res.locals.usuario.nome}.`;
+      texto = `${TRANSFERIDO_PARA}${u[0].nome} por ${res.locals.usuario.nome}.`;
     } else if (departamentoId) {
       const [d] = await pool.query<any[]>('SELECT nome FROM departamentos WHERE id = ? AND empresa_id = ?', [departamentoId, emp(res)]);
       if (!d[0]) throw erro(400, 'Departamento não encontrado.');
       await pool.query("UPDATE chamados SET atendente_id = NULL, departamento_id = ?, status = 'aguardando' WHERE id = ?", [departamentoId, c.id]);
-      texto = `Chamado transferido para o departamento ${d[0].nome} por ${res.locals.usuario.nome}. Voltou para a fila.`;
+      texto = `${TRANSFERIDO_PARA}o departamento ${d[0].nome} por ${res.locals.usuario.nome}. Voltou para a fila.`;
     } else throw erro(400, 'Escolha o usuário ou o departamento de destino.');
     // O aviso fica na seção de quem transferiu; depois ela fecha (e abre a do destino, se for um usuário)
     await evento(c.id, eu(res), obs ? `${texto} Obs.: ${obs}` : texto);

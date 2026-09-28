@@ -20,17 +20,20 @@ export function destravarSom() {
 /**
  * Cada aviso tem o seu som, para saber de onde veio sem olhar a tela:
  * whatsapp = dois bipes (conversa aguardando); suporte = três notas subindo, mais suaves (cliente
- * escreveu num chamado); chamado = "dim-dom" longo, descendo (chamado novo na fila, para o Suporte).
+ * escreveu num chamado); chamado = "dim-dom" longo, descendo (chamado novo na fila, para o Suporte);
+ * campainha = "ding-dong" duas vezes (chamado transferido para mim).
  */
 const SONS: Record<string, { notas: number[]; intervalo: number; duracao: number; onda: OscillatorType; volume?: number }> = {
   whatsapp: { notas: [880, 1175], intervalo: 0.25, duracao: 0.22, onda: 'sine' },
   suporte: { notas: [784, 988, 1319], intervalo: 0.13, duracao: 0.2, onda: 'triangle' },
   chamado: { notas: [1047, 1047, 698], intervalo: 0.18, duracao: 0.45, onda: 'sine', volume: 0.35 },
+  // Chamado transferido para mim: campainha de porta "ding-dong", duas vezes, com as notas soando longas
+  campainha: { notas: [1319, 1047, 1319, 1047], intervalo: 0.5, duracao: 0.9, onda: 'triangle', volume: 0.4 },
   // Cutucão do técnico no chat do site: campainha insistente (três toques duplos)
   cutucar: { notas: [1319, 988, 1319, 988, 1319, 988], intervalo: 0.12, duracao: 0.1, onda: 'square', volume: 0.12 },
 };
 
-export function tocarAviso(tipo: 'whatsapp' | 'suporte' | 'chamado' | 'cutucar' = 'whatsapp') {
+export function tocarAviso(tipo: 'whatsapp' | 'suporte' | 'chamado' | 'campainha' | 'cutucar' = 'whatsapp') {
   const som = SONS[tipo];
   try {
     ctx ??= new AudioContext();

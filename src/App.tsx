@@ -87,6 +87,8 @@ export default function App() {
   const [chamadoAbrir, setChamadoAbrir] = useState<number | null>(null);
   /** Conversas passadas ao meu departamento que já tocaram o aviso (telefone + quando) */
   const avisadasRef = useRef(new Set<string>());
+  /** Última conversa transferida para mim já avisada (null = ainda não carregou: sem campainha na abertura) */
+  const ultimaTransferidaWa = useRef<number | null>(null);
   const atualizarNaoVistas = useCallback(() => {
     fetchNaoVistas()
       .then((r) => {
@@ -95,10 +97,18 @@ export default function App() {
         const novas = (r.encaminhadas ?? []).filter((e) => !avisadasRef.current.has(`${e.telefone}|${e.desde}`));
         novas.forEach((e) => avisadasRef.current.add(`${e.telefone}|${e.desde}`));
         if (novas.length) {
-          tocarAviso();
+          tocarAviso('campainha');
           const e = novas[0];
           showToast(`${e.nome || `+${e.telefone}`} aguardando atendimento no ${e.departamento}${novas.length > 1 ? ` (e mais ${novas.length - 1})` : ''}. Veja em Conversas.`);
         }
+        // Conversa transferida para mim: a mesma campainha dos chamados
+        const tr = r.transferida;
+        if (tr && ultimaTransferidaWa.current !== null && tr.id > ultimaTransferidaWa.current) {
+          tocarAviso('campainha');
+          showToast(`Conversa de ${tr.nome || `+${tr.telefone}`} transferida para você${tr.de ? ` por ${tr.de}` : ''}. Veja no Whatsapp.`);
+          setRefreshToken((t) => t + 1);
+        }
+        ultimaTransferidaWa.current = Math.max(ultimaTransferidaWa.current ?? 0, tr?.id ?? 0);
       })
       .catch(() => {}); // sem a tabela ou sem conexão: fica sem etiqueta
   }, [showToast]);
@@ -118,6 +128,10 @@ export default function App() {
   /** Última mensagem de cliente já vista nos meus chamados (null = ainda não carregou: sem som na abertura) */
   const ultimaMsgChamado = useRef<number | null>(null);
   const ultimoChamadoFila = useRef<number | null>(null);
+  /** Última transferência de chamado para mim já avisada (null = ainda não carregou: sem campainha na abertura) */
+  const ultimaTransferencia = useRef<number | null>(null);
+  /** Idem, para chamado transferido para o meu departamento */
+  const ultimaTransferenciaDep = useRef<number | null>(null);
   /** Acabou de entrar (login ou sessão guardada): quem é do Suporte começa na Fila de Chamados */
   const recemEntrou = useRef(true);
   const atualizarFilaChamados = useCallback(() => {
@@ -144,6 +158,22 @@ export default function App() {
           showToast(`Novo chamado nº ${n.numero} na fila${n.nome ? ` (${n.nome})` : ''}.`);
         }
         ultimoChamadoFila.current = Math.max(ultimoChamadoFila.current ?? 0, n?.id ?? 0);
+        // Chamado transferido para mim: campainha, aviso na tela e as listas se atualizam
+        const tr = r.transferido;
+        if (tr && ultimaTransferencia.current !== null && tr.id > ultimaTransferencia.current) {
+          tocarAviso('campainha');
+          showToast(`Chamado nº ${tr.numero}${tr.nome ? ` (${tr.nome})` : ''} transferido para você${tr.de ? ` por ${tr.de}` : ''}.`);
+          setRefreshToken((t) => t + 1);
+        }
+        ultimaTransferencia.current = Math.max(ultimaTransferencia.current ?? 0, tr?.id ?? 0);
+        // Chamado transferido para o meu departamento (voltou para a fila): a mesma campainha
+        const td = r.transferido_departamento;
+        if (td && ultimaTransferenciaDep.current !== null && td.id > ultimaTransferenciaDep.current) {
+          tocarAviso('campainha');
+          showToast(`Chamado nº ${td.numero}${td.nome ? ` (${td.nome})` : ''} transferido para o ${td.departamento}${td.de ? ` por ${td.de}` : ''}. Veja na Fila de Chamados.`);
+          setRefreshToken((t) => t + 1);
+        }
+        ultimaTransferenciaDep.current = Math.max(ultimaTransferenciaDep.current ?? 0, td?.id ?? 0);
       })
       .catch(() => {}); // sem as tabelas ou sem conexão: fica sem etiqueta
   }, [showToast]);

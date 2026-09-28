@@ -578,10 +578,23 @@ export interface Encaminhada {
   departamento: string;
   desde: string;
 }
-export const fetchNaoVistas = (): Promise<{ total: number; encaminhadas: Encaminhada[] }> => get('/api/whatsapp/nao-vistas');
+export const fetchNaoVistas = (): Promise<{
+  total: number;
+  encaminhadas: Encaminhada[];
+  /** Última conversa transferida para o usuário por outra pessoa (id do evento) */
+  transferida: { id: number; telefone: string; nome: string | null; de: string | null } | null;
+}> => get('/api/whatsapp/nao-vistas');
 /** Encerrar a sessão da conversa: como se o tempo de devolver ao bot tivesse passado */
 export const encerrarConversa = (telefone: string): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/encerrar`);
+/** Template de mensagem (Suporte › Templates) */
+export interface TemplateMensagem {
+  id: number;
+  descricao: string;
+  texto: string;
+}
+/** Templates ativos do canal, para o botão dos chats */
+export const fetchTemplatesAtivos = (canal: 'whatsapp' | 'suporte'): Promise<TemplateMensagem[]> => get(`/api/templates/ativos?canal=${canal}`);
 /** Limpar a conversa (só administrador): apaga as mensagens do número no CRM */
 export const limparConversa = (telefone: string): Promise<{ success: boolean; apagadas: number }> =>
   enviar('DELETE', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`);
@@ -679,6 +692,10 @@ export const fetchContagemChamados = (): Promise<{
   suporte: boolean;
   /** Última mensagem de cliente nos chamados abertos que o usuário atende */
   mensagem: { id: number; chamado_id: number; numero: number; nome: string | null } | null;
+  /** Último chamado aberto transferido para o usuário por outra pessoa (id do evento) */
+  transferido: { id: number; chamado_id: number; numero: number; nome: string | null; de: string | null } | null;
+  /** Último chamado transferido para o departamento do usuário por outra pessoa (id do evento) */
+  transferido_departamento: { id: number; chamado_id: number; numero: number; nome: string | null; de: string | null; departamento: string } | null;
 }> => get('/api/chamados/contagem');
 export const fetchChamados = (filtro: FiltroChamados, q = ''): Promise<ChamadoResumo[]> =>
   get(`/api/chamados?filtro=${filtro}${q ? `&q=${encodeURIComponent(q)}` : ''}`);

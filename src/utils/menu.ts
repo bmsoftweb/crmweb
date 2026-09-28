@@ -89,6 +89,10 @@ export function gruposDoMenu(resources: ResourceDef[]): { titulo: string; itens:
       itens: [
         { id: 'chamados_fila', label: 'Fila de Chamados', descricao: 'Chamados aguardando atendimento', icone: Inbox },
         { id: 'chamados_ativos', label: 'Chamados Ativos', descricao: 'Atendimento dos chamados', icone: Headset },
+        // Cadastros do grupo suporte (Templates) entram aqui, depois das telas
+        ...resources
+          .filter((r) => r.group === 'suporte' && !r.oculto)
+          .map((r) => ({ id: r.name, label: r.label, descricao: r.description, icone: ICONS[r.icon] || Database })),
       ],
     },
     ...GROUP_ORDER.map((group) => ({

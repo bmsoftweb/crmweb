@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.45 — 2026-09-28
+
+- Banco: nova tabela `templates_mensagens` (SQL em extras/crmweb_schema.sql).
+- Suporte › Templates: cadastro de mensagens prontas (descrição, texto, canal WhatsApp/Suporte/ambos, ativo), com permissão por usuário. Botão de templates ao lado do campo da mensagem no WhatsApp e nos Chamados Ativos: busca, e ao escolher o texto vai para o campo com {{nome}}, {{primeiro_nome}} e {{atendente}} trocados.
+- Whatsapp: card em atendimento com barra azul de 3 px na borda esquerda; sem hora de início gravada, o card mostra só o nome do atendente.
+- Avisos sonoros: campainha ("ding-dong") quando um chamado ou uma conversa do WhatsApp é transferido para o técnico, quando um chamado é transferido para o departamento dele (antes sem som) e quando uma conversa do WhatsApp chega ao departamento dele (antes dois bipes). Quem transferiu não ouve.
+
 ## 0.0.44 — 2026-09-28
 
 - Whatsapp: ícone "Limpar a conversa" no cabeçalho (só administrador, com confirmação): apaga as mensagens do número no CRM e a situação do atendimento; a próxima mensagem do cliente começa do zero. Pesquisa pendente expira; chamados perdem só a ligação com a resposta apagada.

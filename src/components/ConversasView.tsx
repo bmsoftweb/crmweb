@@ -8,6 +8,8 @@ import { OpcaoRef } from '../types';
 import { SelectBusca } from './SelectBusca';
 import { AvisoErro } from './AvisoErro';
 import { ConfirmDialog } from './ConfirmDialog';
+import { BotaoTemplates } from './BotaoTemplates';
+import { lerSessao } from '../utils/session';
 import { Toggle } from './Toggle';
 
 /** Quem pediu para abrir uma conversa (seq muda a cada clique) */
@@ -497,6 +499,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   onClick={() => setAberta(c.telefone)}
                   className={`w-full text-left px-3 py-2.5 flex gap-3 items-center border-b border-stone-100 dark:border-stone-800/70 cursor-pointer transition-colors ${
                     ativa ? 'bg-blue-50 dark:bg-blue-950/40' : 'hover:bg-stone-50 dark:hover:bg-stone-800/50'
+                  } ${
+                    // Em atendimento: barra azul de 3 px na borda esquerda (sombra interna: o conteúdo não se desloca)
+                    c.estado === 'atendimento' ? 'shadow-[inset_3px_0_0_#2563eb]' : ''
                   }`}
                 >
                   {c.nome ? (
@@ -567,11 +572,12 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                       )}
                       {c.estado === 'atendimento' && (
                         <span
-                          title={`Em atendimento com ${c.atendente_nome} desde ${c.atendido_em?.slice(11, 16) ?? ''}`}
+                          title={`Em atendimento com ${c.atendente_nome}${c.atendido_em ? ` desde ${c.atendido_em.slice(11, 16)}` : ''}`}
                           className="shrink-0 flex items-center gap-0.5 text-[10px] font-semibold px-1.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                         >
                           <User className="w-2.5 h-2.5" />
-                          {c.atendente_nome} · {c.atendido_em?.slice(11, 16)}
+                          {c.atendente_nome}
+                          {c.atendido_em && ` · ${c.atendido_em.slice(11, 16)}`}
                         </span>
                       )}
                       {c.departamento && (
@@ -885,6 +891,16 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   >
                     <Paperclip className="w-4 h-4" />
                   </button>
+                  <BotaoTemplates
+                    canal="whatsapp"
+                    vars={{ nome: nomeAberta || perfilAberta, atendente: lerSessao()?.usuario.nome }}
+                    onEscolher={(t) => {
+                      setTexto((atual) => (atual.trim() ? `${atual.trimEnd()}\n${t}` : t));
+                      setTimeout(() => campoRef.current?.focus());
+                    }}
+                    disabled={enviando}
+                    className="flex items-center justify-center px-3 rounded-lg text-stone-600 dark:text-stone-300 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50"
+                  />
                   <textarea
                     ref={campoRef}
                     value={texto}

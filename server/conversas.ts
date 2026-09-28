@@ -8,6 +8,9 @@ import { jornadaAtende, lerJornadaConfig } from './jornada.js';
 import { podeAcessar } from './permissoes.js';
 import { enviarPesquisa } from './pesquisa.js';
 
+/** Começo do evento de transferência (para um atendente ou um departamento): /whatsapp/nao-vistas acha por ele a transferida para mim */
+const TRANSFERIDO_PARA = 'Transferido para ';
+
 /**
  * Tela de conversas do WhatsApp: uma conversa por telefone (whatsapp_mensagens.telefone, só
  * dígitos com DDI). As mensagens chegam pelo webhook da Evolution (server/whatsapp.ts).
@@ -279,6 +282,20 @@ export function createConversasRouter(): Router {
     }
   });
 
+  /** Templates ativos do canal (Suporte › Templates) para o botão dos chats: quem atende usa, mesmo sem acesso ao cadastro */
+  router.get('/templates/ativos', async (req: Request, res: Response) => {
+    try {
+      const canal = req.query.canal === 'suporte' ? 'suporte' : 'whatsapp';
+      const [r] = await pool.query<any[]>(
+        "SELECT id, descricao, texto FROM templates_mensagens WHERE empresa_id = ? AND ativo = 1 AND canal IN ('todos', ?) ORDER BY descricao LIMIT 500",
+        [res.locals.empresaId, canal],
+      );
+      res.json(r);
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
   /** Atender: pega a conversa (o bot para, o aviso sonoro para e só este usuário responde) */
   router.post('/whatsapp/conversas/:telefone/atender', async (req: Request, res: Response) => {
     try {
@@ -310,7 +327,7 @@ export function createConversasRouter(): Router {
           "UPDATE whatsapp_conversas SET atendimento = 'humano', atendente_id = ?, atendido_em = NOW(), humano_desde = COALESCE(humano_desde, NOW()), retomar_em = NULL, atualizado_em = NOW() WHERE empresa_id = ? AND telefone = ?",
           [u[0].id, emp, telefone],
         );
-        await marcarEvento(emp, telefone, `Transferido para ${u[0].nome} por ${eu}`, res.locals.usuarioId);
+        await marcarEvento(emp, telefone, `${TRANSFERIDO_PARA}${u[0].nome} por ${eu}`, res.locals.usuarioId);
       } else if (departamentoId) {
         const [d] = await pool.query<any[]>('SELECT id, nome FROM departamentos WHERE id = ? AND empresa_id = ?', [departamentoId, emp]);
         if (!d[0]) return res.status(400).json({ error: 'Departamento não encontrado.' });
@@ -319,7 +336,7 @@ export function createConversasRouter(): Router {
           "UPDATE whatsapp_conversas SET atendimento = 'humano', atendente_id = NULL, atendido_em = NULL, departamento_id = ?, humano_desde = NOW(), retomar_em = NULL, atualizado_em = NOW() WHERE empresa_id = ? AND telefone = ?",
           [d[0].id, emp, telefone],
         );
-        await marcarEvento(emp, telefone, `Transferido para ${d[0].nome} por ${eu}`, res.locals.usuarioId);
+        await marcarEvento(emp, telefone, `${TRANSFERIDO_PARA}${d[0].nome} por ${eu}`, res.locals.usuarioId);
       } else {
         return res.status(400).json({ error: 'Escolha um atendente ou um departamento.' });
       }
@@ -361,7 +378,20 @@ export function createConversasRouter(): Router {
             AND c.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)`,
         [res.locals.empresaId, res.locals.usuario.id],
       );
-      res.json({ total: Number(r[0].total), encaminhadas });
+      // Última conversa transferida para mim por outra pessoa (evento da transferência): a tela toca a campainha
+      const [t] = await pool.query<any[]>(
+        `SELECT w.id, c.telefone, u.nome AS de,
+                COALESCE((SELECT p.nome FROM whatsapp_mensagens x JOIN pessoas p ON p.id = x.pessoa_id
+                           WHERE x.empresa_id = c.empresa_id AND x.telefone = c.telefone ORDER BY x.id DESC LIMIT 1), ${NOME_CONTATO('c')}) AS nome
+           FROM whatsapp_conversas c
+           JOIN whatsapp_mensagens w ON w.id = (SELECT MAX(e.id) FROM whatsapp_mensagens e
+                                                 WHERE e.empresa_id = c.empresa_id AND e.telefone = c.telefone AND e.tipo = 'evento' AND e.texto LIKE ?)
+           LEFT JOIN usuarios u ON u.id = w.usuario_id
+          WHERE c.empresa_id = ? AND c.atendente_id = ? AND w.usuario_id <> ?
+          ORDER BY w.id DESC LIMIT 1`,
+        [`${TRANSFERIDO_PARA}%`, res.locals.empresaId, res.locals.usuario.id, res.locals.usuario.id],
+      );
+      res.json({ total: Number(r[0].total), encaminhadas, transferida: t[0] ?? null });
     } catch (err: any) {
       falha(res, err);
     }

@@ -174,6 +174,7 @@ export const GROUP_LABELS: Record<string, string> = {
   marketing: 'Marketing',
   cadastros: 'Cadastros',
   acesso: 'Acesso',
+  suporte: 'Suporte',
 };
 
 /** Valor em reais (ou na moeda do negócio) */

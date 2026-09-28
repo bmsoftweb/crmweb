@@ -24,6 +24,8 @@ import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/form
 import { ConfirmDialog } from './ConfirmDialog';
 import { AvisoErro } from './AvisoErro';
 import { Toggle } from './Toggle';
+import { BotaoTemplates } from './BotaoTemplates';
+import { lerSessao } from '../utils/session';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
 
 /**
@@ -664,6 +666,16 @@ const ChamadoAberto: React.FC<{
           />
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
+              <BotaoTemplates
+                canal="suporte"
+                vars={{ nome: c.pessoa_nome, atendente: lerSessao()?.usuario.nome }}
+                onEscolher={(t) => {
+                  setTexto((atual) => (atual.trim() ? `${atual.trimEnd()}\n${t}` : t));
+                  setTimeout(() => campoResposta.current?.focus(), 0);
+                }}
+                disabled={enviando}
+                className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800`}
+              />
               <Toggle checked={interna} onChange={setInterna} size="sm" label={<span className="inline-flex items-center gap-1 text-xs"><StickyNote className="w-3.5 h-3.5 text-amber-600" /> Nota interna</span>} />
               {botoesSite}
             </div>

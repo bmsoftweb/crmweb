@@ -95,7 +95,7 @@ export interface ResourceDef {
   /** Ícone lucide-react renderizado na sidebar */
   icon: string;
   /** Agrupamento na sidebar */
-  group: 'vendas' | 'marketing' | 'cadastros' | 'acesso';
+  group: 'vendas' | 'marketing' | 'cadastros' | 'acesso' | 'suporte';
   /** Não aparece no menu (só como detalhe de outro recurso) */
   oculto?: boolean;
   /** Chave primária */
@@ -166,6 +166,13 @@ export const LEMBRETE_PARA = [
   { value: 'vendedor', label: 'Vendedor' },
   { value: 'ambos', label: 'Cliente e vendedor' },
   { value: 'nenhum', label: 'Ninguém' },
+];
+
+/** Onde o template aparece: nos dois chats, só no WhatsApp ou só nos Chamados */
+export const CANAIS_TEMPLATE = [
+  { value: 'todos', label: 'WhatsApp e Suporte' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'suporte', label: 'Suporte' },
 ];
 
 export const TIPOS_PESSOA = [
@@ -935,6 +942,41 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 80 },
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true, default: true, width: 'xs' },
       { name: 'criado_em', label: 'Criado em', type: 'datetime', readOnly: true },
+    ],
+  },
+  {
+    // Suporte › Templates: textos prontos para responder no WhatsApp e nos Chamados (botão ao lado do campo da mensagem)
+    name: 'templates',
+    table: 'templates_mensagens',
+    tenantColumn: 'empresa_id',
+    scopeSql: 't.empresa_id = ?',
+    label: 'Templates',
+    labelSingular: 'Template',
+    description: 'Mensagens prontas para o WhatsApp e os chamados',
+    icon: 'MessageSquareText',
+    group: 'suporte',
+    pk: ['id'],
+    autoIncrement: true,
+    labelField: 'descricao',
+    defaultSort: { field: 'descricao', dir: 'asc' },
+    canCreate: true,
+    canUpdate: true,
+    canDelete: true,
+    fields: [
+      ID,
+      { name: 'descricao', label: 'Descrição', type: 'text', required: true, listed: true, searchable: true, maxLength: 100, span: 3, hint: 'Nome curto: é o que aparece na lista de escolha' },
+      { name: 'canal', label: 'Canal', type: 'enum', required: true, listed: true, filterable: true, options: CANAIS_TEMPLATE, default: 'todos', width: 'xs', span: 1 },
+      {
+        name: 'texto',
+        label: 'Texto',
+        type: 'textarea',
+        required: true,
+        listed: true,
+        searchable: true,
+        hint: 'Variáveis: {{nome}} e {{primeiro_nome}} do cliente, {{atendente}} = quem envia',
+      },
+      { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true, default: true, width: 'xs' },
+      ...CRIADO_ATUALIZADO,
     ],
   },
   {
