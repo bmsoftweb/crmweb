@@ -7,6 +7,7 @@ import { iniciarEnvioWhatsApp } from './server/whatsapp.js';
 import { iniciarRotinaContratos } from './server/contratos.js';
 import { iniciarAutomaticas } from './server/automaticas.js';
 import { iniciarJornadas } from './server/jornada.js';
+import { iniciarInatividade } from './server/inatividade.js';
 
 /** Entrada para execução local (npm run dev / start). Na Vercel quem serve as rotas é api/index.ts */
 const PORT = Number(process.env.PORT) || 3000;
@@ -34,6 +35,7 @@ async function startServer() {
     iniciarEnvioWhatsApp();
     iniciarAutomaticas();
     iniciarJornadas();
+    iniciarInatividade();
     iniciarRotinaContratos();
   });
 }

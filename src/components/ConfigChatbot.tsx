@@ -13,6 +13,8 @@ interface Chatbot {
   modelo: string;
   nome: string;
   minutos_devolver: number;
+  /** Cliente sem responder: aviso e encerramento depois de X minutos (0 = desligado) */
+  minutos_inatividade: number;
   /** Digitada agora; em branco mantém a gravada (da IA escolhida) */
   chave: string;
   /** IAs e os modelos de cada uma (vêm do servidor) */
@@ -159,6 +161,11 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
             <label htmlFor="bot-minutos" className={LABEL_CLASS}>Devolver ao bot depois de (minutos)</label>
             <NumberField id="bot-minutos" value={String(v.minutos_devolver)} onChange={(t) => alterar({ minutos_devolver: Number(t) || 0 })} scale={0} className={campo} />
             <span className={HINT_CLASS}>Conversa com humano volta ao bot após esse tempo sem mensagem de atendente</span>
+          </div>
+          <div className={FIELD_CLASS}>
+            <label htmlFor="bot-inatividade" className={LABEL_CLASS}>Encerrar por falta de interação após (minutos)</label>
+            <NumberField id="bot-inatividade" value={String(v.minutos_inatividade)} onChange={(t) => alterar({ minutos_inatividade: Number(t) || 0 })} scale={0} className={campo} />
+            <span className={HINT_CLASS}>Cliente sem responder ao bot ou ao técnico: o bot avisa e encerra 30 segundos depois. 0 = desligado</span>
           </div>
         </div>
 

@@ -24,6 +24,7 @@ import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/form
 import { ConfirmDialog } from './ConfirmDialog';
 import { AvisoErro } from './AvisoErro';
 import { Toggle } from './Toggle';
+import { useGrudarNoFim } from '../utils/grudarNoFim';
 
 /**
  * Suporte › Fila de Chamados e Chamados Ativos (server/chamados.ts), no modelo do solweb: a fila
@@ -429,6 +430,8 @@ const ChamadoAberto: React.FC<{
   const [dialogo, setDialogo] = useState<'encerrar' | 'transferir' | null>(null);
   const fim = useRef<HTMLDivElement>(null);
   const qtdMsgs = useRef(0);
+  /** Linha do tempo: fica na última mensagem enquanto o técnico está no fim */
+  const linhaDoTempo = useRef<HTMLDivElement>(null);
   /** Campo da resposta: o foco volta para ele depois de enviar (fica desabilitado enquanto envia) */
   const campoResposta = useRef<HTMLTextAreaElement>(null);
 
@@ -438,6 +441,7 @@ const ChamadoAberto: React.FC<{
       .catch((e) => setErro(e.message));
   }, [id]);
   useRecarga(carregar, [carregar, refreshToken]);
+  useGrudarNoFim(linhaDoTempo, c ? id : null);
 
   // Mensagem nova: rola para o fim
   useEffect(() => {
@@ -587,7 +591,7 @@ const ChamadoAberto: React.FC<{
       )}
 
       {/* Linha do tempo */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-2">
+      <div ref={linhaDoTempo} className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-2">
         {c.descricao && (
           <div className="self-start max-w-[80%] rounded-xl px-3 py-2 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-xs text-stone-800 dark:text-stone-100 whitespace-pre-wrap">
             <div className="text-[10px] font-semibold text-stone-400 mb-0.5">Descrição{c.aberto_por_nome ? ` • aberto por ${c.aberto_por_nome}` : ''}</div>

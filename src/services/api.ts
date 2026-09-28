@@ -486,8 +486,8 @@ export interface ConversaResumo {
   nao_vistas: number;
   /** Departamento escolhido no menu do chatbot */
   departamento: string | null;
-  /** bot = com o bot/jornada; aguardando = esperando alguém atender; atendimento = alguém pegou */
-  estado: 'bot' | 'aguardando' | 'atendimento' | null;
+  /** bot = com o bot/jornada; aguardando = esperando alguém atender; atendimento = alguém pegou; encerrado = encerrado e o cliente ainda não escreveu de novo */
+  estado: 'bot' | 'aguardando' | 'atendimento' | 'encerrado' | null;
   atendente_nome: string | null;
   atendido_em: string | null;
   aguardando_desde: string | null;

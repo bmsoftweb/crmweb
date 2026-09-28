@@ -17,6 +17,7 @@ import { createContratosRouter, createWebhookD4SignRouter, rotinaContratos } fro
 import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 import { enviarAutomaticas } from './automaticas.js';
 import { responderComBot } from './chatbot.js';
+import { verificarInatividade } from './inatividade.js';
 import { tratarRespostaPesquisa } from './pesquisa.js';
 import { createAceiteRouter } from './aceite.js';
 import { createSuporteRouter } from './suporte.js';
@@ -205,7 +206,17 @@ export function createApp() {
     }
   };
   // A função tem até 60 s: campanhas até 25 s, automáticas até 20 s; o resto fica para o minuto seguinte
-  app.get('/api/cron/whatsapp', cron(async () => ({ campanhas: await enviarPendentes(50, 25_000), automaticas: await enviarAutomaticas(20_000), jornadas: await retomarJornadas(20_000) })));
+  // Inatividade em paralelo: ela espera 30 s depois de avisar, e não pode atrasar as outras
+  app.get(
+    '/api/cron/whatsapp',
+    cron(async () => {
+      const [inatividade, resto] = await Promise.all([
+        verificarInatividade(),
+        (async () => ({ campanhas: await enviarPendentes(50, 25_000), automaticas: await enviarAutomaticas(20_000), jornadas: await retomarJornadas(20_000) }))(),
+      ]);
+      return { ...resto, inatividade };
+    }),
+  );
   app.get('/api/cron/contratos', cron(rotinaContratos));
 
   // ==========================================================

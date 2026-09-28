@@ -332,7 +332,8 @@ export function createConversasRouter(): Router {
 
   /**
    * Conversas, da mais recente para a mais antiga, com a última mensagem, as não vistas e o
-   * departamento escolhido no menu do chatbot. ?minhas=1: as sem departamento, as do meu departamento
+   * departamento escolhido no menu do chatbot. Estado "encerrado": atendimento encerrado e o cliente ainda não
+   * escreveu de novo. ?minhas=1: as sem departamento, as do meu departamento
    * as que eu assumi e as dos clientes de que sou o técnico padrão.
    */
   router.get('/whatsapp/conversas', async (req: Request, res: Response) => {
@@ -346,12 +347,15 @@ export function createConversasRouter(): Router {
       const [rows] = await pool.query<any[]>(
         `SELECT w.telefone, x.pessoa_id, p.nome, x.contato_id, c.nome AS contato_nome, COALESCE(c.departamento, c.cargo) AS contato_setor,
                 ${NOME_CONTATO('w')} AS nome_contato, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao,
-                DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, d.nome AS departamento,
+                DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, x.encerrada, d.nome AS departamento,
                 wc.atendimento, wc.atendente_id, ua.nome AS atendente_nome, tp.nome AS tecnico_padrao_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
                 DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde
-           FROM (SELECT telefone, MAX(id) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
-                        SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas
-                   FROM whatsapp_mensagens WHERE empresa_id = ? AND tipo NOT IN ('encerramento', 'evento') GROUP BY telefone) x
+           FROM (SELECT telefone, MAX(IF(tipo NOT IN ('encerramento', 'evento'), id, NULL)) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
+                        SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas,
+                        -- Encerrado (botão, tempo ou fim da automação) e o cliente ainda não escreveu de novo (a nota da pesquisa não conta)
+                        COALESCE(MAX(IF(tipo = 'encerramento', data_hora, NULL))
+                                 > COALESCE(MAX(IF(direcao = 'recebida' AND (origem IS NULL OR origem NOT LIKE 'pesquisa%'), data_hora, NULL)), '1000-01-01'), 0) AS encerrada
+                   FROM whatsapp_mensagens WHERE empresa_id = ? GROUP BY telefone HAVING ultima IS NOT NULL) x
            JOIN whatsapp_mensagens w ON w.id = x.ultima
            LEFT JOIN pessoas p ON p.id = x.pessoa_id
            LEFT JOIN pessoas_contatos c ON c.id = x.contato_id
@@ -370,10 +374,13 @@ export function createConversasRouter(): Router {
       // Estado: em atendimento (alguém pegou), aguardando (humano sem atendente; sem bot, quando o
       // cliente foi o último a escrever) ou com o bot
       res.json(
-        rows.map(({ atendimento, atendente_id, ...r }) => {
+        rows.map(({ atendimento, atendente_id, encerrada, ...r }) => {
           const comBot = jornadaAtende(jornada, r.telefone);
+          // Encerrada fica marcada até o cliente mandar mensagem de novo (aí começa outro ciclo)
           const estado = atendente_id
             ? 'atendimento'
+            : Number(encerrada)
+              ? 'encerrado'
             : atendimento === 'humano' || (!comBot && r.direcao === 'recebida')
               ? 'aguardando'
               : comBot

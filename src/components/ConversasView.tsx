@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useGrudarNoFim } from '../utils/grudarNoFim';
 import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, User, UserPlus, X } from 'lucide-react';
 import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, atenderConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
@@ -227,6 +228,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [novaAberta, setNovaAberta] = useState(false);
   const [escolhido, setEscolhido] = useState<{ telefone: string; nome: string } | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
+  /** Caixa das mensagens: fica na última enquanto o atendente está no fim */
+  const mensagensRef = useRef<HTMLDivElement>(null);
   const conversasRef = useRef(conversas);
   conversasRef.current = conversas;
   /** Quantas mensagens a conversa tinha: rola para o fim só quando chegam novas */
@@ -297,6 +300,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
     const i = setInterval(() => !document.hidden && carregarConversa(aberta), 5_000);
     return () => clearInterval(i);
   }, [aberta, carregarConversa, refreshToken]);
+
+  useGrudarNoFim(mensagensRef, aberta && conversa ? aberta : null);
 
   // Mensagens novas: vai para o fim (a primeira carga também)
   useLayoutEffect(() => {
@@ -541,7 +546,15 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                           Aguardando
                         </span>
                       )}
-                      {c.estado !== 'atendimento' && c.tecnico_padrao_nome && (
+                      {c.estado === 'encerrado' && (
+                        <span
+                          title="Atendimento encerrado: a próxima mensagem do cliente começa um novo atendimento"
+                          className="shrink-0 text-[10px] font-semibold px-1.5 rounded bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                        >
+                          Encerrado
+                        </span>
+                      )}
+                      {c.estado !== 'atendimento' && c.estado !== 'encerrado' && c.tecnico_padrao_nome && (
                         <span
                           title="Técnico padrão do cliente: quem deve atender (outro pode assumir)"
                           className="shrink-0 flex items-center gap-0.5 text-[10px] font-semibold px-1.5 rounded bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
@@ -698,7 +711,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
               )}
             </header>
 
-            <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 bg-stone-100 dark:bg-stone-950">
+            <div ref={mensagensRef} className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 bg-stone-100 dark:bg-stone-950">
               {!conversa ? (
                 <div className="flex justify-center py-6">
                   <Loader2 className="w-4 h-4 animate-spin text-stone-400" />

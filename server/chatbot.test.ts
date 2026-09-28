@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { chatbotPublica, escolhaDoTexto, explicarErro, temChave, listaMenu, minutosDevolver, prepararChatbot } from './chatbot.js';
+import { chatbotPublica, escolhaDoTexto, explicarErro, minutosInatividade, temChave, listaMenu, minutosDevolver, prepararChatbot } from './chatbot.js';
 
 // Sem nada gravado: modelo e nome padrão, sem chave
 const vazio = chatbotPublica(null);
@@ -102,3 +102,11 @@ assert.match(explicarErro('401 {"error":{"message":"Authentication Fails","code"
 assert.match(explicarErro('402 {"error":{"message":"Insufficient Balance"}}'), /saldo da conta da IA acabou/);
 assert.match(explicarErro('{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}'), /limite de uso/);
 assert.strictEqual(explicarErro('timeout'), 'timeout');
+
+// Encerramento por falta de interação: padrão 10 min, 0 desliga, sem configuração do chatbot fica desligado
+assert.strictEqual(minutosInatividade(gravada), 10);
+assert.strictEqual(minutosInatividade(null), 0);
+assert.strictEqual(prepararChatbot({ ...gravada, chave: '', minutos_inatividade: 0 }, gravada).minutos_inatividade, 0);
+assert.strictEqual(minutosInatividade(prepararChatbot({ ...gravada, chave: '', minutos_inatividade: 0 }, gravada)), 0);
+assert.strictEqual(chatbotPublica(null).minutos_inatividade, 10);
+assert.throws(() => prepararChatbot({ ...gravada, chave: '', minutos_inatividade: 2000 }, gravada), /0 \(desligado\) a 1.440/);

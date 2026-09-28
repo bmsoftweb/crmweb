@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.43 — 2026-09-28
+
+- Whatsapp: encerramento por falta de interação. Cliente sem responder X minutos à última mensagem do bot ou do técnico (Configurações › Chatbot, padrão 10; 0 desliga): o bot avisa que vai encerrar e, 30 s depois sem resposta, encerra (pesquisa se um técnico atendia). Não vale para conversa aguardando atendente, parada num Esperar da Automação ou campanhas. Roda no cron do WhatsApp e no servidor local, com trava no banco.
+- Whatsapp: tag "Encerrado" na lista depois de encerrar, até o cliente mandar mensagem de novo (a nota da pesquisa não conta).
+- Whatsapp e Chamados Ativos: o chat fica na última mensagem enquanto o técnico está no fim (imagem, áudio ou resposta do bot que chega depois não escondem mais o fim).
+- Chat do site: sem "Pular avaliação"; o cliente avalia para abrir um novo atendimento.
+
 ## 0.0.42 — 2026-09-28
 
 - Chatbot: escolha da IA usada pela Automação: Gemini, Claude (Opus 5, Sonnet 5, Haiku 4.5) ou DeepSeek (deepseek-flash). Cada IA com a sua chave (gravada cifrada; trocar de IA não apaga a chave da outra). O nome do assistente é o primeiro campo da tela.

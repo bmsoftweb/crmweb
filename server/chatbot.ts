@@ -94,6 +94,8 @@ export interface ConfigChatbot {
   texto_base?: string;
   /** Conversa com humano volta ao bot depois de X minutos sem mensagem de atendente */
   minutos_devolver: number;
+  /** Cliente sem responder X minutos à última mensagem do bot/técnico: aviso e encerramento (server/inatividade.ts); 0 = desligado */
+  minutos_inatividade?: number;
   /** Versão antiga (em horas): lida só para converter, ver minutosDevolver */
   horas_devolver?: number;
   /** Versão antiga (lista de vendedores): o revezamento agora é usuarios.revezamento; ignorada */
@@ -107,6 +109,7 @@ const PADRAO: Omit<ConfigChatbot, CampoChave> = {
   modelo: 'gemini-3.8-flash',
   nome: 'Assistente',
   minutos_devolver: 240,
+  minutos_inatividade: 10,
   ultimo_vendedor_id: null,
 };
 
@@ -119,6 +122,7 @@ export function prepararChatbot(valor: any, anterior: ConfigChatbot | null): Con
     modelo: String(valor?.modelo ?? '').trim() || dadosIa(ia).modelos[0].value,
     nome: textoConfig(valor?.nome, 60, 'Chatbot: nome do assistente') || PADRAO.nome,
     minutos_devolver: Number(valor?.minutos_devolver ?? PADRAO.minutos_devolver),
+    minutos_inatividade: Number(valor?.minutos_inatividade ?? PADRAO.minutos_inatividade),
     ultimo_vendedor_id: anterior?.ultimo_vendedor_id ?? null,
   };
   // Texto-base antigo: fica como estava (o nó IA sem texto-base próprio ainda usa)
@@ -126,6 +130,9 @@ export function prepararChatbot(valor: any, anterior: ConfigChatbot | null): Con
   if (!dadosIa(ia).modelos.some((m) => m.value === cfg.modelo)) throw new Error(`Chatbot: modelo "${cfg.modelo}" não está na lista do ${dadosIa(ia).nome}.`);
   if (!Number.isInteger(cfg.minutos_devolver) || cfg.minutos_devolver < 1 || cfg.minutos_devolver > 43_200) {
     throw new Error('Chatbot: os minutos para devolver a conversa ao bot devem ser de 1 a 43.200 (30 dias).');
+  }
+  if (!Number.isInteger(cfg.minutos_inatividade) || cfg.minutos_inatividade! < 0 || cfg.minutos_inatividade! > 1440) {
+    throw new Error('Chatbot: os minutos sem interação para encerrar devem ser de 0 (desligado) a 1.440 (24 horas).');
   }
   const chave = String(valor?.chave ?? '').trim();
   if (chave.length > 500) throw new Error('Chatbot: chave grande demais.');
@@ -136,6 +143,10 @@ export function prepararChatbot(valor: any, anterior: ConfigChatbot | null): Con
   }
   return cfg;
 }
+
+/** Minutos sem resposta do cliente para avisar e encerrar (0 = desligado; sem configuração do chatbot, desligado) */
+export const minutosInatividade = (cfg: Partial<ConfigChatbot> | null | undefined): number =>
+  cfg ? Number(cfg.minutos_inatividade ?? PADRAO.minutos_inatividade) || 0 : 0;
 
 /** Minutos sem atendente para a conversa voltar ao bot (configuração antiga, em horas, é convertida) */
 export const minutosDevolver = (cfg: Partial<ConfigChatbot> | null | undefined): number =>
@@ -653,7 +664,7 @@ async function historico(ctx: Contexto): Promise<Content[]> {
     `SELECT direcao, tipo, texto FROM (
        SELECT id, direcao, tipo, texto FROM whatsapp_mensagens
         WHERE empresa_id = ? AND telefone = ? AND situacao <> 'falhou' AND (texto <> '' OR tipo <> 'texto') AND tipo NOT IN ('encerramento', 'evento')
-          AND (origem IS NULL OR origem NOT LIKE 'pesquisa%')
+          AND (origem IS NULL OR (origem NOT LIKE 'pesquisa%' AND origem NOT LIKE 'inatividade%'))
           AND id > COALESCE((SELECT MAX(e.id) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento' AND e.usuario_id IS NOT NULL), 0)
           AND data_hora > COALESCE((SELECT MAX(e.data_hora) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento' AND e.usuario_id IS NULL), '1000-01-01')
         ORDER BY id DESC LIMIT ?) m

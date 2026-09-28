@@ -443,7 +443,8 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
 
       {encerrado ? (
         // Encerrado: avalia (cancelado e já avaliado vão direto para o formulário, no efeito acima)
-        <Avaliar url={url} onFeito={carregar} onPular={() => onNovo('Atendimento anterior encerrado.')} />
+        // Avaliação obrigatória: sem ela o cliente não abre um novo atendimento
+        <Avaliar url={url} onFeito={carregar} />
       ) : (
         <form onSubmit={enviar} className="p-3 bg-white border-t border-stone-200 flex items-end gap-2 shrink-0">
           <textarea
@@ -472,7 +473,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
   );
 };
 
-const Avaliar: React.FC<{ url: string; onFeito: () => void; onPular: () => void }> = ({ url, onFeito, onPular }) => {
+const Avaliar: React.FC<{ url: string; onFeito: () => void }> = ({ url, onFeito }) => {
   const [nota, setNota] = useState(0);
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -508,9 +509,6 @@ const Avaliar: React.FC<{ url: string; onFeito: () => void; onPular: () => void 
         className="py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-40"
       >
         Enviar avaliação
-      </button>
-      <button type="button" onClick={onPular} className="py-2 text-xs font-semibold text-stone-500 hover:text-stone-700 hover:underline cursor-pointer">
-        Pular avaliação
       </button>
     </div>
   );
