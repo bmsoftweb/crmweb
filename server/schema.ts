@@ -805,6 +805,7 @@ export const RESOURCES: ResourceDef[] = [
       // Tipo + Nome dividem a primeira linha do formulário (grade de 4 colunas)
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 255, span: 3 },
       { name: 'segmento_id', label: 'Segmento', type: 'text', listed: true, filterable: true, ref: { resource: 'segmentos', labelField: 'nome' } },
+      { name: 'tecnico_padrao_id', label: 'Técnico Padrão', type: 'text', listed: true, filterable: true, ref: { resource: 'usuarios', labelField: 'nome' }, hint: 'Quem atende os chamados e o WhatsApp deste cliente (outro técnico ainda pode assumir)' },
       { name: 'email', label: 'E-mail', type: 'text', listed: true, searchable: true, maxLength: 255 },
       { name: 'telefone', label: 'Telefone', type: 'text', listed: true, searchable: true, maxLength: 50 },
       { name: 'whatsapp', label: 'WhatsApp', type: 'text', listed: true, searchable: true, maxLength: 20, hint: 'Com DDD. Usado nas campanhas e mensagens automáticas (sem ele, vale o telefone)' },

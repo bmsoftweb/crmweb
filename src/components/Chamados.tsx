@@ -171,6 +171,7 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
               <th className={`${th} text-center`}>Posição</th>
               <th className={`${th} text-right`}>Nº</th>
               <th className={`${th} text-left w-full`}>Chamado</th>
+              <th className={`${th} text-left`}>Técnico</th>
               <th className={`${th} text-left`}>Categoria</th>
               <th className={`${th} text-left`}>Prioridade</th>
               <th className={`${th} text-center`}>Entrada</th>
@@ -181,7 +182,7 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
           <tbody>
             {!fila ? (
               <tr>
-                <td colSpan={8} className="px-3 py-12 text-center">
+                <td colSpan={9} className="px-3 py-12 text-center">
                   <div className="flex items-center justify-center gap-2 text-stone-500 dark:text-stone-400">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Carregando chamados…</span>
@@ -190,7 +191,7 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
               </tr>
             ) : !fila.length ? (
               <tr>
-                <td colSpan={8} className="px-3 py-16 text-center">
+                <td colSpan={9} className="px-3 py-16 text-center">
                   <div className="flex flex-col items-center gap-2 text-stone-400">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                     <span className="text-sm font-medium text-stone-600 dark:text-stone-300">Fila vazia</span>
@@ -214,6 +215,9 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
                       {c.pessoa_nome || 'Sem cliente'}
                       {c.departamento_nome && ` • ${c.departamento_nome}`}
                     </div>
+                  </td>
+                  <td className={`${td} whitespace-nowrap`} title="Técnico padrão do cliente: quem deve atender (outro técnico pode assumir)">
+                    {c.tecnico_padrao_nome || <span className="text-stone-400">—</span>}
                   </td>
                   <td className={td}>
                     <Categoria c={c} />
@@ -369,7 +373,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
                 <div className="text-xs font-semibold text-stone-900 dark:text-stone-100 truncate mt-1">{c.titulo}</div>
                 <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
                   {c.pessoa_nome || 'Sem cliente'}
-                  {c.atendente_nome ? ` • ${c.atendente_nome}` : ' • sem atendente'}
+                  {c.atendente_nome ? ` • ${c.atendente_nome}` : c.tecnico_padrao_nome ? ` • técnico: ${c.tecnico_padrao_nome}` : ' • sem atendente'}
                 </div>
                 {c.sla_vencido && <Sla />}
               </button>
@@ -526,6 +530,7 @@ const ChamadoAberto: React.FC<{
           <div className="text-[11px] text-stone-500 dark:text-stone-400 flex flex-wrap gap-x-3">
             <span>{c.pessoa_nome || 'Sem cliente'}{c.canal === 'web' && ' • pelo site'}</span>
             <span>Atendente: {c.atendente_nome || '—'}{c.eu_atendo && ' (você)'}</span>
+            {c.tecnico_padrao_nome && c.tecnico_padrao_id !== c.atendente_id && <span>Técnico padrão: {c.tecnico_padrao_nome}</span>}
             {c.departamento_nome && <span>Departamento: {c.departamento_nome}</span>}
             {c.sla_prazo && <span>SLA até {formatDateTimeBR(c.sla_prazo)}</span>}
           </div>

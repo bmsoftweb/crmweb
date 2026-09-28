@@ -491,6 +491,8 @@ export interface ConversaResumo {
   atendente_nome: string | null;
   atendido_em: string | null;
   aguardando_desde: string | null;
+  /** Técnico padrão do cliente (pessoas.tecnico_padrao_id) */
+  tecnico_padrao_nome: string | null;
 }
 
 export interface MensagemWhatsApp {
@@ -629,6 +631,9 @@ export interface ChamadoResumo {
   atendente_id: number | null;
   atendente_nome: string | null;
   departamento_nome: string | null;
+  /** Técnico padrão do cliente (pessoas.tecnico_padrao_id): quem deve atender; outro pode assumir */
+  tecnico_padrao_id: number | null;
+  tecnico_padrao_nome: string | null;
   criado_em: string;
   assumido_em: string | null;
   encerrado_em: string | null;

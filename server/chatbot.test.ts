@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { chatbotPublica, escolhaDoTexto, listaMenu, minutosDevolver, prepararChatbot } from './chatbot.js';
+import { chatbotPublica, escolhaDoTexto, explicarErro, listaMenu, minutosDevolver, prepararChatbot } from './chatbot.js';
 
 // Sem nada gravado: modelo e nome padrão, sem chave
 const vazio = chatbotPublica(null);
@@ -61,3 +61,8 @@ assert.strictEqual(escolhaDoTexto('vendas ou financeiro?', opcoes), null);
 assert.strictEqual(escolhaDoTexto('bom dia', opcoes), null);
 
 console.log('chatbot: ok');
+
+// Erro do Gemini traduzido na linha de falha da automação
+assert.match(explicarErro('{"error":{"code":503,"message":"high demand","status":"UNAVAILABLE"}}'), /sobrecarregado/);
+assert.match(explicarErro('{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}'), /limite de uso/);
+assert.strictEqual(explicarErro('timeout'), 'timeout');

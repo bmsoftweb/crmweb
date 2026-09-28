@@ -333,7 +333,7 @@ export function createConversasRouter(): Router {
   /**
    * Conversas, da mais recente para a mais antiga, com a última mensagem, as não vistas e o
    * departamento escolhido no menu do chatbot. ?minhas=1: as sem departamento, as do meu departamento
-   * e as que eu assumi.
+   * as que eu assumi e as dos clientes de que sou o técnico padrão.
    */
   router.get('/whatsapp/conversas', async (req: Request, res: Response) => {
     try {
@@ -347,7 +347,7 @@ export function createConversasRouter(): Router {
         `SELECT w.telefone, x.pessoa_id, p.nome, x.contato_id, c.nome AS contato_nome, COALESCE(c.departamento, c.cargo) AS contato_setor,
                 ${NOME_CONTATO('w')} AS nome_contato, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao,
                 DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, d.nome AS departamento,
-                wc.atendimento, wc.atendente_id, ua.nome AS atendente_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
+                wc.atendimento, wc.atendente_id, ua.nome AS atendente_nome, tp.nome AS tecnico_padrao_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
                 DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde
            FROM (SELECT telefone, MAX(id) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
                         SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas
@@ -358,13 +358,14 @@ export function createConversasRouter(): Router {
            LEFT JOIN whatsapp_conversas wc ON wc.empresa_id = w.empresa_id AND wc.telefone = w.telefone
            LEFT JOIN departamentos d ON d.id = wc.departamento_id
            LEFT JOIN usuarios ua ON ua.id = wc.atendente_id
+           LEFT JOIN usuarios tp ON tp.id = p.tecnico_padrao_id
           WHERE (? = '' OR p.nome LIKE ? OR c.nome LIKE ? OR ${NOME_CONTATO('w')} LIKE ? OR (? <> '' AND w.telefone LIKE ?))
             AND (? = 0 OR wc.atendente_id = ?
-                 OR (wc.atendente_id IS NULL AND (wc.departamento_id IS NULL
+                 OR (wc.atendente_id IS NULL AND (wc.departamento_id IS NULL OR p.tecnico_padrao_id = ?
                      OR wc.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?))))
           ORDER BY w.data_hora DESC, w.id DESC
           LIMIT 200`,
-        [res.locals.empresaId, busca, `%${busca}%`, `%${busca}%`, `%${busca}%`, digitos, `%${digitos}%`, minhas ? 1 : 0, eu, eu],
+        [res.locals.empresaId, busca, `%${busca}%`, `%${busca}%`, `%${busca}%`, digitos, `%${digitos}%`, minhas ? 1 : 0, eu, eu, eu],
       );
       // Estado: em atendimento (alguém pegou), aguardando (humano sem atendente; sem bot, quando o
       // cliente foi o último a escrever) ou com o bot

@@ -2,6 +2,15 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.41 — 2026-09-28
+
+- Banco: `pessoas.tecnico_padrao_id` (SQL em extras/crmweb_schema.sql).
+- Pessoas: campo "Técnico Padrão" (quem atende os chamados e o WhatsApp do cliente; outro técnico ainda pode assumir).
+- Fila de Chamados: coluna "Técnico" com o técnico padrão do cliente. Chamados Ativos mostram o técnico padrão enquanto o chamado está sem atendente, e no cabeçalho do chamado quando outro técnico atende.
+- Whatsapp: etiqueta com o técnico padrão nas conversas que ninguém atende; o filtro "minhas" traz também as conversas aguardando dos clientes de que o usuário é o técnico padrão.
+- Automação: falha (Gemini sobrecarregado, limite de uso/tokens, chave inválida, API, imagem, laço etc.) vira uma linha em vermelho na conversa, só para a equipe, com o erro em português.
+- Automação: quando o Gemini falha nos nós IA e IA Ex, o cliente é avisado e a conversa passa para a equipe (aguardando atendente) em vez de ficar sem resposta.
+
 ## 0.0.40 — 2026-09-27
 
 - Banco: `chamados.status` ganhou 'pausado'; nova tabela `chamado_secoes`; `chamado_mensagens.secao_id` (SQL em extras/crmweb_schema.sql).

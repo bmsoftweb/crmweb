@@ -509,6 +509,15 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                           Aguardando
                         </span>
                       )}
+                      {c.estado !== 'atendimento' && c.tecnico_padrao_nome && (
+                        <span
+                          title="Técnico padrão do cliente: quem deve atender (outro pode assumir)"
+                          className="shrink-0 flex items-center gap-0.5 text-[10px] font-semibold px-1.5 rounded bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+                        >
+                          <User className="w-2.5 h-2.5" />
+                          {c.tecnico_padrao_nome}
+                        </span>
+                      )}
                       {c.estado === 'atendimento' && (
                         <span
                           title={`Em atendimento com ${c.atendente_nome} desde ${c.atendido_em?.slice(11, 16) ?? ''}`}
@@ -675,8 +684,13 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                       const origem = minha ? (m.bot ? (conversa.bot_nome ? `${conversa.bot_nome} (bot)` : 'Bot') : m.campanha ? 'Campanha' : m.automatica ? 'Automática' : m.usuario_nome) : null;
                       // Evento do atendimento (começou, transferiu, liberado pelo tempo): linha discreta
                       if (m.tipo === 'evento') {
+                        // Falha da automação (server/chatbot.ts, avisarFalha): em vermelho, para o técnico ver
+                        const falha = m.texto?.startsWith('Automação falhou');
                         return (
-                          <div key={m.id} className="flex items-center gap-3 my-2 text-[10px] text-stone-400 dark:text-stone-500">
+                          <div
+                            key={m.id}
+                            className={`flex items-center gap-3 my-2 text-[10px] ${falha ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-stone-400 dark:text-stone-500'}`}
+                          >
                             <span className="flex-1 border-t border-dashed border-stone-200 dark:border-stone-800" />
                             <span className="shrink-0">
                               {m.texto} · {m.data_hora.slice(11, 16)}

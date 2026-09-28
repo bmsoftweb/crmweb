@@ -7,6 +7,7 @@ import { cifrar, decifrar } from './segredo.js';
 import { chaveTelefone, donoDoTelefone, enviarReservada, mostrarDigitando, reservarEnvio, type ArquivoEnvio, type MensagemNova } from './whatsapp.js';
 import {
   avisarDepartamento,
+  avisarFalha,
   escolhaDoTexto,
   escolhaPelaIa,
   gerarRespostaIa,
@@ -32,6 +33,8 @@ import { enviarPesquisa } from './pesquisa.js';
 
 const ONDE = 'Configurações › Automação';
 const MAX_NOS = 200;
+/** Ao cliente, quando o Gemini falha e a conversa passa para a equipe */
+const AVISO_IA_FALHOU = 'No momento não consegui responder por aqui. Vou te passar para um atendente, que já continua a conversa.';
 /** Passos por mensagem: laço sem nó de espera (Mensagem → Mensagem → ...) para aqui */
 const MAX_PASSOS = 50;
 const MAX_ARQUIVO = 3 * 1024 * 1024;
@@ -485,6 +488,22 @@ class Execucao {
     return variaveisDe(this.ctx, this.estado.vars);
   }
 
+  /** Aviso de falha na conversa (só a equipe vê), com o nó em que aconteceu */
+  falha(no: No | null, msg: string, depois = '') {
+    return avisarFalha(this.ctx.empresaId, this.ctx.telefone, no ? `nó ${rotulo(no)}: ${msg}` : msg, depois);
+  }
+
+  /** O Gemini falhou: o cliente não fica sem retorno; a conversa vai para a equipe (aguardando atendente) */
+  private async iaFalhou(no: No, msg: string): Promise<'fim'> {
+    delete this.estado.vars._iaex;
+    await this.falha(no, msg, ' Conversa passada para um atendente.');
+    // Falha no envio do aviso não segura a passagem para a equipe
+    await this.enviar(AVISO_IA_FALHOU).catch((e) => this.falha(no, `aviso ao cliente: ${e.message}`));
+    await mudarAtendimento(this.ctx.empresaId, this.ctx.telefone, 'humano');
+    this.paraHumano = true;
+    return 'fim';
+  }
+
   async enviar(textoMsg: string, midia?: ArquivoEnvio) {
     const t = textoMsg.trim();
     if (!t && !midia) return;
@@ -514,7 +533,7 @@ class Execucao {
       case 'menu': {
         const opcoes = this.opcoesMenu(no);
         let escolha = entrada ? escolhaDoTexto(entrada, opcoes) : null;
-        if (!escolha && entrada && this.bot?.chave_cifrada) escolha = await escolhaPelaIa(this.bot, entrada, opcoes).catch(() => null);
+        if (!escolha && entrada && this.bot?.chave_cifrada) escolha = await escolhaPelaIa(this.bot, entrada, opcoes).catch(async (e) => (await this.falha(no, e.message), null));
         if (escolha) return this.destino(no, (escolha as any).id) ?? 'fim';
         const invalida = this.destino(no, 'invalida');
         if (invalida) return invalida;
@@ -542,12 +561,18 @@ class Execucao {
     // Texto-base do nó; sem ele, o texto-base antigo do Chatbot (automações feitas antes da mudança)
     const textoBase = String(no.dados.texto ?? '').trim() || String(this.bot?.texto_base ?? '').trim();
     if (!this.bot?.chave_cifrada || !textoBase) {
-      console.error(`Jornada: nó IA sem a chave do Gemini (Configurações › Chatbot) ou sem texto-base (${ONDE}).`);
+      await this.falha(no, `sem a chave do Gemini (Configurações › Chatbot) ou sem texto-base (${ONDE}).`);
       return this.destino(no, 'humano') ?? 'fim';
     }
     this.ctx.jornada = { transferencia: null };
     void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000);
-    const resposta = await gerarRespostaIa(this.ctx, this.bot, textoBase);
+    let resposta: string;
+    try {
+      resposta = await gerarRespostaIa(this.ctx, this.bot, textoBase);
+    } catch (err: any) {
+      return this.iaFalhou(no, err.message);
+    }
+    if (!resposta && this.ctx.jornada.transferencia === null) return this.iaFalhou(no, 'a IA não devolveu resposta.');
     await this.enviar(resposta);
     if (this.ctx.jornada.transferencia === null) return null;
     this.estado.vars.motivo = this.ctx.jornada.transferencia;
@@ -570,7 +595,7 @@ class Execucao {
       return this.destino(no, 'nenhuma') ?? 'fim';
     };
     if (!this.bot?.chave_cifrada) {
-      console.error(`Jornada: nó ${rotulo(no)} sem a chave do Gemini (${ONDE} / Chatbot).`);
+      await this.falha(no, 'sem a chave do Gemini (Configurações › Chatbot).');
       return nenhuma();
     }
     if (!abertura) this.estado.vars._iaex = (Number(this.estado.vars._iaex) || 0) + 1;
@@ -579,8 +604,7 @@ class Execucao {
       void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000);
       r = await iaComOpcoes(this.ctx, this.bot, preencher(no.dados.texto ?? '', await this.vars()), opcoes, abertura);
     } catch (err: any) {
-      console.error(`Jornada: nó ${rotulo(no)}: ${err.message}`);
-      return nenhuma();
+      return this.iaFalhou(no, err.message);
     }
     const escolha = opcoes.find((o: any) => o.numero === r.opcao);
     if (escolha) {
@@ -660,7 +684,7 @@ class Execucao {
             email: campo(d.email, '{{email}}'),
             interesse: campo(d.interesse, '{{interesse}}') || 'Contato pelo WhatsApp',
           });
-          if (!r?.ok) console.error(`Jornada: registrar lead (${this.ctx.telefone}): ${r?.erro}`);
+          if (!r?.ok) await this.falha(no, `registrar lead: ${r?.erro}`);
           no = seguir();
           break;
         }
@@ -683,7 +707,7 @@ class Execucao {
           break;
       }
     }
-    console.error(`Jornada: ${MAX_PASSOS} passos sem parar (${this.ctx.telefone}); a jornada tem um laço sem nó de espera.`);
+    await this.falha(null, `${MAX_PASSOS} passos sem parar: a automação tem um laço sem nó de espera.`);
     this.estado.no = FIM;
   }
 
@@ -719,7 +743,7 @@ class Execucao {
       }
       await this.enviar(legenda ?? '', arquivo);
     } catch (err: any) {
-      console.error(`Jornada: nó ${rotulo(no)}: ${err.message}`);
+      await this.falha(no, err.message);
     }
   }
 
@@ -748,7 +772,7 @@ class Execucao {
       return r.ok;
     } catch (err: any) {
       this.estado.vars.api_status = '0';
-      console.error(`Jornada: nó ${rotulo(no)}: ${err.message}`);
+      await this.falha(no, err.message);
       return false;
     }
   }
@@ -795,7 +819,7 @@ export async function executarJornada(nova: MensagemNova, jornada: Jornada, bot:
         await exec.percorrer(await exec.responder(atual, entrada));
       }
     } catch (err: any) {
-      console.error(`Jornada: empresa ${nova.empresaId}, ${nova.telefone}: ${err.message}`);
+      await avisarFalha(nova.empresaId, nova.telefone, err.message);
     } finally {
       await gravarEstado(nova.empresaId, nova.telefone, estado);
     }
@@ -827,7 +851,7 @@ export async function retomarJornadas(prazoMs = Infinity): Promise<number> {
         await exec.percorrer(esperando?.tipo === 'esperar' ? (exec.destino(esperando, 'proximo') ?? 'fim') : null);
         n++;
       } catch (err: any) {
-        console.error(`Jornada: retomar ${r.telefone}: ${err.message}`);
+        await avisarFalha(r.empresa_id, r.telefone, `retomar depois do Esperar: ${err.message}`);
       } finally {
         await gravarEstado(r.empresa_id, r.telefone, estado);
       }

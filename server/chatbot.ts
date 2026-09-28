@@ -184,6 +184,28 @@ export async function marcarEvento(empresaId: string | number, telefone: string,
   );
 }
 
+/** Início da linha de falha da automação na conversa (a tela mostra em vermelho) */
+export const FALHA_AUTOMACAO = 'Automação falhou';
+
+/** Erro do Gemini (vem como JSON, com o código HTTP) em português; outro erro fica como veio */
+export function explicarErro(msg: string): string {
+  const codigo = Number(/"code"\s*:\s*(\d{3})/.exec(msg)?.[1]);
+  if (codigo === 429) return 'limite de uso do Gemini excedido (cota/tokens da chave). Aguarde ou aumente o plano.';
+  if (codigo === 503) return 'Gemini sobrecarregado agora (503). Se continuar, troque o modelo em Configurações › Chatbot.';
+  if (codigo === 401 || codigo === 403) return 'chave do Gemini inválida ou sem permissão (Configurações › Chatbot).';
+  if (codigo === 404) return 'modelo do Gemini não encontrado (Configurações › Chatbot).';
+  return msg;
+}
+
+/**
+ * Falha da automação: vai para o log e vira uma linha na conversa que só a equipe vê (tipo 'evento',
+ * não sai no WhatsApp). Na Vercel o log não é visto: a linha é o jeito de o técnico saber.
+ */
+export async function avisarFalha(empresaId: string | number, telefone: string, msg: string, depois = '') {
+  console.error(`Automação (${telefone}): ${msg}`);
+  await marcarEvento(empresaId, telefone, `${FALHA_AUTOMACAO}: ${explicarErro(msg)}${depois}`, null).catch((e) => console.error(`Automação: aviso de falha: ${e.message}`));
+}
+
 /**
  * Linha "Atendimento encerrado" na conversa (tipo 'encerramento'): não vai para o WhatsApp; a origem
  * preenchida impede que conte como resposta de atendente. Botão Encerrar: com quem encerrou, agora;
@@ -416,7 +438,7 @@ export async function executarFerramenta(ctx: Contexto, nome: string, args: Reco
     if (nome === 'transferir_para_humano') return await transferirParaHumano(ctx, args);
     return { ok: false, erro: `Ferramenta desconhecida: ${nome}` };
   } catch (err: any) {
-    console.error(`Chatbot: ferramenta ${nome}: ${err.message}`);
+    await avisarFalha(ctx.empresaId, ctx.telefone, `ferramenta ${nome}: ${err.message}`);
     return { ok: false, erro: 'Não foi possível concluir agora.' };
   }
 }

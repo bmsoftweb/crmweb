@@ -51,6 +51,7 @@ const SELECT = `
   SELECT c.id, c.numero, c.titulo, c.status, c.prioridade, c.canal, c.pessoa_id, c.categoria_id, c.atendente_id, c.departamento_id,
          c.criado_em, c.assumido_em, c.encerrado_em, c.sla_prazo,
          COALESCE(p.nome, c.contato_nome) AS pessoa_nome, cat.nome AS categoria_nome, cat.cor AS categoria_cor, u.nome AS atendente_nome, d.nome AS departamento_nome,
+         p.tecnico_padrao_id, tp.nome AS tecnico_padrao_nome,
          TIMESTAMPDIFF(MINUTE, c.criado_em, NOW()) AS espera_min,
          (c.sla_prazo IS NOT NULL AND c.sla_prazo < NOW() AND c.status NOT IN ${ENCERRADOS}) AS sla_vencido,
          (SELECT m.texto FROM chamado_mensagens m WHERE m.chamado_id = c.id AND m.autor <> 'sistema' ORDER BY m.id DESC LIMIT 1) AS ultima
@@ -58,7 +59,8 @@ const SELECT = `
     LEFT JOIN pessoas p ON p.id = c.pessoa_id
     LEFT JOIN chamado_categorias cat ON cat.id = c.categoria_id
     LEFT JOIN usuarios u ON u.id = c.atendente_id
-    LEFT JOIN departamentos d ON d.id = c.departamento_id`;
+    LEFT JOIN departamentos d ON d.id = c.departamento_id
+    LEFT JOIN usuarios tp ON tp.id = p.tecnico_padrao_id`;
 
 const numeros = (r: any) => ({ ...r, espera_min: Number(r.espera_min), sla_vencido: Boolean(Number(r.sla_vencido)) });
 
