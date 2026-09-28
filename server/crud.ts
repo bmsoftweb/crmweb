@@ -296,6 +296,33 @@ export function createCrudRouter() {
           const op = String(f?.op || '');
           const valor = f?.value;
 
+          // Campo personalizado (<campo JSON>.<chave>, ex.: personalizados.revenda): o valor mora no JSON do registro
+          const [jsonCampo, jsonChave] = campo.split('.');
+          const campoJson = jsonChave !== undefined ? resource.fields.find((d) => d.name === jsonCampo && d.type === 'personalizados') : null;
+          if (campoJson) {
+            if (!/^[a-z0-9_]{1,60}$/.test(jsonChave)) throw new Error(`Filtro inválido: o campo "${campo}" não existe em ${resource.label}.`);
+            if (valor === undefined || valor === null || valor === '') continue;
+            const expr = `JSON_UNQUOTE(JSON_EXTRACT(t.${campoJson.name}, ?))`;
+            const caminho = `$."${jsonChave}"`;
+            if (op === 'contains') {
+              // O texto tirado do JSON diferencia maiúsculas: compara tudo em minúsculas, como nas colunas normais
+              where.push(`LOWER(${expr}) LIKE LOWER(?)`);
+              params.push(caminho, `%${valor}%`);
+            } else if (op === 'eq') {
+              // Sim/Não gravado como true/false; "Não" também pega quem nunca preencheu
+              where.push(valor === 'false' ? `COALESCE(${expr}, 'false') = ?` : `${expr} = ?`);
+              params.push(caminho, String(valor));
+            } else if (op === 'gte' || op === 'lte') {
+              // Número compara como número; data (aaaa-mm-dd) compara como texto
+              const numero = /^-?\d+(\.\d+)?$/.test(String(valor));
+              where.push(`${numero ? `CAST(${expr} AS DECIMAL(20,6))` : expr} ${op === 'gte' ? '>=' : '<='} ?`);
+              params.push(caminho, numero ? Number(valor) : String(valor));
+            } else {
+              throw new Error(`Filtro inválido: operador "${op}" não é suportado.`);
+            }
+            continue;
+          }
+
           if (!colunas.includes(campo)) {
             throw new Error(`Filtro inválido: a coluna "${campo}" não existe em ${resource.label}.`);
           }

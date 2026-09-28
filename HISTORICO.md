@@ -2,6 +2,14 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.50 — 2026-09-28
+
+- Importar BM (pessoas): o campo personalizado "revenda", se existir, recebe o nome do vendedor do bmsoft (PESSOAS.ID_Vendedor → VENDEDORES.Nome), usando a opção da lista com o mesmo nome (sem diferenciar maiúsculas) ou o nome como veio.
+- Importar BM (pessoas): o endereço do cadastro do bmsoft entra em Endereços da pessoa, marcado "Importado do bmsoft" (principal quando a pessoa ainda não tem um); as próximas importações atualizam só esse endereço.
+- Busca avançada: os campos personalizados podem entrar na busca (lupa no formulário); lista vira combo, Sim/Não, faixas para número e data, texto por "contém". Filtro no servidor dentro do JSON.
+- Busca avançada: "Aplicar filtros" fecha o painel (fica o resumo); "Limpar filtros" mantém aberto.
+- Configurações › Campos Personalizados: interruptores e botões alinhados com os títulos das colunas.
+
 ## 0.0.49 — 2026-09-28
 
 - Suporte pelo site (/suporte): CNPJ/CPF, nome, WhatsApp e descrição obrigatórios na tela (barra âmbar), com as mesmas regras do servidor: o navegador avisa antes de enviar.

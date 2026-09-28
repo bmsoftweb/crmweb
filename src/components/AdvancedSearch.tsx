@@ -16,6 +16,8 @@ interface AdvancedSearchProps {
   onFechar: () => void;
   /** Campos exibidos no painel (escolhidos no formulário de edição) */
   camposVisiveis: string[];
+  /** Campos personalizados (valor no JSON do registro): entram quando estão em camposVisiveis */
+  camposExtras?: FieldDef[];
 }
 
 /** Sufixos usados nas chaves do formulário para os campos de faixa */
@@ -38,6 +40,8 @@ function paraFormulario(filtros: FiltroAvancado[]): Record<string, string> {
   for (const f of filtros) {
     if (f.op === 'gte') out[`${f.field}${MIN}`] = f.value;
     else if (f.op === 'lte') out[`${f.field}${MAX}`] = f.value;
+    // Sim/Não de campo personalizado vai como true/false: o combo usa 1/0
+    else if (f.value === 'true' || f.value === 'false') out[f.field] = f.value === 'true' ? '1' : '0';
     else out[f.field] = f.value;
   }
   return out;
@@ -50,10 +54,11 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
   onAplicar,
   onFechar,
   camposVisiveis,
+  camposExtras = [],
 }) => {
   const campos = useMemo(
-    () => resource.fields.filter((f) => camposVisiveis.includes(f.name)),
-    [resource, camposVisiveis],
+    () => [...resource.fields, ...camposExtras].filter((f) => camposVisiveis.includes(f.name)),
+    [resource, camposExtras, camposVisiveis],
   );
   const [valores, setValores] = useState<Record<string, string>>(() => paraFormulario(aplicados));
 
@@ -77,8 +82,10 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
       const v = (valores[f.name] || '').trim();
       if (!v) continue;
 
+      // Sim/Não de campo personalizado é gravado no JSON como true/false
+      const valor = f.json && f.type === 'boolean' ? (v === '1' ? 'true' : 'false') : v;
       // Texto busca por parte do conteúdo; seleções são igualdade exata
-      filtros.push({ field: f.name, op: isSelect(f) ? 'eq' : 'contains', value: v });
+      filtros.push({ field: f.name, op: isSelect(f) ? 'eq' : 'contains', value: valor });
     }
 
     return filtros;

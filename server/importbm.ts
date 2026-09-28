@@ -132,7 +132,58 @@ function converter(linha: Record<string, any>) {
     telefone: texto(linha.fone1, 50) || texto(linha.celular, 50) || texto(linha.fone2, 50),
     cpf: digitos(linha.cpfcnpj, 14),
     obs: texto(linha.obs, 512),
+    /** ID do vendedor no bmsoft: vira o nome da revenda (campo personalizado "revenda", se existir) */
+    id_vendedor: Number(linha.id_vendedor) || null,
+    /** Endereço do cadastro (vira o endereço "Importado do bmsoft" da pessoa); null = sem endereço */
+    endereco: enderecoDoBm(linha),
   };
+}
+
+/** Marca, na observação, o endereço que veio do bmsoft: as próximas importações atualizam só ele */
+export const OBS_ENDERECO_BM = 'Importado do bmsoft';
+const CAMPOS_ENDERECO = ['logradouro', 'numero', 'complemento', 'bairro', 'cep', 'cidade', 'uf', 'codigo_ibge'] as const;
+export type EnderecoBm = Record<(typeof CAMPOS_ENDERECO)[number], string | null>;
+
+/** Endereço do cadastro do bmsoft (Endereco, Numero, Complemento, Bairro, CEP, Cidade, UF, Cod_Cidade); vazio = null */
+export function enderecoDoBm(linha: Record<string, any>): EnderecoBm | null {
+  const e: EnderecoBm = {
+    logradouro: texto(linha.endereco, 255),
+    numero: texto(linha.numero, 20),
+    complemento: texto(linha.complemento, 100),
+    bairro: texto(linha.bairro, 100),
+    cep: digitos(linha.cep, 8),
+    cidade: texto(linha.cidade, 100),
+    uf: texto(linha.uf, 2)?.toUpperCase() ?? null,
+    codigo_ibge: digitos(linha.cod_cidade, 7),
+  };
+  return e.logradouro || e.cidade || e.cep ? e : null;
+}
+
+/** O endereço gravado é igual ao do bmsoft (nada a atualizar) */
+export const enderecoIgual = (gravado: Record<string, any>, novo: EnderecoBm) => CAMPOS_ENDERECO.every((c) => (gravado[c] ?? null) === novo[c]);
+
+/**
+ * Nome do vendedor do bmsoft → valor do campo "revenda": a opção da lista com o mesmo nome (sem diferenciar
+ * maiúsculas: DIMAPEL → Dimapel); sem opção igual, o nome como está no bmsoft
+ */
+export function valorRevenda(nomeVendedor: string | null | undefined, opcoes: string[] = []): string | null {
+  const nome = String(nomeVendedor ?? '').trim();
+  if (!nome) return null;
+  return opcoes.find((o) => o.trim().toLowerCase() === nome.toLowerCase())?.trim() ?? nome;
+}
+
+/** Personalizados gravados (JSON) + a revenda; null quando não muda nada */
+export function comRevenda(gravado: string | null | undefined, revenda: string | null): string | null {
+  if (!revenda) return null;
+  let obj: Record<string, unknown> = {};
+  try {
+    const lido = gravado ? JSON.parse(gravado) : {};
+    if (lido && typeof lido === 'object' && !Array.isArray(lido)) obj = lido;
+  } catch {
+    // personalizados ilegível: começa de novo só com a revenda
+  }
+  if (obj.revenda === revenda) return null;
+  return JSON.stringify({ ...obj, revenda });
 }
 
 /**
@@ -167,8 +218,12 @@ async function lerDoBm<T>(servidor: Servidor, sql: string, converter: (l: Record
   return todas;
 }
 
-const SQL_PESSOAS = `SELECT ID, Nome, Email, Fone1, Celular, Fone2, CPFCNPJ, CAST(Obs AS VARCHAR(512)) Obs
+const SQL_PESSOAS = `SELECT ID, Nome, Email, Fone1, Celular, Fone2, CPFCNPJ, CAST(Obs AS VARCHAR(512)) Obs, ID_Vendedor,
+       Endereco, Numero, Complemento, Bairro, CEP, Cod_Cidade, Cidade, UF
   FROM PESSOAS WHERE Ativo = 'S' AND ID > :ultimo ORDER BY ID TOP ${PAGINA}`;
+
+/** Cadastro de vendedores do bmsoft: o nome é a revenda da pessoa (PESSOAS.ID_Vendedor) */
+const SQL_VENDEDORES = `SELECT ID, Nome FROM VENDEDORES WHERE ID > :ultimo ORDER BY ID TOP ${PAGINA}`;
 
 // Todos (ativos e inativos): produto já importado que ficou inativo no bmsoft é desativado aqui
 const SQL_PRODUTOS = `SELECT ID, Descricao, CAST(Texto AS VARCHAR(512)) Texto, PrecoVenda1, UNVenda, Ativo
@@ -229,8 +284,17 @@ export function createImportBmRouter(): Router {
       // pessoa sem nome não tem como virar contato
       const pessoas = (await lerDoBm(servidor, SQL_PESSOAS, converter)).filter((p) => p.nome);
 
+      // Campo personalizado "revenda" (Configurações › Campos Personalizados): recebe o nome do vendedor do bmsoft
+      const campos: any[] = (await lerConfig(empresaId, 'pessoas', 'campos_personalizados')) ?? [];
+      const campoRevenda = Array.isArray(campos) ? campos.find((c) => String(c?.nome ?? '').toLowerCase() === 'revenda') : null;
+      const vendedores = campoRevenda
+        ? new Map((await lerDoBm(servidor, SQL_VENDEDORES, (l) => [Number(l.id), texto(l.nome, 120)] as const)).map(([id, nome]) => [id, nome]))
+        : new Map<number, string | null>();
+      const revendaDe = (p: { id_vendedor: number | null }) =>
+        campoRevenda && p.id_vendedor ? valorRevenda(vendedores.get(p.id_vendedor), campoRevenda.opcoes ?? []) : null;
+
       const [existentes] = await pool.query<any[]>(
-        'SELECT id, cod_integracao, tipo, nome, email, telefone, cpf, obs FROM pessoas WHERE empresa_id = ? AND cod_integracao IS NOT NULL',
+        'SELECT id, cod_integracao, tipo, nome, email, telefone, cpf, obs, personalizados FROM pessoas WHERE empresa_id = ? AND cod_integracao IS NOT NULL',
         [empresaId],
       );
       const porCodigo = new Map(existentes.map((r) => [String(r.cod_integracao), r]));
@@ -239,25 +303,66 @@ export function createImportBmRouter(): Router {
       let atualizados = 0;
       for (const p of pessoas) {
         const atual = porCodigo.get(p.cod_integracao);
+        const revenda = revendaDe(p);
         if (!atual) {
-          novas.push([empresaId, TIPO, p.cod_integracao, p.nome, p.email, p.telefone, p.cpf, p.obs]);
+          novas.push([empresaId, TIPO, p.cod_integracao, p.nome, p.email, p.telefone, p.cpf, p.obs, revenda ? JSON.stringify({ revenda }) : null]);
           continue;
         }
+        // Personalizados com a revenda nova (null = a revenda não mudou; os outros campos ficam como estão)
+        const personalizados = comRevenda(atual.personalizados, revenda);
         // nada mudou
-        if (atual.tipo === TIPO && CAMPOS.every((c) => (atual[c] ?? null) === (p as any)[c])) continue;
+        if (atual.tipo === TIPO && !personalizados && CAMPOS.every((c) => (atual[c] ?? null) === (p as any)[c])) continue;
         await pool.query(
-          'UPDATE pessoas SET tipo = ?, nome = ?, email = ?, telefone = ?, cpf = ?, obs = ? WHERE id = ? AND empresa_id = ?',
-          [TIPO, p.nome, p.email, p.telefone, p.cpf, p.obs, atual.id, empresaId],
+          'UPDATE pessoas SET tipo = ?, nome = ?, email = ?, telefone = ?, cpf = ?, obs = ?, personalizados = COALESCE(?, personalizados) WHERE id = ? AND empresa_id = ?',
+          [TIPO, p.nome, p.email, p.telefone, p.cpf, p.obs, personalizados, atual.id, empresaId],
         );
         atualizados++;
       }
 
       for (let i = 0; i < novas.length; i += 200) {
         await pool.query(
-          'INSERT INTO pessoas (empresa_id, tipo, cod_integracao, nome, email, telefone, cpf, obs) VALUES ?',
+          'INSERT INTO pessoas (empresa_id, tipo, cod_integracao, nome, email, telefone, cpf, obs, personalizados) VALUES ?',
           [novas.slice(i, i + 200)],
         );
       }
+
+      // Endereço principal do bmsoft: fica marcado "Importado do bmsoft" e é o único que a importação mexe (os
+      // cadastrados à mão ficam). Entra como principal quando a pessoa ainda não tem um principal.
+      const enderecos = { incluidos: 0, atualizados: 0 };
+      const [ids] = await pool.query<any[]>('SELECT id, cod_integracao FROM pessoas WHERE empresa_id = ? AND cod_integracao IS NOT NULL', [empresaId]);
+      const idPorCodigo = new Map(ids.map((r) => [String(r.cod_integracao), Number(r.id)]));
+      const [gravados] = await pool.query<any[]>(
+        `SELECT e.id, e.pessoa_id, e.obs, e.principal, ${CAMPOS_ENDERECO.map((c) => `e.${c}`).join(', ')}
+           FROM pessoas_enderecos e JOIN pessoas p ON p.id = e.pessoa_id
+          WHERE e.empresa_id = ? AND p.cod_integracao IS NOT NULL`,
+        [empresaId],
+      );
+      const doBm = new Map(gravados.filter((e) => e.obs === OBS_ENDERECO_BM).map((e) => [Number(e.pessoa_id), e]));
+      const temPrincipal = new Set(gravados.filter((e) => e.principal).map((e) => Number(e.pessoa_id)));
+      const novosEnderecos: any[][] = [];
+      for (const p of pessoas) {
+        const pessoaId = idPorCodigo.get(p.cod_integracao);
+        if (!pessoaId || !p.endereco) continue;
+        const atual = doBm.get(pessoaId);
+        if (!atual) {
+          const e = p.endereco;
+          novosEnderecos.push([empresaId, pessoaId, 'comercial', temPrincipal.has(pessoaId) ? 0 : 1, e.cep, e.logradouro, e.numero, e.complemento, e.bairro, e.cidade, e.uf, e.codigo_ibge, OBS_ENDERECO_BM]);
+          continue;
+        }
+        if (enderecoIgual(atual, p.endereco)) continue;
+        await pool.query(
+          `UPDATE pessoas_enderecos SET ${CAMPOS_ENDERECO.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`,
+          [...CAMPOS_ENDERECO.map((c) => p.endereco![c]), atual.id],
+        );
+        enderecos.atualizados++;
+      }
+      for (let i = 0; i < novosEnderecos.length; i += 200) {
+        await pool.query(
+          'INSERT INTO pessoas_enderecos (empresa_id, pessoa_id, tipo, principal, cep, logradouro, numero, complemento, bairro, cidade, uf, codigo_ibge, obs) VALUES ?',
+          [novosEnderecos.slice(i, i + 200)],
+        );
+      }
+      enderecos.incluidos = novosEnderecos.length;
 
       res.json({
         servidor: `${servidor.numero} — ${servidor.identificacao}`,
@@ -265,6 +370,7 @@ export function createImportBmRouter(): Router {
         inseridos: novas.length,
         atualizados,
         inalterados: pessoas.length - novas.length - atualizados,
+        enderecos,
       });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message || 'Falha ao importar as pessoas do bmsoft.' });

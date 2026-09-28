@@ -206,8 +206,8 @@ export const RecordForm: React.FC<RecordFormProps> = ({
             <Columns3 className="w-3.5 h-3.5" />
           </button>
         )}
-        {/* Campo personalizado não vira coluna nem filtro por aqui: isso é na tela de Configurações */}
-        {mostrarIcones && onAlternarBusca && f.type !== 'password' && !f.json && (
+        {/* Campo personalizado: a coluna é escolhida em Configurações; a busca avançada, aqui */}
+        {mostrarIcones && onAlternarBusca && f.type !== 'password' && (
           <button
             type="button"
             tabIndex={-1}

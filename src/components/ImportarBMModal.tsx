@@ -26,6 +26,8 @@ const TIPOS: Record<Tipo, { titulo: string; tabela: string; nome: string; dePara
       ['Fone1 / Celular / Fone2', 'Telefone'],
       ['CPFCNPJ', 'CPF'],
       ['Obs', 'Observação'],
+      ['ID_Vendedor → VENDEDORES.Nome', 'Revenda (campo personalizado, se existir)'],
+      ['Endereco, Numero, Bairro, CEP, Cidade, UF', 'Endereço principal (marcado "Importado do bmsoft")'],
     ],
     regra: 'Só entram as pessoas ativas. Quem já foi importado antes é atualizado; o resto é incluído.',
   },
@@ -51,6 +53,8 @@ interface Resultado {
   inseridos: number;
   atualizados: number;
   inalterados: number;
+  /** Pessoas: endereços do bmsoft incluídos e atualizados */
+  enderecos?: { incluidos: number; atualizados: number };
 }
 
 /** Importa as pessoas do bmsoft pela bmAPI, casando por PESSOAS.ID = cod_integracao */
@@ -231,6 +235,7 @@ export const ImportarBMModal: React.FC<ImportarBMModalProps> = ({ tipo, onFechar
                   {resultado.lidos} {t.nome} lido(s): {resultado.inseridos} incluído(s), {resultado.atualizados} atualizado(s),{' '}
                   {resultado.inalterados} sem alteração.
                   {resultado.inativos ? ` ${resultado.inativos} inativo(s) no bmsoft ficaram de fora.` : ''}
+                  {resultado.enderecos && ` Endereços: ${resultado.enderecos.incluidos} incluído(s), ${resultado.enderecos.atualizados} atualizado(s).`}
                 </p>
               </div>
             </div>

@@ -117,25 +117,40 @@ export const CrudView: React.FC<CrudViewProps> = ({
    */
   const campoJson = useMemo(() => resource.fields.find((f) => f.type === 'personalizados'), [resource]);
   const [camposExtras, setCamposExtras] = useState<FieldDef[]>([]);
+  /** Todos os campos personalizados (listados ou não): podem entrar na busca avançada */
+  const [camposPersonalizados, setCamposPersonalizados] = useState<FieldDef[]>([]);
   useEffect(() => {
-    if (!campoJson) return setCamposExtras([]);
+    if (!campoJson) {
+      setCamposExtras([]);
+      setCamposPersonalizados([]);
+      return;
+    }
     let vivo = true;
     fetchCamposPersonalizados()
       .then((lista) => {
         if (!vivo) return;
-        setCamposExtras(
-          lista
-            .filter((c) => c.listado)
-            .map((c) => ({
-              name: `${campoJson.name}.${c.nome}`,
-              label: c.rotulo,
-              type: TIPO_COLUNA[c.tipo] || 'text',
-              listed: true,
-              json: { campo: campoJson.name, chave: c.nome },
-            })),
+        const defs = lista.map((c) => ({
+          name: `${campoJson.name}.${c.nome}`,
+          label: c.rotulo,
+          type: TIPO_COLUNA[c.tipo] || 'text',
+          listed: Boolean(c.listado),
+          json: { campo: campoJson.name, chave: c.nome },
+        })) as FieldDef[];
+        setCamposExtras(defs.filter((d) => d.listed));
+        // Na busca avançada, a lista vira combo com as opções (igualdade exata)
+        setCamposPersonalizados(
+          defs.map((d, i) =>
+            lista[i].tipo === 'lista'
+              ? { ...d, type: 'enum', options: (lista[i].opcoes || []).map((op) => ({ value: op, label: op })) }
+              : d,
+          ),
         );
       })
-      .catch(() => vivo && setCamposExtras([]));
+      .catch(() => {
+        if (!vivo) return;
+        setCamposExtras([]);
+        setCamposPersonalizados([]);
+      });
     return () => {
       vivo = false;
     };
@@ -194,12 +209,15 @@ export const CrudView: React.FC<CrudViewProps> = ({
   const [ordemForm, setOrdemForm] = useState<string[]>([]);
   const [tamanhosForm, setTamanhosForm] = useState<Record<string, TamanhoCampo>>({});
   const camposBuscaAtuais = useMemo(
-    () =>
-      resource.fields
+    () => [
+      ...resource.fields
         .filter((f) => f.type !== 'password' && f.type !== 'imagem' && f.type !== 'fotos')
         .filter((f) => (camposBusca ? camposBusca.includes(f.name) : f.filterable))
         .map((f) => f.name),
-    [resource, camposBusca],
+      // Campos personalizados só quando escolhidos (lupa no formulário)
+      ...camposPersonalizados.filter((f) => camposBusca?.includes(f.name)).map((f) => f.name),
+    ],
+    [resource, camposBusca, camposPersonalizados],
   );
   const alternarCampoBusca = (nome: string) =>
     setCamposBusca(() =>
@@ -1000,11 +1018,14 @@ export const CrudView: React.FC<CrudViewProps> = ({
         <AdvancedSearch
           resource={resource}
           camposVisiveis={camposBuscaAtuais}
+          camposExtras={camposPersonalizados}
           refOptions={refOptions}
           aplicados={filtros}
           onAplicar={(novos) => {
             setFiltros(novos);
             setPage(1);
+            // Aplicou: o painel fecha e fica o resumo dos filtros. Limpar (lista vazia) mantém aberto para montar outro
+            if (novos.length) setBuscaAvancadaAberta(false);
           }}
           onFechar={() => setBuscaAvancadaAberta(false)}
         />

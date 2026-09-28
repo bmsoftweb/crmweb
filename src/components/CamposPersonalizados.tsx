@@ -135,10 +135,11 @@ export const CamposPersonalizados: React.FC<Props> = ({ somenteLeitura, onToast 
           {/* Cabeçalho da grade, no padrão das listas do app */}
           <div className="hidden lg:grid grid-cols-12 gap-3 px-3 py-2 bg-stone-50 dark:bg-stone-950/60 border-b border-stone-200 dark:border-stone-800 text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
             <div className="col-span-4">Rótulo</div>
-            <div className="col-span-3">Tipo</div>
+            <div className="col-span-2">Tipo</div>
             <div className="col-span-3">Opções da lista</div>
             <div className="col-span-1 text-center">Obrigat.</div>
             <div className="col-span-1 text-center">Na lista</div>
+            <div className="col-span-1 text-right">Ações</div>
           </div>
           {campos.map((c, i) => (
             <fieldset
@@ -158,7 +159,7 @@ export const CamposPersonalizados: React.FC<Props> = ({ somenteLeitura, onToast 
                 {c.nome && <span className={HINT_CLASS}>({c.nome})</span>}
               </div>
 
-              <div className="flex flex-col gap-1 lg:col-span-3">
+              <div className="flex flex-col gap-1 lg:col-span-2">
                 <label className={`${LABEL_CLASS} lg:hidden`}>Tipo</label>
                 <select
                   value={c.tipo}
@@ -185,25 +186,30 @@ export const CamposPersonalizados: React.FC<Props> = ({ somenteLeitura, onToast 
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-2 lg:col-span-2">
-                <div className="flex items-center gap-4 lg:gap-6">
-                  <Toggle
-                    checked={Boolean(c.obrigatorio)}
-                    onChange={(v) => alterar(i, { obrigatorio: v })}
-                    size="sm"
-                    label={<span className="lg:hidden">Obrigatório</span>}
-                    title="Campo de preenchimento obrigatório"
-                  />
-                  <Toggle
-                    checked={Boolean(c.listado)}
-                    onChange={(v) => alterar(i, { listado: v })}
-                    size="sm"
-                    label={<span className="lg:hidden">Na lista</span>}
-                    title="Mostra este campo como coluna na lista de pessoas"
-                  />
+              {/* Tela larga: os blocos viram células da grade (lg:contents), cada interruptor na coluna do seu título */}
+              <div className="flex items-center justify-between gap-2 lg:contents">
+                <div className="flex items-center gap-4 lg:contents">
+                  <div className="lg:col-span-1 lg:flex lg:justify-center">
+                    <Toggle
+                      checked={Boolean(c.obrigatorio)}
+                      onChange={(v) => alterar(i, { obrigatorio: v })}
+                      size="sm"
+                      label={<span className="lg:hidden">Obrigatório</span>}
+                      title="Campo de preenchimento obrigatório"
+                    />
+                  </div>
+                  <div className="lg:col-span-1 lg:flex lg:justify-center">
+                    <Toggle
+                      checked={Boolean(c.listado)}
+                      onChange={(v) => alterar(i, { listado: v })}
+                      size="sm"
+                      label={<span className="lg:hidden">Na lista</span>}
+                      title="Mostra este campo como coluna na lista de pessoas"
+                    />
+                  </div>
                 </div>
                 {!somenteLeitura && (
-                  <div className="flex items-center gap-0.5 shrink-0">
+                  <div className="flex items-center justify-end gap-0.5 shrink-0 lg:col-span-1">
                     <button
                       type="button"
                       onClick={() => mover(i, -1)}

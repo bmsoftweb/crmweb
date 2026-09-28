@@ -237,6 +237,8 @@ export function importarBM(tipo: 'pessoas' | 'produtos'): Promise<{
   inalterados: number;
   /** Produtos: inativos no bmsoft que nunca vieram (não entram) */
   inativos?: number;
+  /** Pessoas: endereços do bmsoft incluídos e atualizados */
+  enderecos?: { incluidos: number; atualizados: number };
 }> {
   return enviar('POST', `/api/import-bm/${tipo}`);
 }
