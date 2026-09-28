@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.47 — 2026-09-28
+
+- Chamados Ativos: depois de gravar uma nota interna, o interruptor "Nota interna" volta a desligado (a próxima mensagem é resposta ao cliente).
+
 ## 0.0.46 — 2026-09-28
 
 - Banco: `chamados.conclusao` (SQL em extras/crmweb_schema.sql).

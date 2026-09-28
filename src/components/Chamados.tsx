@@ -510,6 +510,8 @@ const ChamadoAberto: React.FC<{
     try {
       const r = await enviarMensagemChamado(c.id, texto.trim(), interna);
       setTexto('');
+      // Nota gravada: o interruptor volta para resposta ao cliente (a próxima nota é escolha de novo)
+      setInterna(false);
       if (r.aviso) onToast(r.aviso);
       carregar();
       onMudou();
