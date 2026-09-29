@@ -4,7 +4,8 @@ import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { lerConfig, somenteAdmin } from './config.js';
 import { cifrar, decifrar } from './segredo.js';
-import { chaveTelefone, donoDoTelefone, enviarReservada, mostrarDigitando, reservarEnvio, type ArquivoEnvio, type MensagemNova } from './whatsapp.js';
+import { chaveTelefone, contaDaConversa, donoDoTelefone, enviarReservada, mostrarDigitando, reservarEnvio, type ArquivoEnvio, type ContaWhats, type MensagemNova } from './whatsapp.js';
+import { campanhaDaConversa, contextoDeCampanha } from './campanhas.js';
 import {
   avisarDepartamento,
   avisarFalha,
@@ -276,7 +277,10 @@ export function jornadaPublica(cfg: Jornada | null): Jornada {
   };
 }
 
-const lerJornada = async (empresaId: string | number): Promise<Jornada | null> => lerConfig(String(empresaId), 'whatsapp', 'jornada');
+/** A Automação de cada número: a do atendimento (jornada) e a de quem responde no WhatsApp das campanhas */
+const chaveJornada = (conta: ContaWhats) => (conta === 'campanhas' ? 'jornada_campanhas' : 'jornada');
+const lerJornada = async (empresaId: string | number, conta: ContaWhats = 'provedor'): Promise<Jornada | null> =>
+  lerConfig(String(empresaId), 'whatsapp', chaveJornada(conta));
 
 export const lerJornadaConfig = lerJornada;
 
@@ -291,7 +295,8 @@ export const jornadaAtende = (j: Jornada | null, telefone: string): boolean => B
 
 /** A jornada que atende este número (ligada, e no modo teste só para os números de teste) */
 export async function jornadaDoNumero(empresaId: number, telefone: string): Promise<{ jornada: Jornada; numeroDeTeste: boolean } | null> {
-  const j = await lerJornada(empresaId);
+  // A do número por onde a conversa entrou (a das campanhas para quem responde a uma campanha)
+  const j = await lerJornada(empresaId, await contaDaConversa(empresaId, telefone));
   if (!j || !jornadaAtende(j, telefone)) return null;
   return { jornada: j, numeroDeTeste: ehNumeroDeTeste(j, telefone) };
 }
@@ -455,7 +460,11 @@ async function contextoDaConversa(empresaId: number, telefone: string): Promise<
     'SELECT d.id, d.nome FROM whatsapp_conversas c JOIN departamentos d ON d.id = c.departamento_id WHERE c.empresa_id = ? AND c.telefone = ?',
     [empresaId, telefone],
   );
-  return { empresaId, telefone, dono, departamento: dep[0] ? { id: dep[0].id, nome: dep[0].nome } : null, jornada: { transferencia: null } };
+  // Conversa no número das campanhas: a campanha que a pessoa recebeu vira contexto da IA
+  const campanha = (await contaDaConversa(empresaId, telefone)) === 'campanhas' ? await campanhaDaConversa(empresaId, telefone) : null;
+  // Pessoa que recebeu a campanha: é ela, mesmo quando o número não bate com o cadastro
+  const donoFinal = !dono.pessoa_id && campanha?.pessoa_id ? { pessoa_id: campanha.pessoa_id, contato_id: null } : dono;
+  return { empresaId, telefone, dono: donoFinal, departamento: dep[0] ? { id: dep[0].id, nome: dep[0].nome } : null, jornada: { transferencia: null }, campanha };
 }
 
 /** Variáveis prontas: as coletadas, mais nome (cadastro ou perfil do WhatsApp) e telefone */
@@ -466,7 +475,14 @@ async function variaveisDe(ctx: Contexto, vars: Record<string, any>): Promise<Re
     [ctx.empresaId, ctx.telefone],
   );
   const publicas = Object.fromEntries(Object.entries(vars).filter(([k]) => !k.startsWith('_')));
-  return { nome: p[0]?.nome ?? perfil[0]?.nome_contato ?? '', telefone: telefoneCadastro(ctx.telefone), numero: ctx.telefone, departamento: ctx.departamento?.nome ?? '', ...publicas };
+  return {
+    nome: p[0]?.nome ?? perfil[0]?.nome_contato ?? '',
+    telefone: telefoneCadastro(ctx.telefone),
+    numero: ctx.telefone,
+    departamento: ctx.departamento?.nome ?? '',
+    campanha: ctx.campanha?.nome ?? '',
+    ...publicas,
+  };
 }
 
 class Execucao {
@@ -560,7 +576,9 @@ class Execucao {
   /** IA responde com o histórico; se ela passar para humano, segue a saída "humano" */
   private async ia(no: No): Promise<No | null | 'fim'> {
     // Texto-base do nó; sem ele, o texto-base antigo do Chatbot (automações feitas antes da mudança)
-    const textoBase = String(no.dados.texto ?? '').trim() || String(this.bot?.texto_base ?? '').trim();
+    const semCampanha = String(no.dados.texto ?? '').trim() || String(this.bot?.texto_base ?? '').trim();
+    // Quem responde a uma campanha: a IA conhece a mensagem que a pessoa recebeu e as instruções da campanha
+    const textoBase = semCampanha ? semCampanha + contextoDeCampanha(this.ctx.campanha) : '';
     if (!temChave(this.bot) || !textoBase) {
       await this.falha(no, `sem a chave da IA (Configurações › Chatbot) ou sem texto-base (${ONDE}).`);
       return this.destino(no, 'humano') ?? 'fim';
@@ -603,7 +621,7 @@ class Execucao {
     let r: { opcao: number; mensagem: string };
     try {
       void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000);
-      r = await iaComOpcoes(this.ctx, this.bot, preencher(no.dados.texto ?? '', await this.vars()), opcoes, abertura);
+      r = await iaComOpcoes(this.ctx, this.bot, preencher(no.dados.texto ?? '', await this.vars()) + contextoDeCampanha(this.ctx.campanha), opcoes, abertura);
     } catch (err: any) {
       return this.iaFalhou(no, err.message);
     }

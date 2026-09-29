@@ -553,6 +553,14 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                           Aguardando
                         </span>
                       )}
+                      {c.conta === 'campanhas' && (
+                        <span
+                          title="Entrou pelo WhatsApp das campanhas: as respostas saem por esse número"
+                          className="shrink-0 text-[10px] font-semibold px-1.5 rounded bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300"
+                        >
+                          Campanha
+                        </span>
+                      )}
                       {c.estado === 'encerrado' && (
                         <span
                           title="Atendimento encerrado: a próxima mensagem do cliente começa um novo atendimento"

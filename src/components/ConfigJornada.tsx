@@ -47,6 +47,8 @@ type NoRF = Node<DadosNo, 'no'>;
 interface Props {
   somenteLeitura: boolean;
   onToast: (msg: string) => void;
+  /** jornada = atendimento (número padrão); jornada_campanhas = quem responde no WhatsApp das campanhas */
+  chave?: 'jornada' | 'jornada_campanhas';
 }
 
 /** Departamentos (para o resumo dos nós Departamento), sem passar pelos dados de cada nó */
@@ -141,7 +143,7 @@ interface Confirmacao {
   cancelar?: () => void;
 }
 
-const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
+const Editor: React.FC<Props> = ({ somenteLeitura, onToast, chave = 'jornada' }) => {
   const [carregado, setCarregado] = useState(false);
   const [ativo, setAtivo] = useState(false);
   const [modo, setModo] = useState<'teste' | 'todos'>('teste');
@@ -158,7 +160,7 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
   const escuro = useTemaEscuro();
 
   useEffect(() => {
-    fetchConfig<Jornada>('whatsapp', 'jornada')
+    fetchConfig<Jornada>('whatsapp', chave)
       .then(({ valor }) => {
         if (!valor) return;
         setAtivo(valor.ativo);
@@ -240,7 +242,7 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     setErro(null);
     try {
       const numeros_teste = numeros.split(/[,;\n]/).map((t) => t.trim()).filter(Boolean);
-      await salvarConfig('whatsapp', 'jornada', { ativo, modo, numeros_teste, ...jornadaAtual });
+      await salvarConfig('whatsapp', chave, { ativo, modo, numeros_teste, ...jornadaAtual });
       onToast(ativo ? `Automação gravada e ligada (${modo === 'teste' ? 'só números de teste' : 'todos os clientes'}).` : 'Automação gravada (desligada).');
     } catch (err: any) {
       setErro(err.message);

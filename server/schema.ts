@@ -802,6 +802,14 @@ export const RESOURCES: ResourceDef[] = [
       // Tipo + Nome dividem a primeira linha do formulário (grade de 4 colunas)
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 255, span: 3 },
       { name: 'segmento_id', label: 'Segmento', type: 'text', listed: true, filterable: true, ref: { resource: 'segmentos', labelField: 'nome' } },
+      {
+        name: 'nao_receber_campanhas',
+        label: 'Não receber campanhas',
+        type: 'boolean',
+        filterable: true,
+        default: false,
+        hint: 'Fica fora de todas as campanhas. Marcado sozinho quando a pessoa responde "SAIR" a uma campanha no WhatsApp',
+      },
       { name: 'tecnico_padrao_id', label: 'Técnico Padrão', type: 'text', listed: true, filterable: true, ref: { resource: 'usuarios', labelField: 'nome' }, hint: 'Quem atende os chamados e o WhatsApp deste cliente (outro técnico ainda pode assumir)' },
       { name: 'email', label: 'E-mail', type: 'text', listed: true, searchable: true, maxLength: 255 },
       { name: 'telefone', label: 'Telefone', type: 'text', listed: true, searchable: true, maxLength: 50 },
@@ -1160,6 +1168,12 @@ export const RESOURCES: ResourceDef[] = [
         type: 'textarea',
         searchable: true,
         hint: 'Variáveis: {{nome}}, {{primeiro_nome}}, {{email}}, {{telefone}}, {{cidade}}, {{ultima_compra}}, {{empresa}}',
+      },
+      {
+        name: 'instrucoes_ia',
+        label: 'Instruções para a IA',
+        type: 'textarea',
+        hint: 'Quem responder a esta campanha no WhatsApp das campanhas é atendido pela Automação das campanhas: a IA recebe a mensagem enviada e este texto (o que explicar, preços, condições, perguntas frequentes)',
       },
       {
         name: 'imagem',

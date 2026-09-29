@@ -128,13 +128,45 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
               <ConfigPesquisa somenteLeitura={somenteLeitura} onToast={onToast} />
             </>
           )}
-          {aba === 'jornada' && <ConfigJornada somenteLeitura={somenteLeitura} onToast={onToast} />}
+          {aba === 'jornada' && <AutomacoesWhatsApp somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'automaticas' && <ConfigAutomaticas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'vendas' && <ConfigVendas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'assinatura' && <ConfigAssinatura somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'modelos_contrato' && <ModelosContrato somenteLeitura={somenteLeitura} onToast={onToast} />}
         </div>
       </div>
+    </div>
+  );
+};
+
+/** Aba Automação: a do atendimento (número padrão) e a de quem responde no WhatsApp das campanhas */
+const AutomacoesWhatsApp: React.FC<{ somenteLeitura: boolean; onToast: (msg: string) => void }> = ({ somenteLeitura, onToast }) => {
+  const [chave, setChave] = React.useState<'jornada' | 'jornada_campanhas'>('jornada');
+  const botao = (valor: typeof chave, rotulo: string) => (
+    <button
+      type="button"
+      onClick={() => setChave(valor)}
+      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+        chave === valor ? 'bg-blue-600 text-white' : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+      }`}
+    >
+      {rotulo}
+    </button>
+  );
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="inline-flex gap-1 p-1 rounded-xl border border-stone-200 dark:border-stone-800">
+          {botao('jornada', 'Atendimento')}
+          {botao('jornada_campanhas', 'Campanhas')}
+        </div>
+        <span className="text-xs text-stone-500 dark:text-stone-400 max-w-3xl">
+          {chave === 'jornada'
+            ? 'Quem escreve no WhatsApp padrão.'
+            : 'Quem responde a uma campanha no WhatsApp das campanhas. A IA recebe a mensagem da campanha e as "Instruções para a IA" dela. "SAIR" descadastra a pessoa mesmo com esta automação desligada.'}
+        </span>
+      </div>
+      <ConfigJornada key={chave} chave={chave} somenteLeitura={somenteLeitura} onToast={onToast} />
     </div>
   );
 };

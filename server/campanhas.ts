@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { friendlyDbError } from './crud.js';
 import { enviarEmail } from './email.js';
-import { enviarWhatsAppCampanha, imagemDaCampanha, telefoneWhatsApp } from './whatsapp.js';
+import { chaveTelefone, enviarWhatsAppCampanha, imagemDaCampanha, telefoneWhatsApp } from './whatsapp.js';
 
 /**
  * Campanhas (tudo numa tabela só): o público vem dos critérios da campanha, a mensagem (com variáveis
@@ -187,10 +187,13 @@ export function personalizar(texto: string | null | undefined, dados: Record<str
 /** Canais com envio automático. Multicanal = WhatsApp quando a pessoa tem celular, senão e-mail */
 export const CANAIS_COM_ENVIO = ['whatsapp', 'email', 'multicanal'];
 
+/** Quem pediu para não receber campanhas (respondeu "SAIR" ou marcado no cadastro) fica fora de todo público */
+const SEM_DESCADASTRADOS = 'AND p.nao_receber_campanhas = 0';
+
 /** Quantas pessoas atendem aos critérios (o "público estimado" da campanha) */
 export async function contarPublico(criterios: unknown, empresaId: string | number, db: Executor = pool): Promise<number> {
   const { where, params } = sqlCriterios(normalizarCriterios(criterios), empresaId);
-  const [r] = await db.query<any[]>(`SELECT COUNT(*) AS n FROM pessoas p WHERE ${where}`, params);
+  const [r] = await db.query<any[]>(`SELECT COUNT(*) AS n FROM pessoas p WHERE ${where} ${SEM_DESCADASTRADOS}`, params);
   return Number(r[0].n);
 }
 
@@ -230,7 +233,10 @@ async function campanhaDa(id: string | number, empresaId: string | number, db: E
 async function publicoDa(c: any, empresaId: string | number, db: Executor, limite?: number) {
   const { where, params } = sqlCriterios(normalizarCriterios(c.criterios), empresaId);
   const colunas = Object.entries(VARIAVEIS).map(([k, sql]) => `${sql} AS ${k}`).join(', ');
-  const [r] = await db.query<any[]>(`SELECT p.id, ${colunas} FROM pessoas p WHERE ${where} ORDER BY p.nome${limite ? ` LIMIT ${Number(limite)}` : ''}`, params);
+  const [r] = await db.query<any[]>(
+    `SELECT p.id, ${colunas} FROM pessoas p WHERE ${where} ${SEM_DESCADASTRADOS} ORDER BY p.nome${limite ? ` LIMIT ${Number(limite)}` : ''}`,
+    params,
+  );
   return r;
 }
 
@@ -292,6 +298,47 @@ export async function gerarDisparos(campanhaId: string | number, empresaId: stri
     conn.release();
   }
 }
+
+/** A campanha que a pessoa recebeu, para a Automação das campanhas conversar com o contexto dela */
+export interface CampanhaDaConversa {
+  id: number;
+  nome: string;
+  /** Mensagem que a pessoa recebeu (já personalizada) */
+  mensagem: string;
+  /** Instruções da campanha para a IA: o que explicar, preços, perguntas frequentes */
+  instrucoes: string;
+  pessoa_id: number | null;
+}
+
+/** Dias depois do envio em que a resposta ainda é "sobre a campanha" */
+const DIAS_CONTEXTO = 15;
+
+/** Último disparo de WhatsApp que saiu para o telefone (nos últimos 15 dias); o número pode vir com ou sem o 9 */
+export async function campanhaDaConversa(empresaId: string | number, telefone: string): Promise<CampanhaDaConversa | null> {
+  const chave = chaveTelefone(telefone, true);
+  if (!chave) return null;
+  const [r] = await pool.query<any[]>(
+    `SELECT c.id, c.nome, c.instrucoes_ia, d.mensagem, d.pessoa_id, d.destino
+       FROM campanha_disparos d JOIN campanhas c ON c.id = d.campanha_id
+      WHERE c.empresa_id = ? AND d.canal = 'whatsapp' AND d.situacao IN ('enviado', 'entregue', 'lido')
+        AND d.enviado_em >= NOW() - INTERVAL ? DAY AND RIGHT(d.destino, 8) = RIGHT(?, 8)
+      ORDER BY d.enviado_em DESC, d.id DESC LIMIT 10`,
+    [empresaId, DIAS_CONTEXTO, telefone],
+  );
+  const d = r.find((x) => chaveTelefone(x.destino, true) === chave);
+  return d ? { id: d.id, nome: d.nome, mensagem: d.mensagem, instrucoes: String(d.instrucoes_ia ?? '').trim(), pessoa_id: d.pessoa_id } : null;
+}
+
+/** Contexto da campanha para o texto-base da IA (vazio quando a conversa não é de campanha) */
+export function contextoDeCampanha(c: CampanhaDaConversa | null | undefined): string {
+  if (!c) return '';
+  return `\n\nCONTEXTO DA CAMPANHA: esta pessoa recebeu a mensagem abaixo da campanha "${c.nome}" e está respondendo a ela. Converse sobre ela e tire as dúvidas.
+Mensagem que a pessoa recebeu:
+«${c.mensagem}»${c.instrucoes ? `\nInstruções da campanha (o que explicar, condições, perguntas frequentes):\n${c.instrucoes}` : ''}`;
+}
+
+/** Resposta que pede para sair da lista: "SAIR", "parar", "não quero mais"... (só a mensagem inteira) */
+export const PEDIU_SAIR = /^\s*(sair|parar|pare|stop|cancelar|descadastrar|remover|me\s+tire(\s+da\s+lista)?|n[ãa]o\s+quero(\s+mais)?(\s+receber)?)\s*[.!]*\s*$/i;
 
 // ------------------------------------------------------------
 // Envio por e-mail (o WhatsApp sai por server/whatsapp.ts)

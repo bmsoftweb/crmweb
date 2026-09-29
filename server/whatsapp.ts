@@ -19,7 +19,9 @@ import { cifrar, decifrar, textoConfig } from './segredo.js';
  *
  * WhatsApp das campanhas (chave "campanhas", mesma estrutura): outro número só para as campanhas,
  * para um bloqueio por disparo em massa não derrubar o número do atendimento. Sem ele, as campanhas
- * saem pelo número padrão. Mensagens recebidas nele entram na conversa, mas o bot não responde.
+ * saem pelo número padrão. A conversa lembra por qual número entrou (whatsapp_conversas.conta): as
+ * respostas (tela, bot, automação) saem por ele, e quem responde no número das campanhas é atendido
+ * pela Automação das campanhas.
  */
 
 /** Conta do WhatsApp: a padrão (atendimento, propostas...) ou a das campanhas */
@@ -175,6 +177,30 @@ async function credenciaisDeCampanha(empresaId: string | number): Promise<Creden
   return credenciais(empresaId, cfg?.provedor ? 'campanhas' : 'provedor');
 }
 
+/** Por qual número a conversa entrou (a última mensagem recebida); sem registro, o padrão */
+export async function contaDaConversa(empresaId: string | number, telefone: string): Promise<ContaWhats> {
+  const [r] = await pool.query<any[]>('SELECT conta FROM whatsapp_conversas WHERE empresa_id = ? AND telefone = ?', [empresaId, telefone]);
+  return contaWhats(r[0]?.conta);
+}
+
+/** Para falar com o telefone: pelo número por onde a conversa entrou (o das campanhas, ou o padrão sem ele configurado) */
+async function credenciaisPara(empresaId: string | number, telefone: string): Promise<Credenciais> {
+  return (await contaDaConversa(empresaId, telefone)) === 'campanhas' ? credenciaisDeCampanha(empresaId) : credenciais(empresaId);
+}
+
+/**
+ * Mensagem recebida: a conversa passa a ser do número por onde chegou. Trocar de número recomeça a
+ * automação (cada número tem a sua); a situação do atendimento (bot, humano, atendente) fica
+ */
+async function marcarConta(empresaId: string | number, telefone: string, conta: ContaWhats) {
+  await pool.query(
+    `INSERT INTO whatsapp_conversas (empresa_id, telefone, conta) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE no_atual = IF(conta <> VALUES(conta), NULL, no_atual), retomar_em = IF(conta <> VALUES(conta), NULL, retomar_em),
+       conta = VALUES(conta)`,
+    [empresaId, telefone, conta],
+  );
+}
+
 /** Só dígitos, com o DDI 55 quando vier só DDD + número */
 export function telefoneWhatsApp(bruto: string | null | undefined): string {
   let t = String(bruto ?? '').replace(/\D/g, '').replace(/^0+/, '');
@@ -233,7 +259,7 @@ const assinado = (assinatura: string | undefined, texto: string) => (assinatura 
 
 /** Envia texto; devolve o número da conversa (como o WhatsApp o conhece: às vezes sem o 9) */
 export async function enviarWhatsApp(empresaId: string | number, telefone: string, texto: string, reg: Registro = {}, assinatura?: string): Promise<string> {
-  const resposta = await textoPara(await credenciais(empresaId), telefone, assinado(assinatura, texto));
+  const resposta = await textoPara(await credenciaisPara(empresaId, telefone), telefone, assinado(assinatura, texto));
   return registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'texto', texto });
 }
 
@@ -304,7 +330,7 @@ export interface ArquivoEnvio {
  */
 export async function enviarMidiaWhatsApp(empresaId: string | number, telefone: string, a: ArquivoEnvio, reg: Registro = {}, assinatura?: string): Promise<string> {
   const legenda = a.legenda ? assinado(assinatura, a.legenda) : a.legenda;
-  const resposta = await midiaPara(await credenciais(empresaId), telefone, { ...a, legenda });
+  const resposta = await midiaPara(await credenciaisPara(empresaId, telefone), telefone, { ...a, legenda });
   return registrarEnviada(empresaId, telefone, resposta, {
     ...reg,
     tipo: a.tipo,
@@ -368,7 +394,7 @@ export async function reservarEnvio(empresaId: string | number, origem: string, 
 export async function enviarReservada(empresaId: string | number, id: number, origem: string, telefone: string, texto: string, midia?: ArquivoEnvio): Promise<void> {
   let resposta: any;
   try {
-    const c = await credenciais(empresaId);
+    const c = await credenciaisPara(empresaId, telefone);
     resposta = midia ? await midiaPara(c, telefone, midia) : await textoPara(c, telefone, texto);
     if (midia) await pool.query('UPDATE whatsapp_mensagens SET tipo = ? WHERE id = ?', [midia.tipo, id]);
   } catch (err: any) {
@@ -395,7 +421,7 @@ export async function enviarReservada(empresaId: string | number, id: number, or
 /** Mostra "digitando..." para o cliente por alguns segundos (só Evolution; falha é ignorada) */
 export async function mostrarDigitando(empresaId: string | number, telefone: string, ms: number): Promise<void> {
   try {
-    const c = await credenciais(empresaId);
+    const c = await credenciaisPara(empresaId, telefone);
     if (c.provedor !== 'evolution') return;
     await fetch(`${c.url}/chat/sendPresence/${encodeURIComponent(c.instancia)}`, {
       method: 'POST',
@@ -674,8 +700,11 @@ export async function receberAvisoEvolution(token: string, corpo: any): Promise<
   for (const d of itens) {
     if (evento === 'messages.upsert' || evento === 'send.message') {
       const nova = await gravarMensagem(dono.empresaId, d);
-      // Número das campanhas: a resposta entra na conversa, mas o bot e a pesquisa não respondem por ele
-      if (nova && dono.conta === 'provedor') novas.push(nova);
+      if (nova) {
+        // A conversa segue pelo número por onde a mensagem chegou (o das campanhas tem a sua automação)
+        await marcarConta(dono.empresaId, nova.telefone, dono.conta);
+        novas.push(nova);
+      }
     } else if (evento === 'messages.update') await atualizarSituacao(dono.empresaId, d);
   }
   return novas;
@@ -775,8 +804,9 @@ export async function conectarWhatsApp(empresaId: string, conta: ContaWhats = 'p
  * Arquivo de uma mensagem (imagem, figurinha, áudio, vídeo) pelo id no WhatsApp. Evolution: baixa e decifra
  * pelo chat/getBase64FromMediaMessage; o CRM não guarda o arquivo.
  */
-export async function midiaDaMensagem(empresaId: string | number, waId: string): Promise<{ mimetype: string; dados: Buffer }> {
-  const c = await credenciais(empresaId);
+export async function midiaDaMensagem(empresaId: string | number, waId: string, telefone?: string): Promise<{ mimetype: string; dados: Buffer }> {
+  // A mídia fica na instância que recebeu: a do número da conversa
+  const c = telefone ? await credenciaisPara(empresaId, telefone) : await credenciais(empresaId);
   if (c.provedor !== 'evolution') throw new Error('Imagens das mensagens só pela Evolution.');
   const { url, headers } = endereco(c, { zapi: '', evolution: 'chat/getBase64FromMediaMessage' });
   const r: any = await (

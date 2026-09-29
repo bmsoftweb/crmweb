@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.53 — 2026-09-28
+
+- Banco: `whatsapp_conversas.conta`, `campanhas.instrucoes_ia` e `pessoas.nao_receber_campanhas` (SQL em extras/crmweb_schema.sql).
+- Whatsapp: a conversa lembra por qual número entrou (padrão ou WhatsApp das campanhas) e tudo sai por ele: bot, respostas da tela, "digitando", mídia; etiqueta "Campanha" na lista. Trocar de número recomeça a automação.
+- Automação das campanhas (Configurações › Automação › Campanhas): fluxo próprio para quem responde no WhatsApp das campanhas. A IA recebe a mensagem da campanha que a pessoa recebeu (últimos 15 dias) e as "Instruções para a IA" da campanha; o lead abre o negócio "Campanha <nome>: <interesse>".
+- Campanhas: "SAIR" (ou "parar", "não quero mais"...) no WhatsApp das campanhas descadastra a pessoa ("Não receber campanhas" em Pessoas), cancela os disparos pendentes dela e confirma; o público e a geração de disparos deixam os descadastrados de fora.
+
 ## 0.0.52 — 2026-09-28
 
 - Banco: `campanhas.imagem` (SQL em extras/crmweb_schema.sql).

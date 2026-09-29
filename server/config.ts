@@ -23,7 +23,8 @@ const CHAVES: Record<string, string[]> = {
   pessoas: ['campos_personalizados'],
   email: ['smtp'],
   // campanhas: outro número só para as campanhas (mesma estrutura da provedor)
-  whatsapp: ['provedor', 'campanhas', 'automaticas', 'chatbot', 'jornada', 'pesquisa'],
+  // jornada_campanhas: a Automação de quem responde no WhatsApp das campanhas (mesma estrutura da jornada)
+  whatsapp: ['provedor', 'campanhas', 'automaticas', 'chatbot', 'jornada', 'jornada_campanhas', 'pesquisa'],
   // { ativo: boolean } — tarefa "Retorno Envio" ao enviar proposta ou pedido (sem configuração: ligado)
   vendas: ['retorno_envio'],
   assinatura: ['d4sign'],
@@ -41,6 +42,7 @@ const COM_SEGREDO: Record<string, { preparar: (valor: any, anterior: any) => any
   'whatsapp.chatbot': { preparar: prepararChatbot, publica: chatbotPublica },
   // Funções chamadas na hora (jornada.ts importa este módulo)
   'whatsapp.jornada': { preparar: (v, a) => prepararJornada(v, a), publica: (v) => jornadaPublica(v) },
+  'whatsapp.jornada_campanhas': { preparar: (v, a) => prepararJornada(v, a), publica: (v) => jornadaPublica(v) },
   'whatsapp.pesquisa': { preparar: (v) => prepararPesquisa(v), publica: (v) => pesquisaPublica(v) },
   'assinatura.d4sign': { preparar: prepararConfigD4, publica: configD4Publica },
 };

@@ -508,6 +508,8 @@ export interface ConversaResumo {
   atendente_nome: string | null;
   atendido_em: string | null;
   aguardando_desde: string | null;
+  /** Número por onde a conversa entrou: provedor (padrão) ou campanhas */
+  conta: 'provedor' | 'campanhas';
   /** Técnico padrão do cliente (pessoas.tecnico_padrao_id) */
   tecnico_padrao_nome: string | null;
 }
@@ -555,6 +557,8 @@ export const fetchConversa = (
   sou_admin: boolean;
   /** Bot ou jornada atendem este número (há para onde devolver) */
   com_bot: boolean;
+  /** Número por onde a conversa entrou: as respostas saem por ele */
+  conta: 'provedor' | 'campanhas';
   /** Há atendimento em andamento (o botão Encerrar aparece) */
   encerravel: boolean;
   nome_contato: string | null;

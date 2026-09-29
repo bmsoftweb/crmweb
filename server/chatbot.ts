@@ -4,7 +4,8 @@ import { pool } from './db.js';
 import { lerConfig } from './config.js';
 import { cifrar, decifrar, textoConfig } from './segredo.js';
 import { aposGravar, sincronizarNegocio } from './regras.js';
-import { chaveTelefone, donoDoTelefone, enviarAutomatica, enviarReservada, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type Dono, type MensagemNova } from './whatsapp.js';
+import { chaveTelefone, contaDaConversa, donoDoTelefone, enviarAutomatica, enviarReservada, enviarWhatsApp, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type Dono, type MensagemNova } from './whatsapp.js';
+import { campanhaDaConversa, PEDIU_SAIR, type CampanhaDaConversa } from './campanhas.js';
 
 /**
  * Chatbot do WhatsApp com IA (Gemini, Claude ou DeepSeek, à escolha da empresa). Configuração em Configurações › Chatbot (tabela config,
@@ -448,6 +449,8 @@ export interface Contexto {
   departamento: { id: number; nome: string } | null;
   /** Dentro da jornada: a transferência para humano só é anotada, e a jornada decide o caminho */
   jornada?: { transferencia: string | null };
+  /** Conversa no WhatsApp das campanhas: a campanha que a pessoa recebeu (contexto da IA e título do lead) */
+  campanha?: CampanhaDaConversa | null;
 }
 
 /** Número da conversa → telefone para o cadastro: (47) 98843-8552 (celular de 8 dígitos ganha o 9) */
@@ -513,7 +516,7 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>) {
     const v = await proximoVendedor(emp);
     const [n] = await pool.query<any>(
       "INSERT INTO negocios (empresa_id, titulo, valor, funil_id, etapa_id, pessoa_id, proprietario_id, status) VALUES (?, ?, 0, ?, ?, ?, ?, 'aberto')",
-      [emp, `WhatsApp: ${interesse}`.slice(0, 255), f[0].funil_id, f[0].etapa_id, pessoaId, v?.id ?? null],
+      [emp, `${ctx.campanha ? `Campanha ${ctx.campanha.nome}` : 'WhatsApp'}: ${interesse}`.slice(0, 255), f[0].funil_id, f[0].etapa_id, pessoaId, v?.id ?? null],
     );
     negocioId = n.insertId;
     vendedor = v?.nome ?? null;
@@ -892,7 +895,36 @@ async function ultimaRecebida(empresaId: number, telefone: string): Promise<numb
  * Responde a mensagem recebida, se o bot estiver ligado e a conversa com ele. Chamada em segundo
  * plano pelo webhook (na Vercel, com waitUntil): a espera não segura o aviso da Evolution.
  */
+/**
+ * "SAIR" (ou "não quero mais"...) no WhatsApp das campanhas: a pessoa fica fora das campanhas, os disparos
+ * pendentes dela são cancelados e ela recebe a confirmação. Vale com ou sem a Automação das campanhas ligada.
+ */
+async function tratarDescadastro(nova: MensagemNova): Promise<boolean> {
+  if ((await contaDaConversa(nova.empresaId, nova.telefone)) !== 'campanhas') return false;
+  const [m] = await pool.query<any[]>('SELECT tipo, texto, pessoa_id FROM whatsapp_mensagens WHERE id = ?', [nova.id]);
+  if (m[0]?.tipo !== 'texto' || !PEDIU_SAIR.test(String(m[0].texto ?? ''))) return false;
+  const campanha = await campanhaDaConversa(nova.empresaId, nova.telefone);
+  const pessoas = [...new Set([m[0].pessoa_id, campanha?.pessoa_id].filter(Boolean))];
+  if (pessoas.length) {
+    await pool.query('UPDATE pessoas SET nao_receber_campanhas = 1 WHERE empresa_id = ? AND id IN (?)', [nova.empresaId, pessoas]);
+    await pool.query(
+      `UPDATE campanha_disparos d JOIN campanhas c ON c.id = d.campanha_id SET d.situacao = 'cancelado', d.erro = 'Pediu para não receber campanhas'
+        WHERE c.empresa_id = ? AND d.pessoa_id IN (?) AND d.situacao = 'pendente'`,
+      [nova.empresaId, pessoas],
+    );
+  }
+  await marcarEvento(nova.empresaId, nova.telefone, 'Pediu para não receber mais campanhas', null);
+  await enviarWhatsApp(
+    nova.empresaId,
+    nova.telefone,
+    'Pronto! Você não vai mais receber nossas campanhas por aqui. Se precisar de alguma coisa, é só chamar.',
+    { pessoa_id: pessoas[0] ?? null },
+  ).catch((err) => console.error(`Campanhas: confirmação do descadastro (${nova.telefone}): ${err.message}`));
+  return true;
+}
+
 export async function responderComBot(nova: MensagemNova): Promise<void> {
+  if (await tratarDescadastro(nova)) return;
   const cfg = await lerChatbot(nova.empresaId);
   // Quem atende é a Automação (Configurações › Automação) ligada para este número.
   // Import dinâmico: jornada.ts usa este módulo

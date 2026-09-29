@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { celularWhatsApp, destinoDe, normalizarCriterios, sqlCriterios, variaveisDoTexto, personalizar } from './campanhas.js';
+import { celularWhatsApp, contextoDeCampanha, destinoDe, PEDIU_SAIR, normalizarCriterios, sqlCriterios, variaveisDoTexto, personalizar } from './campanhas.js';
 
 // Objeto único (formato do exemplo do migration) vira lista; número e sim/não são convertidos
 const c = normalizarCriterios('{"regra":"ultima_compra","operador":">","valor":"60"}');
@@ -38,5 +38,16 @@ assert.deepStrictEqual(destinoDe('multicanal', soEmail), { canal: 'email', desti
 assert.strictEqual(destinoDe('multicanal', { email: '', whatsapp: '' }), null);
 // Canal sem envio automático: ninguém
 assert.strictEqual(destinoDe('sms', comTudo), null);
+
+// Descadastro: a mensagem inteira pede para sair; frase com "sair" no meio não conta
+for (const t of ['SAIR', 'sair.', ' Parar ', 'não quero mais', 'Nao quero receber', 'me tire da lista', 'stop!']) assert.ok(PEDIU_SAIR.test(t), t);
+for (const t of ['quero sair para almoçar', 'não quero pagar agora', 'parar o sistema?', 'oi']) assert.ok(!PEDIU_SAIR.test(t), t);
+// Contexto da campanha para a IA: a mensagem recebida e as instruções; sem campanha, nada
+const ctx = contextoDeCampanha({ id: 1, nome: 'Novo módulo', mensagem: 'Olá Ana, conheça o módulo fiscal', instrucoes: 'Preço: R$ 99/mês', pessoa_id: 5 });
+assert.match(ctx, /campanha "Novo módulo"/);
+assert.match(ctx, /Olá Ana, conheça o módulo fiscal/);
+assert.match(ctx, /Preço: R\$ 99\/mês/);
+assert.strictEqual(contextoDeCampanha(null), '');
+assert.doesNotMatch(contextoDeCampanha({ id: 1, nome: 'X', mensagem: 'M', instrucoes: '', pessoa_id: null }), /Instruções/);
 
 console.log('campanhas: ok');

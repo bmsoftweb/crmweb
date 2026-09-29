@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
-import { ArquivoEnvio, chaveTelefone, donoDoTelefone, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp } from './whatsapp.js';
+import { ArquivoEnvio, chaveTelefone, donoDoTelefone, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
 import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
@@ -410,12 +410,13 @@ export function createConversasRouter(): Router {
       const minhas = req.query.minhas === '1';
       const eu = res.locals.usuario.id;
       const chatbot: any = await lerConfig(String(res.locals.empresaId), 'whatsapp', 'chatbot');
-      const jornada = await lerJornadaConfig(res.locals.empresaId);
+      // A Automação de cada número: quem veio pelo WhatsApp das campanhas é atendido pela das campanhas
+      const jornadas = { provedor: await lerJornadaConfig(res.locals.empresaId), campanhas: await lerJornadaConfig(res.locals.empresaId, 'campanhas') };
       const [rows] = await pool.query<any[]>(
         `SELECT w.telefone, x.pessoa_id, p.nome, x.contato_id, c.nome AS contato_nome, COALESCE(c.departamento, c.cargo) AS contato_setor,
                 ${NOME_CONTATO('w')} AS nome_contato, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao,
                 DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, x.encerrada, d.nome AS departamento,
-                wc.atendimento, wc.atendente_id, ua.nome AS atendente_nome, tp.nome AS tecnico_padrao_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
+                wc.atendimento, wc.atendente_id, COALESCE(wc.conta, 'provedor') AS conta, ua.nome AS atendente_nome, tp.nome AS tecnico_padrao_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
                 DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde
            FROM (SELECT telefone, MAX(IF(tipo NOT IN ('encerramento', 'evento'), id, NULL)) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
                         SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas,
@@ -442,7 +443,7 @@ export function createConversasRouter(): Router {
       // cliente foi o último a escrever) ou com o bot
       res.json(
         rows.map(({ atendimento, atendente_id, encerrada, ...r }) => {
-          const comBot = jornadaAtende(jornada, r.telefone);
+          const comBot = jornadaAtende(r.conta === 'campanhas' ? jornadas.campanhas : jornadas.provedor, r.telefone);
           // Encerrada fica marcada até o cliente mandar mensagem de novo (aí começa outro ciclo)
           const estado = atendente_id
             ? 'atendimento'
@@ -468,11 +469,11 @@ export function createConversasRouter(): Router {
   router.get('/whatsapp/mensagens/:id/midia', async (req: Request, res: Response) => {
     try {
       const [rows] = await pool.query<any[]>(
-        "SELECT wa_id, tipo, arquivo_nome FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video', 'documento')",
+        "SELECT wa_id, tipo, arquivo_nome, telefone FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video', 'documento')",
         [Number(req.params.id) || 0, res.locals.empresaId],
       );
       if (!rows[0]?.wa_id) return res.status(404).json({ error: 'Arquivo não encontrado.' });
-      const { mimetype, dados } = await midiaDaMensagem(res.locals.empresaId, rows[0].wa_id);
+      const { mimetype, dados } = await midiaDaMensagem(res.locals.empresaId, rows[0].wa_id, rows[0].telefone);
       res.set({ 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
       if (rows[0].tipo === 'documento') return res.attachment(rows[0].arquivo_nome || 'arquivo').type(mimetype).send(dados);
       if (!/^(image|audio|video)\//.test(mimetype)) return res.status(415).json({ error: 'Tipo de arquivo não exibível.' });
@@ -523,7 +524,8 @@ export function createConversasRouter(): Router {
         : [[]];
       // Situação do atendimento: com o bot (ou jornada), aguardando alguém atender ou em atendimento
       const chatbot: any = await lerConfig(String(emp), 'whatsapp', 'chatbot');
-      const comBot = jornadaAtende(await lerJornadaConfig(emp), telefone);
+      const conta = await contaDaConversa(emp, telefone);
+      const comBot = jornadaAtende(await lerJornadaConfig(emp, conta), telefone);
       const atendimento = await atendimentoAtual(emp, telefone, minutosDevolver(chatbot), comBot);
       const [cv] = await pool.query<any[]>(
         `SELECT d.nome AS departamento, c.atendente_id, u.nome AS atendente_nome, DATE_FORMAT(c.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
@@ -545,6 +547,8 @@ export function createConversasRouter(): Router {
         eu_atendo: Boolean(c.atendente_id) && Number(c.atendente_id) === Number(res.locals.usuarioId),
         sou_admin: res.locals.usuario?.tipo === 'admin',
         com_bot: comBot,
+        /** Número por onde a conversa entrou: as respostas saem por ele */
+        conta,
         encerravel: Boolean(Number(c.encerravel)),
         departamento: c.departamento ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
     } catch (err: any) {
