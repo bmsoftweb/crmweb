@@ -176,6 +176,8 @@ function ontemIso(): string {
 }
 
 const dataBr = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+/** Dia e hora de uma mensagem: 29/09/2026 10:42 */
+const diaHora = (dataHora: string) => `${dataBr(dataHora)} ${dataHora.slice(11, 16)}`;
 
 function rotuloDia(dia: string): string {
   if (dia === hojeIso()) return 'Hoje';
@@ -216,9 +218,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [erro, setErro] = useState<string | null>(null);
   /** Só as que eu atendo e as que aguardam (sem departamento ou no meu departamento) */
   const [minhas, setMinhas] = useState(false);
-  /** Filtro da lista pelo estado do atendimento ('' = todas) */
-  const [filtroEstado, setFiltroEstado] = useState<'' | 'aguardando' | 'atendimento' | 'encerrado'>('aguardando');
-  const visiveis = filtroEstado ? conversas?.filter((c) => c.estado === filtroEstado) : conversas;
+  /** Filtro da lista pelo estado do atendimento ('' = todas; vírgula = mais de um estado) */
+  const [filtroEstado, setFiltroEstado] = useState<'' | 'aguardando' | 'atendimento' | 'aguardando,atendimento' | 'encerrado'>('aguardando');
+  const visiveis = filtroEstado ? conversas?.filter((c) => filtroEstado.split(',').includes(c.estado ?? '')) : conversas;
   /** Transferir: destino escolhido ("u:ID" atendente, "d:ID" departamento); null = janela fechada */
   const [transferir, setTransferir] = useState<string | null>(null);
   const [destinos, setDestinos] = useState<{ usuarios: OpcaoRef[]; departamentos: OpcaoRef[] }>({ usuarios: [], departamentos: [] });
@@ -493,6 +495,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
             <option value="">Todas</option>
             <option value="aguardando">Aguardando</option>
             <option value="atendimento">Em atendimento</option>
+            <option value="aguardando,atendimento">Aguardando + Em atendimento</option>
             <option value="encerrado">Encerradas</option>
           </select>
         </div>
@@ -780,7 +783,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                           >
                             <span className="flex-1 border-t border-dashed border-stone-200 dark:border-stone-800" />
                             <span className="shrink-0">
-                              {m.texto} · {m.data_hora.slice(11, 16)}
+                              {m.texto} · {diaHora(m.data_hora)}
                             </span>
                             <span className="flex-1 border-t border-dashed border-stone-200 dark:border-stone-800" />
                           </div>
@@ -794,7 +797,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             <span className="flex items-center gap-1.5 shrink-0">
                               <CircleCheck className="w-3.5 h-3.5" />
                               {m.texto || 'Atendimento encerrado'}
-                              {m.usuario_nome ? ` por ${m.usuario_nome}` : ''} · {m.data_hora.slice(11, 16)}
+                              {m.usuario_nome ? ` por ${m.usuario_nome}` : ''} · {diaHora(m.data_hora)}
                             </span>
                             <span className="flex-1 border-t border-stone-300 dark:border-stone-700" />
                           </div>
@@ -836,7 +839,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             )}
                             {m.texto && <div className="whitespace-pre-wrap break-words">{m.texto}</div>}
                             <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${minha ? 'text-blue-100' : 'text-stone-400'}`}>
-                              {m.data_hora.slice(11, 16)}
+                              {diaHora(m.data_hora)}
                               {minha && <Situacao s={m.situacao} />}
                             </div>
                           </div>

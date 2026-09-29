@@ -103,6 +103,10 @@ export interface ConfigChatbot {
   vendedores?: number[];
   /** Último que recebeu um lead: o próximo do revezamento vem depois dele */
   ultimo_vendedor_id?: number | null;
+  /** Conversa encerrada (WhatsApp, chamado, Bot das atividades): a IA procura pendências e cria tarefas (server/pendencias.ts) */
+  analisar_conversas?: boolean;
+  /** Quem recebe a pendência sem usuário nem departamento identificado (o "diretor"); vazio = o primeiro administrador */
+  responsavel_pendencias_id?: number | null;
 }
 
 const PADRAO: Omit<ConfigChatbot, CampoChave> = {
@@ -112,6 +116,8 @@ const PADRAO: Omit<ConfigChatbot, CampoChave> = {
   minutos_devolver: 240,
   minutos_inatividade: 10,
   ultimo_vendedor_id: null,
+  analisar_conversas: true,
+  responsavel_pendencias_id: null,
 };
 
 /** Valor que veio da tela → o que vai para o banco. Chave em branco mantém a gravada; a da outra IA fica como estava */
@@ -125,6 +131,8 @@ export function prepararChatbot(valor: any, anterior: ConfigChatbot | null): Con
     minutos_devolver: Number(valor?.minutos_devolver ?? PADRAO.minutos_devolver),
     minutos_inatividade: Number(valor?.minutos_inatividade ?? PADRAO.minutos_inatividade),
     ultimo_vendedor_id: anterior?.ultimo_vendedor_id ?? null,
+    analisar_conversas: valor?.analisar_conversas !== false,
+    responsavel_pendencias_id: Number(valor?.responsavel_pendencias_id) || null,
   };
   // Texto-base antigo: fica como estava (o nó IA sem texto-base próprio ainda usa)
   if (anterior?.texto_base) cfg.texto_base = anterior.texto_base;
@@ -353,6 +361,8 @@ export async function marcarEncerramento(empresaId: string | number, telefone: s
       telefone,
     ],
   );
+  // Fim do atendimento: a IA procura pendências (pediu alguém, reclamou, pedido em aberto) e cria tarefas, em segundo plano
+  (await import('./pendencias.js')).analisarAtendimentoWhatsApp(empresaId, telefone);
 }
 
 /**

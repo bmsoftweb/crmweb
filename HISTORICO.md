@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.59 — 2026-09-29
+
+- Pendências de conversa: quando um atendimento do WhatsApp é encerrado (botão, tempo, fim da automação, falta de interação), um chamado é encerrado ou uma conversa do Bot das atividades termina (inclusive passada para a equipe), a IA lê a conversa inteira e cria tarefas para o que ficou pendente (pediu para falar com alguém, reclamação, pedido não resolvido): para o usuário identificado, senão o departamento, senão o responsável escolhido em Configurações › Chatbot (sem ele: o primeiro administrador). Linha "Análise da conversa" no WhatsApp/chamado; não repete tarefas abertas do cliente. Liga/desliga em Configurações › Chatbot.
+- Bot das atividades: conversa passada para a equipe cujas pendências viraram tarefas conta como resolvida (a atividade pode ser concluída).
+- WhatsApp: filtro "Aguardando + Em atendimento"; data junto com a hora nas mensagens e nas linhas de evento/encerramento.
+- Atividades: lista abre com o vencimento mais recente primeiro (mesmo dia pela hora); ícone do Bot em todas as linhas (apagado nas atividades sem Bot).
+
 ## 0.0.58 — 2026-09-29
 
 - Banco: `atividades.executor_bot`, `bot_iniciado_em`, `bot_resumo`, "todos" em `lembrete_para`; tabelas `atividade_conversas` e `atividade_mensagens` (SQL em extras/crmweb_schema.sql).

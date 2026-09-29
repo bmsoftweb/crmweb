@@ -501,7 +501,7 @@ export default function App() {
                       : activeResource.name === 'usuarios'
                         ? (row, { recarregar }) => <BotaoPermissoes usuario={row} resources={resources} onRecarregar={recarregar} onToast={showToast} />
                         : activeResource.name === 'atividades'
-                          ? (row) => (Number(row.executor_bot) === 1 ? <BotaoConversaBot atividadeId={row.id as string} /> : null)
+                          ? (row) => <BotaoConversaBot atividadeId={row.id as string} inativo={Number(row.executor_bot) !== 1} />
                           : undefined
               }
               acoesDetalhe={(recurso, row, { recarregar }) =>

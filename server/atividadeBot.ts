@@ -180,6 +180,9 @@ async function avisarResponsavel(a: any, texto: string) {
 
 async function encerrar(conv: any, situacao: 'concluida' | 'humano' | 'sem_resposta' | 'falhou', resumo: string) {
   await pool.query('UPDATE atividade_conversas SET situacao = ?, resumo = ?, encerrada_em = NOW() WHERE id = ?', [situacao, resumo.slice(0, 2000), conv.id]);
+  // Pendências da conversa viram tarefas; passada para a equipe também: o Bot prometeu retorno, e a conversa pode
+  // voltar ao bot pelo tempo sem ninguém assumir
+  if (situacao !== 'falhou' && conv.canal === 'whatsapp') (await import('./pendencias.js')).analisarConversaBot(conv.id);
 }
 
 const SITUACAO: Record<string, string> = {
@@ -194,7 +197,7 @@ const SITUACAO: Record<string, string> = {
  * Todas as conversas terminaram: grava o resumo; se todas foram cumpridas (ou o e-mail saiu), conclui a atividade
  * (aposGravar acerta a data, o negócio e a linha do tempo do chamado)
  */
-async function verificarFim(atividadeId: number) {
+export async function verificarFim(atividadeId: number) {
   const [cs] = await pool.query<any[]>('SELECT nome, situacao, resumo FROM atividade_conversas WHERE atividade_id = ? ORDER BY id', [atividadeId]);
   if (!cs.length || cs.some((c) => c.situacao === 'conversando')) return;
   const resumo = cs.map((c) => `${c.nome ?? 'Destinatário'}: ${SITUACAO[c.situacao] ?? c.situacao}${c.resumo ? ` — ${c.resumo}` : ''}`).join('\n');

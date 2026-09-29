@@ -390,7 +390,7 @@ export const RESOURCES: ResourceDef[] = [
     pk: ['id'],
     autoIncrement: true,
     labelField: 'assunto',
-    defaultSort: { field: 'data_vencimento', dir: 'asc' },
+    defaultSort: { field: 'data_vencimento', dir: 'desc' },
     // Minhas: as do usuário, as do departamento dele e as de qualquer pessoa
     minhasSql: `(t.executor_id = ? OR (t.executor_id IS NULL AND (t.departamento_id IS NULL
                    OR t.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)))

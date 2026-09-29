@@ -378,6 +378,8 @@ export function createChamadosRouter(): Router {
     await pool.query("UPDATE chamados SET status = 'encerrado', encerrado_em = NOW(), conclusao = ? WHERE id = ?", [conclusao, c.id]);
     await evento(c.id, eu(res), `Chamado encerrado por ${res.locals.usuario.nome}.`);
     await fecharSecao(c.id, 'encerrado');
+    // A IA lê o chamado e cria tarefas para o que ficou pendente (em segundo plano; import dinâmico: pendencias.ts usa este módulo)
+    (await import('./pendencias.js')).analisarChamado(c.id);
     res.json({ success: true });
   }));
 

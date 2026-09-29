@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Bot, Loader2, Save } from 'lucide-react';
-import { fetchConfig, listRecords, salvarConfig, testarChatbot } from '../services/api';
+import { fetchConfig, fetchOptions, listRecords, salvarConfig, testarChatbot } from '../services/api';
 import { OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { NumberField } from './NumberField';
 import { AvisoErro } from './AvisoErro';
+import { Toggle } from './Toggle';
 
 type Ia = 'gemini' | 'claude' | 'deepseek';
 
@@ -15,6 +16,10 @@ interface Chatbot {
   minutos_devolver: number;
   /** Cliente sem responder: aviso e encerramento depois de X minutos (0 = desligado) */
   minutos_inatividade: number;
+  /** Conversa encerrada: a IA procura pendências e cria tarefas (server/pendencias.ts) */
+  analisar_conversas: boolean;
+  /** Quem recebe a pendência sem usuário nem departamento identificado; vazio = o primeiro administrador */
+  responsavel_pendencias_id: number | null;
   /** Digitada agora; em branco mantém a gravada (da IA escolhida) */
   chave: string;
   /** IAs e os modelos de cada uma (vêm do servidor) */
@@ -44,6 +49,8 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
   const [chaves, setChaves] = useState<Record<Ia, boolean>>({ gemini: false, claude: false, deepseek: false });
   const [iaGravada, setIaGravada] = useState<Ia>('gemini');
   const [usuarios, setUsuarios] = useState<OpcaoRef[]>([]);
+  /** Todos os usuários ativos: combo do responsável pelas pendências sem dono */
+  const [todos, setTodos] = useState<OpcaoRef[]>([]);
   const [ocupado, setOcupado] = useState<'salvar' | 'testar' | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -58,6 +65,9 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     // Quem está no revezamento (ligado no cadastro de Usuários), só para mostrar
     listRecords('usuarios', { limit: 200, filters: [{ field: 'revezamento', op: 'eq', value: '1' }, { field: 'ativo', op: 'eq', value: '1' }] })
       .then((r) => setUsuarios(r.data.map((u) => ({ value: String(u.id), label: String(u.nome) }))))
+      .catch(() => {});
+    fetchOptions('usuarios', 'nome')
+      .then((l) => setTodos(l.filter((o) => !o.label.endsWith('(inativo)'))))
       .catch(() => {});
   }, []);
 
@@ -185,6 +195,38 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
             </div>
           )}
           <span className={HINT_CLASS}>Cada lead novo vai para o próximo da lista. Para incluir ou tirar alguém: Usuários › "Entra no revezamento de leads".</span>
+        </div>
+
+        <div className="flex flex-col gap-3 pt-3 border-t border-stone-200 dark:border-stone-800">
+          <Toggle
+            checked={v.analisar_conversas !== false}
+            onChange={(ligado) => alterar({ analisar_conversas: ligado })}
+            label="Analisar as conversas encerradas e criar tarefas para as pendências"
+          />
+          <span className={HINT_CLASS}>
+            Quando um atendimento do WhatsApp, um chamado ou uma conversa do Bot das atividades termina, a IA lê a conversa inteira. Se o cliente pediu para falar com
+            alguém, reclamou ou pediu algo que não foi resolvido, vira uma tarefa: para o usuário citado ou que se comprometeu; sem ele, para o departamento do assunto;
+            sem os dois, para o responsável abaixo.
+          </span>
+          {v.analisar_conversas !== false && (
+            <div className={`${FIELD_CLASS} sm:w-1/2`}>
+              <label htmlFor="bot-diretor" className={LABEL_CLASS}>Responsável pelas pendências sem dono</label>
+              <select
+                id="bot-diretor"
+                value={v.responsavel_pendencias_id ? String(v.responsavel_pendencias_id) : ''}
+                onChange={(e) => alterar({ responsavel_pendencias_id: Number(e.target.value) || null })}
+                className={`${campo} cursor-pointer`}
+              >
+                <option value="">O primeiro administrador</option>
+                {todos.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
+              <span className={HINT_CLASS}>Recebe a tarefa quando não dá para saber o usuário nem o departamento (por exemplo, o diretor)</span>
+            </div>
+          )}
         </div>
 
       </fieldset>

@@ -132,19 +132,27 @@ export const ConversaBot: React.FC<{ atividadeId: Id; onFechar: () => void }> = 
   );
 };
 
-/** Ícone que abre a conversa do Bot (só aparece em atividade executada pelo Bot) */
-export const BotaoConversaBot: React.FC<{ atividadeId: Id; className?: string }> = ({ atividadeId, className }) => {
+/**
+ * Ícone que abre a conversa do Bot. inativo: atividade sem Bot, o ícone fica apagado e não abre nada (na lista de
+ * Atividades ele aparece em todas as linhas, para a coluna ficar alinhada)
+ */
+export const BotaoConversaBot: React.FC<{ atividadeId: Id; className?: string; inativo?: boolean }> = ({ atividadeId, className, inativo }) => {
   const [aberta, setAberta] = useState(false);
   return (
     <>
       <button
         type="button"
+        disabled={inativo}
         onClick={(e) => {
           e.stopPropagation();
           setAberta(true);
         }}
-        title="Conversa do Bot: o que ele falou com cada pessoa e o resumo"
-        className={className ?? 'p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer'}
+        title={inativo ? 'Atividade sem Bot' : 'Conversa do Bot: o que ele falou com cada pessoa e o resumo'}
+        className={
+          inativo
+            ? 'p-1.5 rounded-lg text-stone-300 dark:text-stone-700 cursor-default'
+            : (className ?? 'p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer')
+        }
       >
         <Bot className="w-4 h-4" />
       </button>

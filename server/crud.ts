@@ -376,7 +376,10 @@ export function createCrudRouter() {
       const [rows] = await pool.query<any[]>(
         `SELECT t.*${calculadas.map((f) => `, ${f.sql} AS ${f.name}`).join('')}${rotulos.join('')} FROM ${resource.table} t
           WHERE ${whereSql}
-          ORDER BY ${calculadas.some((f) => f.name === sortField) ? sortField : `t.${sortField}`} ${sortDir}
+          ORDER BY ${calculadas.some((f) => f.name === sortField) ? sortField : `t.${sortField}`} ${sortDir}${
+            // Mesmo dia: pela hora; empate: pelo id (a paginação não repete nem pula linhas)
+            sortField === 'data_vencimento' && columnNames(resource).includes('hora_vencimento') ? `, t.hora_vencimento ${sortDir}` : ''
+          }, t.${pkCol(resource)} ${sortDir}
           LIMIT ? OFFSET ?`,
         [...params, limit, offset],
       );
