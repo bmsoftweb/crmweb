@@ -392,7 +392,8 @@ export const RESOURCES: ResourceDef[] = [
     defaultSort: { field: 'data_vencimento', dir: 'asc' },
     // Minhas: as do usuário, as do departamento dele e as de qualquer pessoa
     minhasSql: `(t.executor_id = ? OR (t.executor_id IS NULL AND (t.departamento_id IS NULL
-                   OR t.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?))))`,
+                   OR t.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)))
+                 OR EXISTS (SELECT 1 FROM atividade_envolvidos e WHERE e.atividade_id = t.id AND e.usuario_id = ?))`,
     canCreate: true,
     canUpdate: true,
     canDelete: true,
@@ -423,8 +424,29 @@ export const RESOURCES: ResourceDef[] = [
       },
       { name: 'executor_id', label: 'Executor (usuário)', type: 'text', filterable: true, ref: { resource: 'usuarios', labelField: 'nome' }, hint: 'Ou um usuário ou um departamento; os dois vazios = qualquer pessoa' },
       { name: 'departamento_id', label: 'Executor (departamento)', type: 'text', filterable: true, ref: { resource: 'departamentos', labelField: 'nome' } },
+      {
+        // Gravados pela janela da atividade (server/participantes.ts); aqui só a coluna da lista
+        name: 'envolvidos',
+        label: 'Envolvidos',
+        type: 'text',
+        readOnly: true,
+        listed: true,
+        searchable: true,
+        sql: `(SELECT GROUP_CONCAT(u.nome ORDER BY u.nome SEPARATOR ', ') FROM atividade_envolvidos e
+                JOIN usuarios u ON u.id = e.usuario_id WHERE e.atividade_id = t.id)`,
+      },
       { name: 'negocio_id', label: 'Negócio', type: 'text', listed: true, filterable: true, ref: { resource: 'negocios', labelField: 'titulo' } },
       { name: 'pessoa_id', label: 'Contato', type: 'text', listed: true, ref: { resource: 'pessoas', labelField: 'nome' } },
+      {
+        // Tarefa criada num chamado do suporte (server/chamados.ts)
+        name: 'chamado',
+        label: 'Chamado',
+        type: 'text',
+        readOnly: true,
+        listed: true,
+        searchable: true,
+        sql: `(SELECT CONCAT('Nº ', c.numero, ' • ', c.titulo) FROM chamados c WHERE c.id = t.chamado_id)`,
+      },
       { name: 'concluida', label: 'Concluída', type: 'boolean', listed: true, filterable: true },
       { name: 'concluida_em', label: 'Concluída em', type: 'datetime', readOnly: true },
       { name: 'observacao', label: 'Observação', type: 'textarea' },

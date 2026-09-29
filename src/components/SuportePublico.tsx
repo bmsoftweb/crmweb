@@ -49,7 +49,7 @@ const soDigitos = (v: string, max: number) => v.replace(/\D/g, '').slice(0, max)
 
 /** Pedido de tela remota do técnico (server/chamados.ts): vira o cartão com o botão do AnyDesk */
 const TELA_REMOTA = '[[anydesk]]';
-/** Cutucão do técnico (server/chamados.ts): som, tremida e aviso ao site (widget.js) */
+/** Cutucão do técnico (server/chamados.ts): campainha, tremida e aviso ao site (widget.js) */
 const CUTUCAR = '[[cutucar]]';
 
 /** Número do AnyDesk que o cliente enviou (server/suporte.ts) */
@@ -344,13 +344,25 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
         // bloqueado: o cliente usa o botão do cartão
       }
     }
-    // Cutucão novo: campainha, o chat treme e o botão do widget no site pisca (se o painel estiver fechado)
-    if (vistoAte.current !== null && c.mensagens.some((m) => m.texto === CUTUCAR && m.id > vistoAte.current!)) {
-      tocarAviso('cutucar');
-      setTremer(true);
-      setTimeout(() => setTremer(false), 1000);
+    // O que a equipe mandou desde a última olhada: cutucão (campainha e tremida) ou resposta (som). Nos dois casos o
+    // site é avisado (widget.js): abre o painel, pisca o título da aba e mostra a notificação do Windows
+    const novas = vistoAte.current === null ? [] : c.mensagens.filter((m) => m.autor === 'equipe' && m.id > vistoAte.current!);
+    if (novas.length) {
+      const cutucou = novas.some((m) => m.texto === CUTUCAR);
+      const ultima = novas.filter((m) => m.texto !== CUTUCAR).pop();
+      if (cutucou) {
+        tocarAviso('cutucar');
+        setTremer(true);
+        setTimeout(() => setTremer(false), 1000);
+      } else if (document.activeElement !== campoMensagem.current || !document.hasFocus()) {
+        // Resposta: o mesmo som que o técnico ouve quando o cliente escreve, só se o cliente não está digitando
+        // (o foco fora do campo da mensagem, ou a janela sem foco)
+        tocarAviso('suporte');
+      }
+      const de = (ultima ?? novas[novas.length - 1]).usuario_nome || 'Suporte';
+      const texto = !ultima ? 'Precisa de sua atenção no chat do suporte.' : ultima.texto === TELA_REMOTA ? 'Pediu para acessar a sua tela (AnyDesk).' : ultima.texto;
       try {
-        window.parent.postMessage('crmweb-cutucar', '*');
+        window.parent.postMessage({ crmweb: cutucou ? 'cutucar' : 'mensagem', de, texto: texto.slice(0, 200) }, '*');
       } catch {
         // página aberta fora do widget
       }
@@ -412,7 +424,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
         {c.mensagens.map((m, i) =>
           m.texto === CUTUCAR ? (
             <div key={m.id} className="self-center text-xs font-semibold text-amber-800 bg-amber-100 rounded-full px-3 py-1 inline-flex items-center gap-1.5">
-              <Bell className="w-3.5 h-3.5" /> {m.usuario_nome || 'O técnico'} está chamando a sua atenção • {formatDateTimeBR(m.criado_em)}
+              <Bell className="w-3.5 h-3.5" /> {m.usuario_nome || 'O técnico'} precisa de sua atenção • {formatDateTimeBR(m.criado_em)}
             </div>
           ) : m.texto === TELA_REMOTA ? (
             <CartaoTelaRemota

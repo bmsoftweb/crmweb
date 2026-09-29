@@ -163,13 +163,15 @@ export const RecordForm: React.FC<RecordFormProps> = ({
     };
   }, [comEnderecos, record, resource]);
 
-  /** Negócio: usuários envolvidos, também gravados junto no Salvar (null = ainda carregando) */
-  const comParticipantes = resource.name === 'negocios';
+  /** Negócio e atividade: usuários envolvidos, também gravados junto no Salvar (null = ainda carregando) */
+  const comParticipantes = resource.name === 'negocios' || resource.name === 'atividades';
+  /** Quem já responde pelo registro não aparece como envolvido: o proprietário do negócio, quem executa a atividade */
+  const campoDono = resource.name === 'atividades' ? 'executor_id' : 'proprietario_id';
   const [participantes, setParticipantes] = useState<number[] | null>(comParticipantes && !record ? [] : null);
   useEffect(() => {
     if (!comParticipantes || !record) return;
     let vivo = true;
-    fetchParticipantes(record[resource.pk[0]] as string)
+    fetchParticipantes(record[resource.pk[0]] as string, resource.name as 'negocios' | 'atividades')
       .then((l) => vivo && setParticipantes(l.map((p) => Number(p.id))))
       .catch((err) => vivo && setError(err.message || 'Não foi possível carregar os envolvidos.'));
     return () => {
@@ -414,7 +416,9 @@ export const RecordForm: React.FC<RecordFormProps> = ({
       // Sem a lista carregada, os endereços gravados ficam como estão
       if (comEnderecos && enderecos) payload.enderecos = enderecos as any;
       if (comParticipantes && participantes)
-        payload.participantes = participantes.filter((id) => String(id) !== String(values.proprietario_id ?? '')) as any;
+        payload[resource.name === 'atividades' ? 'envolvidos' : 'participantes'] = participantes.filter(
+          (id) => String(id) !== String(values[campoDono] ?? ''),
+        ) as any;
       await onSave(payload);
     } catch (err: any) {
       setError(err.message || 'Não foi possível salvar o registro.');
@@ -761,8 +765,9 @@ export const RecordForm: React.FC<RecordFormProps> = ({
             <ParticipantesNegocio
               ids={participantes || []}
               onChange={setParticipantes}
-              opcoes={refOptions.proprietario_id || []}
-              proprietarioId={values.proprietario_id}
+              opcoes={refOptions[campoDono] || []}
+              proprietarioId={values[campoDono]}
+              oQue={resource.name === 'atividades' ? 'nesta atividade' : 'neste negócio'}
               carregando={participantes === null}
             />
           )}

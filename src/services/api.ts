@@ -260,8 +260,8 @@ export function importarPessoasArquivo(
 }
 
 /** Usuários envolvidos no negócio (ids e nomes) */
-export const fetchParticipantes = (negocioId: Id): Promise<{ id: number; nome: string }[]> =>
-  get(`/api/negocios/${negocioId}/participantes`).then((l) => {
+export const fetchParticipantes = (id: Id, recurso: 'negocios' | 'atividades' = 'negocios'): Promise<{ id: number; nome: string }[]> =>
+  get(`/api/${recurso}/${id}/${recurso === 'atividades' ? 'envolvidos' : 'participantes'}`).then((l) => {
     if (!Array.isArray(l)) throw new Error('Não foi possível carregar os envolvidos: resposta inesperada do servidor.');
     return l;
   });
@@ -702,7 +702,26 @@ export interface ChamadoDetalhe extends ChamadoResumo {
   eu_atendo: boolean;
   sou_admin: boolean;
   mensagens: ChamadoMensagem[];
+  /** Tarefas do chamado (atividades com chamado_id), as pendentes primeiro */
+  tarefas: TarefaChamado[];
 }
+
+export interface TarefaChamado {
+  id: number;
+  assunto: string;
+  tipo: string;
+  data_vencimento: string;
+  hora_vencimento: string | null;
+  concluida: boolean;
+  concluida_em: string | null;
+  observacao: string | null;
+  quem_executa: string;
+  envolvidos: string | null;
+}
+
+/** Nova tarefa no chamado: mesma janela e mesmos campos da atividade (server/chamados.ts) */
+export const criarTarefaChamado = (chamadoId: number, dados: RegistroCrud): Promise<{ id: number }> =>
+  enviar('POST', `/api/chamados/${chamadoId}/tarefas`, dados);
 
 export type FiltroChamados = 'meus' | 'todos' | 'aguardando' | 'andamento' | 'encerrados';
 

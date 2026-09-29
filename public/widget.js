@@ -38,8 +38,10 @@
     '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
   botao.innerHTML = iconeChat;
 
-  botao.onclick = function () {
+  // ev vazio = aberto pelo aviso do chat (sem clique: aí não dá para pedir a permissão de notificação)
+  botao.onclick = function (ev) {
     var abrir = painel.style.display === 'none';
+    if (abrir && ev) pedirPermissao();
     if (abrir && !quadro) {
       quadro = document.createElement('iframe');
       quadro.src = url;
@@ -49,24 +51,75 @@
     }
     painel.style.display = abrir ? 'block' : 'none';
     botao.innerHTML = abrir ? iconeFechar : iconeChat;
-    botao.appendChild(ponto);
-    if (abrir) ponto.style.display = 'none';
   };
 
-  // Cutucão do técnico (o chat avisa por postMessage): com o painel fechado, o botão treme e ganha um ponto
-  var ponto = document.createElement('span');
-  ponto.style.cssText = 'display:none;position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#e11d48;border:2px solid #fff;';
-  botao.style.position = 'relative';
-  botao.appendChild(ponto);
+  // Título da aba piscando enquanto o cliente não volta para a página
+  var tituloOriginal = null;
+  var pisca = null;
+  function pararTitulo() {
+    if (!pisca) return;
+    clearInterval(pisca);
+    pisca = null;
+    document.title = tituloOriginal;
+  }
+  function piscarTitulo(aviso) {
+    if (pisca) return;
+    tituloOriginal = document.title;
+    var vez = 0;
+    pisca = setInterval(function () {
+      document.title = vez++ % 2 ? tituloOriginal : aviso;
+    }, 1000);
+  }
+  window.addEventListener('focus', pararTitulo);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) pararTitulo();
+  });
+
+  // Notificação do Windows: o navegador não deixa a página se pôr na frente, mas o clique na notificação traz a janela.
+  // Pede a permissão no clique do botão (só funciona em site https)
+  var podeNotificar = 'Notification' in window && window.isSecureContext;
+  function pedirPermissao() {
+    if (podeNotificar && Notification.permission === 'default') {
+      try {
+        Notification.requestPermission();
+      } catch (e) {
+        // navegador antigo
+      }
+    }
+  }
+  function notificar(titulo, texto) {
+    if (!podeNotificar || Notification.permission !== 'granted') return;
+    try {
+      var n = new Notification(titulo, { body: texto, tag: 'crmweb-suporte' });
+      n.onclick = function () {
+        window.focus();
+        abrirPainel();
+        n.close();
+      };
+    } catch (e) {
+      // Android: notificação só por service worker; fica o som e o título
+    }
+  }
+
+  function abrirPainel() {
+    if (painel.style.display === 'none') botao.onclick();
+  }
+
+  // O chat avisa por postMessage quando a equipe escreve ou cutuca: o painel abre sozinho e, com a página fora de
+  // vista (outra aba, janela minimizada ou atrás de outro programa), o título pisca e sai a notificação
   window.addEventListener('message', function (e) {
-    if (e.origin !== origem || e.data !== 'crmweb-cutucar') return;
-    if (painel.style.display !== 'none') return;
-    ponto.style.display = 'block';
-    if (botao.animate) {
+    if (e.origin !== origem || !e.data || !e.data.crmweb) return;
+    var cutucou = e.data.crmweb === 'cutucar';
+    abrirPainel();
+    if (cutucou && botao.animate) {
       botao.animate(
         [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }],
         { duration: 300, iterations: 4 }
       );
+    }
+    if (document.hidden || !document.hasFocus()) {
+      piscarTitulo(cutucou ? '🔔 O técnico precisa de sua atenção' : '💬 Nova mensagem do suporte');
+      notificar('Suporte: ' + (e.data.de || 'nova mensagem'), e.data.texto || '');
     }
   });
 

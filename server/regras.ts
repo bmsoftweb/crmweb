@@ -2,6 +2,7 @@ import { pool } from './db.js';
 import { tirarProprietarioDosEnvolvidos } from './participantes.js';
 import { contarPublico, normalizarCriterios, variaveisDoTexto } from './campanhas.js';
 import { recalcularContrato } from './contratos.js';
+import { gravarMensagem } from './chamados.js';
 
 /**
  * Regras aplicadas depois de qualquer gravação, venha ela das telas genéricas de CRUD,
@@ -126,6 +127,12 @@ export async function aposGravar(recurso: string, id: string | null, negociosAnt
   }
 
   if (recurso === 'atividades' && id) {
+    // Tarefa de chamado concluída (ou reaberta) agora: fica registrado na linha do tempo do chamado
+    const [antes] = await db.query<any[]>('SELECT chamado_id, assunto, concluida, concluida_em FROM atividades WHERE id = ?', [id]);
+    const t = antes[0];
+    if (t?.chamado_id && Boolean(Number(t.concluida)) !== Boolean(t.concluida_em)) {
+      await gravarMensagem({ chamado_id: t.chamado_id, autor: 'sistema', texto: `Tarefa ${Number(t.concluida) ? 'concluída' : 'reaberta'}: ${t.assunto}.` });
+    }
     await db.query(
       `UPDATE atividades SET concluida_em = IF(concluida = 1, COALESCE(concluida_em, NOW()), NULL) WHERE id = ?`,
       [id],

@@ -14,13 +14,15 @@ interface Props {
   /** O proprietário não aparece para ser adicionado como envolvido */
   proprietarioId?: string | number | null;
   carregando?: boolean;
+  /** Complemento da confirmação de remover ("neste negócio", "nesta atividade") */
+  oQue?: string;
 }
 
 /**
  * Outros usuários envolvidos no negócio, além do proprietário. A lista é gravada junto
  * com o negócio, no Salvar do formulário.
  */
-export const ParticipantesNegocio: React.FC<Props> = ({ ids, onChange, opcoes, proprietarioId, carregando }) => {
+export const ParticipantesNegocio: React.FC<Props> = ({ ids, onChange, opcoes, proprietarioId, carregando, oQue = 'neste negócio' }) => {
   const [removendo, setRemovendo] = useState<number | null>(null);
   // Escolhido como proprietário, sai dos envolvidos (ele já é o dono)
   const visiveis = ids.filter((id) => String(id) !== String(proprietarioId ?? ''));
@@ -69,7 +71,7 @@ export const ParticipantesNegocio: React.FC<Props> = ({ ids, onChange, opcoes, p
       {removendo !== null && (
         <ConfirmDialog
           titulo="Remover envolvido?"
-          mensagem={`${nome(removendo)} deixa de estar envolvido neste negócio ao salvar.`}
+          mensagem={`${nome(removendo)} deixa de estar envolvido ${oQue} ao salvar.`}
           confirmar="Remover"
           onConfirmar={() => {
             onChange(ids.filter((i) => i !== removendo));

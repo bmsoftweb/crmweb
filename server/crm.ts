@@ -747,8 +747,8 @@ ${link}` : mensagem;
     const propostas = await varios("SELECT status, COUNT(*) qtd, COALESCE(SUM(valor_total), 0) valor FROM propostas WHERE empresa_id = ? AND status <> 'fechada' GROUP BY status");
     const pedidos = await varios("SELECT status, COUNT(*) qtd, COALESCE(SUM(valor_total), 0) valor FROM pedidos WHERE empresa_id = ? AND status <> 'cancelado' GROUP BY status");
     const proximas = await varios(
-      `SELECT a.id, a.assunto, a.tipo, a.data_vencimento, a.hora_vencimento, a.negocio_id, n.titulo negocio_titulo
-         FROM atividades a LEFT JOIN negocios n ON n.id = a.negocio_id
+      `SELECT a.id, a.assunto, a.tipo, a.data_vencimento, a.hora_vencimento, a.negocio_id, n.titulo negocio_titulo, c.numero chamado_numero
+         FROM atividades a LEFT JOIN negocios n ON n.id = a.negocio_id LEFT JOIN chamados c ON c.id = a.chamado_id
         WHERE a.concluida = 0 AND a.empresa_id = ?
         ORDER BY a.data_vencimento, COALESCE(a.hora_vencimento, '00:00:00') LIMIT 10`,
     );

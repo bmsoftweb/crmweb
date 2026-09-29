@@ -54,6 +54,36 @@ export async function gravarParticipantes(empresaId: string, negocioId: string, 
   }
 }
 
+/**
+ * Deixa os envolvidos da atividade (tabela atividade_envolvidos) iguais à lista; quem executa não entra.
+ * A tabela não tem empresa_id: o tenant vem da atividade (os ids já foram validados na empresa).
+ */
+export async function gravarEnvolvidosAtividade(atividadeId: string | number, ids: number[]) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query(
+      `DELETE FROM atividade_envolvidos WHERE atividade_id = ?${ids.length ? ' AND usuario_id NOT IN (?)' : ''}`,
+      ids.length ? [atividadeId, ids] : [atividadeId],
+    );
+    if (ids.length) {
+      await conn.query('INSERT IGNORE INTO atividade_envolvidos (atividade_id, usuario_id) VALUES ?', [
+        ids.map((u) => [atividadeId, u]),
+      ]);
+    }
+    await conn.query(
+      `DELETE e FROM atividade_envolvidos e JOIN atividades a ON a.id = e.atividade_id AND a.executor_id = e.usuario_id WHERE e.atividade_id = ?`,
+      [atividadeId],
+    );
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback().catch(() => {});
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 export function createParticipantesRouter(): Router {
   const router = Router();
 
@@ -62,6 +92,20 @@ export function createParticipantesRouter(): Router {
       const [rows] = await pool.query<any[]>(
         `SELECT p.usuario_id AS id, u.nome FROM negocios_participantes p JOIN usuarios u ON u.id = p.usuario_id
           WHERE p.empresa_id = ? AND p.negocio_id = ? ORDER BY u.nome`,
+        [String(res.locals.empresaId), req.params.id],
+      );
+      res.json(rows);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.get('/atividades/:id/envolvidos', async (req: Request, res: Response) => {
+    try {
+      const [rows] = await pool.query<any[]>(
+        `SELECT e.usuario_id AS id, u.nome FROM atividade_envolvidos e
+           JOIN atividades a ON a.id = e.atividade_id JOIN usuarios u ON u.id = e.usuario_id
+          WHERE a.empresa_id = ? AND e.atividade_id = ? ORDER BY u.nome`,
         [String(res.locals.empresaId), req.params.id],
       );
       res.json(rows);

@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { podeAcessar } from './permissoes.js';
 import { enviarWhatsApp, telefoneWhatsApp } from './whatsapp.js';
+import { LEMBRETE_PARA, TIPOS_ATIVIDADE } from './schema.js';
+import { gravarEnvolvidosAtividade, normalizarParticipantes } from './participantes.js';
 
 /**
  * Chamados de suporte (Suporte › Fila de Chamados e Chamados Ativos), no modelo do solweb:
@@ -257,10 +259,22 @@ export function createChamadosRouter(): Router {
          FROM chamado_mensagens m LEFT JOIN usuarios u ON u.id = m.usuario_id WHERE m.chamado_id = ? ORDER BY m.id`,
       [req.params.id],
     );
+    // Tarefas do chamado: atividades ligadas a ele (quem executa e os envolvidos)
+    const [tarefas] = await pool.query<any[]>(
+      `SELECT a.id, a.assunto, a.tipo, a.data_vencimento, a.hora_vencimento, a.concluida, a.concluida_em, a.observacao,
+              COALESCE(u.nome, d.nome, 'Qualquer pessoa') AS quem_executa,
+              (SELECT GROUP_CONCAT(x.nome ORDER BY x.nome SEPARATOR ', ') FROM atividade_envolvidos e JOIN usuarios x ON x.id = e.usuario_id
+                WHERE e.atividade_id = a.id) AS envolvidos
+         FROM atividades a LEFT JOIN usuarios u ON u.id = a.executor_id LEFT JOIN departamentos d ON d.id = a.departamento_id
+        WHERE a.chamado_id = ? AND a.empresa_id = ?
+        ORDER BY a.concluida, a.data_vencimento, COALESCE(a.hora_vencimento, '00:00:00'), a.id`,
+      [req.params.id, emp(res)],
+    );
     const u = res.locals.usuario;
     res.json({
       ...numeros(r[0]),
       ...extra[0],
+      tarefas: tarefas.map((t) => ({ ...t, concluida: Boolean(t.concluida) })),
       eu_atendo: Number(r[0].atendente_id) === Number(res.locals.usuarioId),
       sou_admin: u.tipo === 'admin',
       mensagens: mensagens.map((m) => ({ ...m, interna: Boolean(m.interna) })),
@@ -442,6 +456,46 @@ export function createChamadosRouter(): Router {
     const interna = Boolean(req.body?.interna);
     const aviso = await mensagemEquipe(c, res, texto, interna);
     res.json({ success: true, aviso });
+  }));
+
+  /**
+   * Tarefa do chamado (ex.: desenvolver um relatório pedido no atendimento): uma atividade comum, com o cliente
+   * do chamado, ligada a ele por chamado_id, e os usuários envolvidos. Entra na linha do tempo.
+   */
+  router.post('/chamados/:id/tarefas', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    const b = req.body || {};
+    const assunto = String(b.assunto ?? '').trim().slice(0, 255);
+    if (!assunto) throw erro(400, 'Informe o assunto da tarefa.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.data_vencimento ?? ''))) throw erro(400, 'Informe o prazo da tarefa.');
+    const tipo = TIPOS_ATIVIDADE.some((t) => t.value === b.tipo) ? b.tipo : 'tarefa';
+    const lembrete = LEMBRETE_PARA.some((t) => t.value === b.lembrete_para) ? b.lembrete_para : 'vendedor';
+    const hora = /^\d{2}:\d{2}/.test(String(b.hora_vencimento ?? '')) ? b.hora_vencimento : null;
+    const duracao = /^\d{2}:\d{2}/.test(String(b.duracao ?? '')) ? b.duracao : null;
+    const executorId = Number(b.executor_id) || null;
+    const departamentoId = Number(b.departamento_id) || null;
+    if (executorId && departamentoId) throw erro(400, 'Quem executa: escolha um usuário ou um departamento, não os dois.');
+    if (executorId) {
+      const [x] = await pool.query<any[]>('SELECT 1 FROM usuarios WHERE id = ? AND empresa_id = ?', [executorId, emp(res)]);
+      if (!x.length) throw erro(400, 'Usuário que executa não encontrado nesta empresa.');
+    }
+    if (departamentoId) {
+      const [x] = await pool.query<any[]>('SELECT 1 FROM departamentos WHERE id = ? AND empresa_id = ?', [departamentoId, emp(res)]);
+      if (!x.length) throw erro(400, 'Departamento não encontrado nesta empresa.');
+    }
+    const envolvidos = await normalizarParticipantes(b.envolvidos ?? [], emp(res));
+    const concluida = Boolean(b.concluida);
+    const [ins] = await pool.query<any>(
+      `INSERT INTO atividades (empresa_id, pessoa_id, chamado_id, assunto, tipo, data_vencimento, hora_vencimento, duracao, lembrete_para,
+                               executor_id, departamento_id, observacao, concluida, concluida_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(?, NOW(), NULL))`,
+      [emp(res), c.pessoa_id, c.id, assunto, tipo, b.data_vencimento, hora, duracao, lembrete, executorId, departamentoId,
+        String(b.observacao ?? '').trim() || null, concluida ? 1 : 0, concluida],
+    );
+    await gravarEnvolvidosAtividade(ins.insertId, envolvidos);
+    const prazo = String(b.data_vencimento).split('-').reverse().join('/');
+    await evento(c.id, eu(res), `Tarefa ${concluida ? 'registrada' : 'criada'} por ${res.locals.usuario.nome}: ${assunto} (prazo ${prazo}).`);
+    res.json({ id: Number(ins.insertId) });
   }));
 
   return router;

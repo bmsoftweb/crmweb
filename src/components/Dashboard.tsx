@@ -165,6 +165,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, isLoading, error, on
                       <div className="text-[11px] text-stone-500 truncate">
                         <span className={cor}>{quando(a.data_vencimento, a.hora_vencimento)}</span>
                         {a.negocio_titulo && ` • ${a.negocio_titulo}`}
+                        {a.chamado_numero && ` • Chamado nº ${a.chamado_numero}`}
                       </div>
                     </div>
                   </li>

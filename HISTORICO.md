@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.56 — 2026-09-29
+
+- Banco: `atividades.chamado_id` e tabela `atividade_envolvidos` (SQL em extras/crmweb_schema.sql).
+- Chamados: botão "Tarefa" cria uma atividade ligada ao chamado e ao cliente (prazo, quem executa, envolvidos; lembrete para quem executa). Lista de tarefas no chamado, com concluir/reabrir; criar, concluir e reabrir entram na linha do tempo. Encerrar com tarefa aberta avisa, sem bloquear.
+- Atividades: vários usuários envolvidos (janela da atividade e formulário), colunas Chamado e Envolvidos na lista; "Minhas" inclui as que o usuário acompanha. Painel: "Chamado nº" nas próximas atividades.
+- Chat do site: resposta do técnico toca som (se o cliente não estiver digitando), abre o painel do widget sozinho e, com a página fora de vista, pisca o título da aba e mostra notificação do Windows (clique traz a janela; permissão pedida ao abrir o chat, só em https). Cutucão: "precisa de sua atenção".
+
 ## 0.0.55 — 2026-09-29
 
 - WhatsApp: filtro na lista de conversas (Todas, Aguardando, Em atendimento, Encerradas); a tela abre em Aguardando.

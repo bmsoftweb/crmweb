@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Hand, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote } from 'lucide-react';
 import {
   assumirChamado,
   buscarPessoasChamado,
@@ -17,9 +17,10 @@ import {
   FiltroChamados,
   pedirTelaRemota,
   transferirChamado,
+  updateRecord,
 } from '../services/api';
 import { OpcaoRef } from '../types';
-import { formatDateTimeBR } from '../utils/formatters';
+import { formatDateBR, formatDateTimeBR, hojeIso } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { ConfirmDialog } from './ConfirmDialog';
 import { AvisoErro } from './AvisoErro';
@@ -27,6 +28,7 @@ import { Toggle } from './Toggle';
 import { BotaoTemplates } from './BotaoTemplates';
 import { lerSessao } from '../utils/session';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
+import { AtividadeModal } from './AtividadeModal';
 
 /**
  * Suporte › Fila de Chamados e Chamados Ativos (server/chamados.ts), no modelo do solweb: a fila
@@ -429,7 +431,7 @@ const ChamadoAberto: React.FC<{
   const [texto, setTexto] = useState('');
   const [interna, setInterna] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [dialogo, setDialogo] = useState<'encerrar' | 'transferir' | null>(null);
+  const [dialogo, setDialogo] = useState<'encerrar' | 'transferir' | 'tarefa' | null>(null);
   /** Conclusão digitada no diálogo de encerrar */
   const [conclusao, setConclusao] = useState('');
   const fim = useRef<HTMLDivElement>(null);
@@ -577,6 +579,16 @@ const ChamadoAberto: React.FC<{
               <Pause className="w-3.5 h-3.5" /> Pausar
             </button>
           )}
+          {!encerrado && (
+            <button
+              type="button"
+              onClick={() => setDialogo('tarefa')}
+              title="Tarefa ligada a este chamado e ao cliente (ex.: desenvolver um relatório), com prazo, quem executa e envolvidos"
+              className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}
+            >
+              <ClipboardList className="w-3.5 h-3.5" /> Tarefa
+            </button>
+          )}
           {podeMexer && (
             <button type="button" onClick={() => setDialogo('transferir')} className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}>
               <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir
@@ -593,6 +605,38 @@ const ChamadoAberto: React.FC<{
       {erro && (
         <div className="px-5 pt-3">
           <AvisoErro mensagem={erro} onFechar={() => setErro(null)} />
+        </div>
+      )}
+
+      {/* Tarefas do chamado: clique no círculo conclui (ou reabre) */}
+      {c.tarefas.length > 0 && (
+        <div className="px-5 py-2 border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 max-h-40 overflow-y-auto">
+          <div className="text-[10px] font-semibold uppercase text-stone-400 mb-1">Tarefas</div>
+          <ul className="space-y-1">
+            {c.tarefas.map((t) => (
+              <li key={t.id} className="flex items-start gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => acao(() => updateRecord('atividades', t.id, { concluida: t.concluida ? 0 : 1 }), t.concluida ? 'Tarefa reaberta.' : 'Tarefa concluída.')}
+                  title={t.concluida ? 'Reabrir a tarefa' : 'Concluir a tarefa'}
+                  className="mt-0.5 shrink-0 cursor-pointer text-stone-400 hover:text-emerald-600"
+                >
+                  {t.concluida ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Circle className="w-4 h-4" />}
+                </button>
+                <div className="min-w-0" title={t.observacao || undefined}>
+                  <span className={`font-semibold ${t.concluida ? 'line-through text-stone-400' : 'text-stone-800 dark:text-stone-100'}`}>{t.assunto}</span>
+                  <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                    {' • '}
+                    <span className={!t.concluida && t.data_vencimento.slice(0, 10) < hojeIso() ? 'text-rose-600 font-semibold' : ''}>
+                      prazo {formatDateBR(t.data_vencimento)}{t.hora_vencimento ? ` ${t.hora_vencimento.slice(0, 5)}` : ''}
+                    </span>
+                    {' • '}{t.quem_executa}
+                    {t.envolvidos && ` • envolvidos: ${t.envolvidos}`}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -725,6 +769,12 @@ const ChamadoAberto: React.FC<{
           }}
           onCancelar={() => setDialogo(null)}
         >
+          {c.tarefas.some((t) => !t.concluida) && (
+            <p className="mb-3 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              Este chamado tem {c.tarefas.filter((t) => !t.concluida).length} tarefa(s) em aberto. Elas continuam valendo depois de encerrar.
+            </p>
+          )}
           <div className={FIELD_CLASS}>
             <label htmlFor="chamado-conclusao" className={LABEL_CLASS}>Conclusão</label>
             <textarea
@@ -741,6 +791,19 @@ const ChamadoAberto: React.FC<{
             <span className={HINT_CLASS}>Fica no chamado; só a equipe vê</span>
           </div>
         </ConfirmDialog>
+      )}
+      {dialogo === 'tarefa' && (
+        <AtividadeModal
+          chamadoId={c.id}
+          executorPadraoId={c.atendente_id}
+          contexto={`Chamado nº ${c.numero} • ${c.pessoa_nome || 'Sem cliente'}`}
+          onFechar={() => setDialogo(null)}
+          onGravada={() => {
+            setDialogo(null);
+            onToast('Tarefa criada no chamado.');
+            carregar();
+          }}
+        />
       )}
       {dialogo === 'transferir' && (
         <Transferir

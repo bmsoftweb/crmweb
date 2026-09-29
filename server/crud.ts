@@ -5,7 +5,7 @@ import { FieldDef, ResourceDef, RESOURCES, getResource, writableFields, columnNa
 import { aposGravar, antesDeExcluir, antesDeGravar } from './regras.js';
 import { exigirAcesso } from './permissoes.js';
 import { gravarEnderecos, normalizarEnderecos } from './enderecos.js';
-import { gravarParticipantes, normalizarParticipantes } from './participantes.js';
+import { gravarEnvolvidosAtividade, gravarParticipantes, normalizarParticipantes } from './participantes.js';
 import { conferirTrava, contratoDoItem, recalcularContrato } from './contratos.js';
 import { apagarFotosRemovidas, fotosDoProduto, prepararFotos } from './fotos.js';
 
@@ -191,6 +191,10 @@ export function createCrudRouter() {
     if (resource.name === 'negocios' && body && 'participantes' in body) {
       const ids = await normalizarParticipantes(body.participantes, empresaId);
       return (id: string) => gravarParticipantes(empresaId, id, ids);
+    }
+    if (resource.name === 'atividades' && body && 'envolvidos' in body) {
+      const ids = await normalizarParticipantes(body.envolvidos, empresaId);
+      return (id: string) => gravarEnvolvidosAtividade(id, ids);
     }
     return null;
   }

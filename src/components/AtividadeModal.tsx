@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CalendarPlus, Loader2, X } from 'lucide-react';
-import { createRecord, fetchOptions } from '../services/api';
+import { createRecord, criarTarefaChamado, fetchOptions } from '../services/api';
 import { Id, OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
@@ -8,28 +8,36 @@ import { LEMBRETE_PARA, TIPOS_ATIVIDADE } from '../utils/crm';
 import { DateField } from './DateField';
 import { Toggle } from './Toggle';
 import { AvisoErro } from './AvisoErro';
+import { ParticipantesNegocio } from './ParticipantesNegocio';
 
 interface AtividadeModalProps {
   /** Vínculos da atividade (normalmente os do negócio) */
   negocioId?: Id | null;
   pessoaId?: Id | null;
-  /** Título do negócio, só para exibição */
+  /** Tarefa de um chamado do suporte: grava ligada a ele (o cliente vem do chamado) */
+  chamadoId?: number | null;
+  /** Usuário que já vem como quem executa (no chamado: o atendente) */
+  executorPadraoId?: Id | null;
+  /** Título do negócio ou do chamado, só para exibição */
   contexto?: string;
   onFechar: () => void;
   onGravada: () => void;
 }
 
 /** Agendamento de follow-up (ligação, reunião, tarefa...) vinculado ao negócio */
-export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pessoaId, contexto, onFechar, onGravada }) => {
-  const [tipo, setTipo] = useState('ligacao');
+export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pessoaId, chamadoId, executorPadraoId, contexto, onFechar, onGravada }) => {
+  const [tipo, setTipo] = useState(chamadoId ? 'tarefa' : 'ligacao');
   const [assunto, setAssunto] = useState('');
   const [data, setData] = useState(hojeIso());
   const [hora, setHora] = useState('');
   const [duracao, setDuracao] = useState('00:15');
-  const [lembretePara, setLembretePara] = useState('cliente');
+  // Tarefa interna do suporte: o lembrete vai para quem executa, não para o cliente
+  const [lembretePara, setLembretePara] = useState(chamadoId ? 'vendedor' : 'cliente');
   /** Quem executa: qualquer pessoa, um usuário ou um departamento */
-  const [quem, setQuem] = useState<'qualquer' | 'usuario' | 'departamento'>('qualquer');
-  const [executorId, setExecutorId] = useState('');
+  const [quem, setQuem] = useState<'qualquer' | 'usuario' | 'departamento'>(executorPadraoId ? 'usuario' : 'qualquer');
+  const [executorId, setExecutorId] = useState(executorPadraoId ? String(executorPadraoId) : '');
+  /** Outros usuários que acompanham a atividade */
+  const [envolvidos, setEnvolvidos] = useState<number[]>([]);
   const [departamentoId, setDepartamentoId] = useState('');
   const [usuarios, setUsuarios] = useState<OpcaoRef[]>([]);
   const [departamentos, setDepartamentos] = useState<OpcaoRef[]>([]);
@@ -50,7 +58,8 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
     setSalvando(true);
     setErro(null);
     try {
-      await createRecord('atividades', {
+      const executor = quem === 'usuario' ? executorId : '';
+      const dados = {
         tipo,
         assunto: assunto.trim() || TIPOS_ATIVIDADE.find((t) => t.value === tipo)?.label,
         data_vencimento: data,
@@ -61,9 +70,10 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
         departamento_id: quem === 'departamento' ? departamentoId : null,
         observacao: observacao || null,
         concluida: concluida ? 1 : 0,
-        negocio_id: negocioId || null,
-        pessoa_id: pessoaId || null,
-      });
+        envolvidos: envolvidos.filter((id) => String(id) !== executor) as any,
+      };
+      if (chamadoId) await criarTarefaChamado(chamadoId, dados);
+      else await createRecord('atividades', { ...dados, negocio_id: negocioId || null, pessoa_id: pessoaId || null });
       onGravada();
     } catch (err: any) {
       setErro(err.message || 'Não foi possível agendar a atividade.');
@@ -82,7 +92,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
       >
         <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Agendar atividade</h3>
+            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">{chamadoId ? 'Nova tarefa do chamado' : 'Agendar atividade'}</h3>
             {contexto && <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{contexto}</p>}
           </div>
           <button type="button" onClick={onFechar} title="Fechar" className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer">
@@ -126,7 +136,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className={FIELD_CLASS}>
-              <label htmlFor="atv-data" className={LABEL_CLASS}>Data<span className="text-rose-500 ml-1">*</span></label>
+              <label htmlFor="atv-data" className={LABEL_CLASS}>{chamadoId ? 'Prazo' : 'Data'}<span className="text-rose-500 ml-1">*</span></label>
               <DateField id="atv-data" value={data} onChange={setData} required className={`${INPUT_CLASS} w-full`} />
             </div>
             <div className={FIELD_CLASS}>
@@ -175,6 +185,14 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
               </div>
             )}
           </div>
+
+          <ParticipantesNegocio
+            ids={envolvidos}
+            onChange={setEnvolvidos}
+            opcoes={usuarios}
+            proprietarioId={quem === 'usuario' ? executorId : null}
+            oQue="nesta atividade"
+          />
 
           <div className={FIELD_CLASS}>
             <label htmlFor="atv-lembrete" className={LABEL_CLASS}>Lembrete por WhatsApp para</label>
