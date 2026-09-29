@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.55 — 2026-09-29
+
+- WhatsApp: filtro na lista de conversas (Todas, Aguardando, Em atendimento, Encerradas); a tela abre em Aguardando.
+
 ## 0.0.54 — 2026-09-28
 
 - Banco: `campanha_disparos.respondido_em` e `negocios.campanha_id` (SQL em extras/crmweb_schema.sql).

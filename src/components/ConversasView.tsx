@@ -216,6 +216,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [erro, setErro] = useState<string | null>(null);
   /** Só as que eu atendo e as que aguardam (sem departamento ou no meu departamento) */
   const [minhas, setMinhas] = useState(false);
+  /** Filtro da lista pelo estado do atendimento ('' = todas) */
+  const [filtroEstado, setFiltroEstado] = useState<'' | 'aguardando' | 'atendimento' | 'encerrado'>('aguardando');
+  const visiveis = filtroEstado ? conversas?.filter((c) => c.estado === filtroEstado) : conversas;
   /** Transferir: destino escolhido ("u:ID" atendente, "d:ID" departamento); null = janela fechada */
   const [transferir, setTransferir] = useState<string | null>(null);
   const [destinos, setDestinos] = useState<{ usuarios: OpcaoRef[]; departamentos: OpcaoRef[] }>({ usuarios: [], departamentos: [] });
@@ -477,20 +480,33 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
             <span className="hidden sm:inline">Nova</span>
           </button>
         </div>
-        <div className="px-3 py-2 border-b border-stone-200 dark:border-stone-800" title="As conversas sem departamento, as do seu departamento e as que você assumiu">
-          <Toggle size="sm" checked={minhas} onChange={setMinhas} label="Só as minhas" />
+        <div className="px-3 py-2 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-2">
+          <div title="As conversas sem departamento, as do seu departamento e as que você assumiu">
+            <Toggle size="sm" checked={minhas} onChange={setMinhas} label="Só as minhas" />
+          </div>
+          <select
+            value={filtroEstado}
+            onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)}
+            title="Mostrar só as conversas neste estado"
+            className={`${INPUT_CLASS} py-1`}
+          >
+            <option value="">Todas</option>
+            <option value="aguardando">Aguardando</option>
+            <option value="atendimento">Em atendimento</option>
+            <option value="encerrado">Encerradas</option>
+          </select>
         </div>
         <div className="flex-1 overflow-y-auto">
           {conversas === null ? (
             <div className="p-6 flex justify-center">
               <Loader2 className="w-4 h-4 animate-spin text-stone-400" />
             </div>
-          ) : !conversas.length ? (
+          ) : !visiveis!.length ? (
             <div className="p-6 text-xs text-center text-stone-500 dark:text-stone-400">
-              {busca ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda. As mensagens recebidas aparecem aqui.'}
+              {busca || filtroEstado ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda. As mensagens recebidas aparecem aqui.'}
             </div>
           ) : (
-            conversas.map((c) => {
+            visiveis!.map((c) => {
               const dia = c.data_hora.slice(0, 10);
               const ativa = c.telefone === aberta;
               return (
