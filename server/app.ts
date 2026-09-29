@@ -18,7 +18,7 @@ import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 import { enviarAutomaticas } from './automaticas.js';
 import { responderComBot } from './chatbot.js';
 import { verificarInatividade } from './inatividade.js';
-import { enviarEmailsCampanha } from './campanhas.js';
+import { enviarEmailsCampanha, marcarRespondido } from './campanhas.js';
 import { tratarRespostaPesquisa } from './pesquisa.js';
 import { createAceiteRouter } from './aceite.js';
 import { createSuporteRouter } from './suporte.js';
@@ -178,6 +178,8 @@ export function createApp() {
       for (const n of novas) {
         waitUntil(
           (async () => {
+            // Resposta a uma campanha (disparo dos últimos 15 dias): o disparo fica "respondeu"
+            await marcarRespondido(n.empresaId, n.telefone).catch((err) => console.error(`Campanhas: respondeu (${n.telefone}): ${err.message}`));
             if (await tratarRespostaPesquisa(n)) return;
             await responderComBot(n);
           })().catch((err) => console.error(`Chatbot: ${err.message}`)),

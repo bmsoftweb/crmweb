@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.54 — 2026-09-28
+
+- Banco: `campanha_disparos.respondido_em` e `negocios.campanha_id` (SQL em extras/crmweb_schema.sql).
+- Campanhas: mensagem recebida da pessoa até 15 dias depois do envio marca o disparo como respondido ("Respondeu em" no painel Disparos), por qualquer número.
+- Campanhas: o lead aberto pela IA fica com a "Campanha de origem" (a da conversa no número das campanhas ou, no padrão, a recebida nos últimos 15 dias); campo novo em Negócios.
+- Lista de Campanhas: colunas Responderam e Leads.
+
 ## 0.0.53 — 2026-09-28
 
 - Banco: `whatsapp_conversas.conta`, `campanhas.instrucoes_ia` e `pessoas.nao_receber_campanhas` (SQL em extras/crmweb_schema.sql).

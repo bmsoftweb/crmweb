@@ -329,6 +329,25 @@ export async function campanhaDaConversa(empresaId: string | number, telefone: s
   return d ? { id: d.id, nome: d.nome, mensagem: d.mensagem, instrucoes: String(d.instrucoes_ia ?? '').trim(), pessoa_id: d.pessoa_id } : null;
 }
 
+/**
+ * Mensagem recebida da pessoa: o último disparo de WhatsApp para ela (até 15 dias) ganha "respondeu"
+ * (respondido_em, a primeira resposta). Por qualquer número: vale também sem o WhatsApp das campanhas.
+ */
+export async function marcarRespondido(empresaId: string | number, telefone: string): Promise<void> {
+  const chave = chaveTelefone(telefone, true);
+  if (!chave) return;
+  const [r] = await pool.query<any[]>(
+    `SELECT d.id, d.destino, d.respondido_em
+       FROM campanha_disparos d JOIN campanhas c ON c.id = d.campanha_id
+      WHERE c.empresa_id = ? AND d.canal = 'whatsapp' AND d.situacao IN ('enviado', 'entregue', 'lido')
+        AND d.enviado_em >= NOW() - INTERVAL ? DAY AND RIGHT(d.destino, 8) = RIGHT(?, 8)
+      ORDER BY d.enviado_em DESC, d.id DESC LIMIT 10`,
+    [empresaId, DIAS_CONTEXTO, telefone],
+  );
+  const d = r.find((x) => chaveTelefone(x.destino, true) === chave);
+  if (d && !d.respondido_em) await pool.query('UPDATE campanha_disparos SET respondido_em = NOW() WHERE id = ? AND respondido_em IS NULL', [d.id]);
+}
+
 /** Contexto da campanha para o texto-base da IA (vazio quando a conversa não é de campanha) */
 export function contextoDeCampanha(c: CampanhaDaConversa | null | undefined): string {
   if (!c) return '';

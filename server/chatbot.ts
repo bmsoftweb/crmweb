@@ -514,9 +514,11 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>) {
     );
     if (!f.length || !f[0].etapa_id) return { ok: false, erro: 'A empresa não tem funil de vendas com etapas.' };
     const v = await proximoVendedor(emp);
+    // Lead de campanha: a do número das campanhas ou, pelo número padrão, a que a pessoa recebeu nos últimos 15 dias
+    const campanha = ctx.campanha ?? (await campanhaDaConversa(emp, ctx.telefone));
     const [n] = await pool.query<any>(
-      "INSERT INTO negocios (empresa_id, titulo, valor, funil_id, etapa_id, pessoa_id, proprietario_id, status) VALUES (?, ?, 0, ?, ?, ?, ?, 'aberto')",
-      [emp, `${ctx.campanha ? `Campanha ${ctx.campanha.nome}` : 'WhatsApp'}: ${interesse}`.slice(0, 255), f[0].funil_id, f[0].etapa_id, pessoaId, v?.id ?? null],
+      "INSERT INTO negocios (empresa_id, titulo, valor, funil_id, etapa_id, pessoa_id, proprietario_id, status, campanha_id) VALUES (?, ?, 0, ?, ?, ?, ?, 'aberto', ?)",
+      [emp, `${campanha ? `Campanha ${campanha.nome}` : 'WhatsApp'}: ${interesse}`.slice(0, 255), f[0].funil_id, f[0].etapa_id, pessoaId, v?.id ?? null, campanha?.id ?? null],
     );
     negocioId = n.insertId;
     vendedor = v?.nome ?? null;
