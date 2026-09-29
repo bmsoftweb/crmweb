@@ -459,7 +459,7 @@ export default function App() {
                     ? (recarregar) => <BotaoImportarBM tipo="produtos" onImportado={recarregar} />
                     : undefined
               }
-              acoesEmMenu={activeResource.name === 'propostas' || activeResource.name === 'pedidos'}
+              acoesEmMenu={['propostas', 'pedidos', 'campanhas'].includes(activeResource.name)}
               acoesLinha={
                 activeResource.name === 'propostas' || activeResource.name === 'pedidos'
                   ? (row, { abrir, recarregar }) => (
@@ -493,15 +493,8 @@ export default function App() {
                     )
                   : activeResource.name === 'contratos'
                     ? (row, { recarregar }) => <ContratoDocumentos registro={row} onRecarregar={recarregar} onToast={showToast} />
-                  : ['campanhas', 'campanha_segmentos', 'campanha_mensagens'].includes(activeResource.name)
-                    ? (row, { recarregar }) => (
-                        <AcaoCampanha
-                          tipo={activeResource.name as 'campanhas' | 'campanha_segmentos' | 'campanha_mensagens'}
-                          registro={row}
-                          onRecarregar={recarregar}
-                          onToast={showToast}
-                        />
-                      )
+                  : activeResource.name === 'campanhas'
+                    ? (row, { recarregar }) => <AcaoCampanha registro={row} onRecarregar={recarregar} onToast={showToast} />
                     : activeResource.name === 'pessoas'
                       ? (row) => <BotaoWhatsApp temNumero={Boolean(row.whatsapp || row.telefone)} onAbrir={() => pedirConversa({ pessoaId: row.id as string })} />
                       : activeResource.name === 'usuarios'

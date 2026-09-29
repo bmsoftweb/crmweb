@@ -351,11 +351,16 @@ export const fetchRegrasCriterio = (): Promise<RegraCriterio[]> =>
     regrasCache = null;
     throw err;
   }));
-export const calcularSegmento = (id: Id): Promise<{ total: number }> =>
-  enviar('POST', `/api/campanhas/segmentos/${encodeURIComponent(String(id))}/calcular`);
-export const previaMensagem = (id: Id): Promise<{ nome: string; assunto: string; corpo: string }[]> =>
-  get(`/api/campanhas/mensagens/${encodeURIComponent(String(id))}/previa`);
-export const gerarDisparos = (id: Id): Promise<{ gerados: number }> =>
+/** Tamanho do público e a mensagem personalizada para as primeiras pessoas (não grava nada) */
+export interface PreviaCampanha {
+  publico: number;
+  exemplos: { nome: string; destino: string | null; assunto: string; corpo: string }[];
+}
+export const previaCampanha = (id: Id): Promise<PreviaCampanha> => get(`/api/campanhas/${encodeURIComponent(String(id))}/previa`);
+/** Gera os disparos da campanha (um por pessoa do público, já personalizado) */
+export const gerarDisparos = (
+  id: Id,
+): Promise<{ publico: number; gerados: number; sem_contato: number; ja_enviados: number; situacao: string }> =>
   enviar('POST', `/api/campanhas/${encodeURIComponent(String(id))}/disparos`);
 
 /** Envia a proposta ou o pedido em PDF por e-mail ou WhatsApp (o servidor gera o PDF da impressão) */

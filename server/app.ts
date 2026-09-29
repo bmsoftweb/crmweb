@@ -18,6 +18,7 @@ import { enviarPendentes, receberAvisoEvolution } from './whatsapp.js';
 import { enviarAutomaticas } from './automaticas.js';
 import { responderComBot } from './chatbot.js';
 import { verificarInatividade } from './inatividade.js';
+import { enviarEmailsCampanha } from './campanhas.js';
 import { tratarRespostaPesquisa } from './pesquisa.js';
 import { createAceiteRouter } from './aceite.js';
 import { createSuporteRouter } from './suporte.js';
@@ -212,7 +213,12 @@ export function createApp() {
     cron(async () => {
       const [inatividade, resto] = await Promise.all([
         verificarInatividade(),
-        (async () => ({ campanhas: await enviarPendentes(50, 25_000), automaticas: await enviarAutomaticas(20_000), jornadas: await retomarJornadas(20_000) }))(),
+        (async () => ({
+          campanhas: await enviarPendentes(50, 25_000),
+          emails: await enviarEmailsCampanha(50, 20_000),
+          automaticas: await enviarAutomaticas(20_000),
+          jornadas: await retomarJornadas(20_000),
+        }))(),
       ]);
       return { ...resto, inatividade };
     }),

@@ -16,7 +16,7 @@ interface Criterio {
 
 interface Props {
   id?: string;
-  /** Lista de critérios (ou o JSON dela, como vem do banco); '' num segmento novo */
+  /** Lista de critérios (ou o JSON dela, como vem do banco); '' numa campanha nova */
   value: unknown;
   onChange: (lista: Criterio[]) => void;
 }
@@ -52,7 +52,7 @@ function lerLista(value: unknown): Criterio[] {
 const valorInicial = (r?: RegraCriterio): string | number =>
   r?.valor === 'sim_nao' ? 1 : r?.valor === 'numero' ? 0 : r?.valor === 'tipo_pessoa' ? 'cliente' : '';
 
-/** Editor dos critérios do segmento de campanha: regra, operador e valor por linha (todas precisam valer) */
+/** Editor dos critérios do público da campanha: regra, operador e valor por linha (todas precisam valer) */
 export const CriteriosSegmento: React.FC<Props> = ({ id, value, onChange }) => {
   const lista = lerLista(value);
   const [regras, setRegras] = useState<RegraCriterio[]>([]);
@@ -147,7 +147,7 @@ export const CriteriosSegmento: React.FC<Props> = ({ id, value, onChange }) => {
       {removendo !== null && (
         <ConfirmDialog
           titulo="Remover o critério?"
-          mensagem={`"${regraDe(lista[removendo]?.regra)?.rotulo ?? lista[removendo]?.regra}" sai do segmento ao salvar.`}
+          mensagem={`"${regraDe(lista[removendo]?.regra)?.rotulo ?? lista[removendo]?.regra}" sai do público ao salvar.`}
           confirmar="Remover"
           onConfirmar={() => {
             onChange(lista.filter((_, j) => j !== removendo));

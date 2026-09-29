@@ -1,6 +1,6 @@
 import { pool } from './db.js';
 import { tirarProprietarioDosEnvolvidos } from './participantes.js';
-import { calcularSegmento, normalizarCriterios, variaveisDoTexto } from './campanhas.js';
+import { contarPublico, normalizarCriterios, variaveisDoTexto } from './campanhas.js';
 import { recalcularContrato } from './contratos.js';
 
 /**
@@ -52,8 +52,10 @@ export async function antesDeGravar(recurso: string, payload: Record<string, any
     if (!rows.length) throw new Error('A etapa escolhida não existe.');
     payload.funil_id = rows[0].funil_id;
   }
-  if (recurso === 'campanha_segmentos' && 'criterios' in payload) {
-    payload.criterios = JSON.stringify(normalizarCriterios(payload.criterios));
+  if (recurso === 'campanhas') {
+    // Critérios do público validados; variável inexistente na mensagem barra a gravação
+    if ('criterios' in payload) payload.criterios = JSON.stringify(normalizarCriterios(payload.criterios));
+    if ('mensagem' in payload || 'assunto' in payload) variaveisDoTexto(payload.assunto, payload.mensagem);
   }
   if (recurso === 'contratos') {
     const dia = payload.dia_vencimento;
@@ -74,14 +76,6 @@ export async function antesDeGravar(recurso: string, payload: Record<string, any
     if (quantidade <= 0) throw new Error('A quantidade deve ser maior que zero.');
     if (desconto < 0 || desconto > bruto) throw new Error('O desconto não pode passar do valor do item.');
     payload.subtotal = Math.round((bruto - desconto) * 100) / 100;
-  }
-  if (recurso === 'campanha_mensagens') {
-    // Lista das variáveis usadas, guardada para o envio; variável inexistente barra a gravação
-    if ('corpo' in payload || 'assunto' in payload) payload.variaveis = JSON.stringify(variaveisDoTexto(payload.assunto, payload.corpo));
-    if (payload.segmento_id && payload.campanha_id) {
-      const [rows] = await pool.query<any[]>('SELECT 1 FROM campanha_segmentos WHERE id = ? AND campanha_id = ?', [payload.segmento_id, payload.campanha_id]);
-      if (!rows.length) throw new Error('O segmento escolhido é de outra campanha.');
-    }
   }
 }
 
@@ -150,14 +144,6 @@ export async function aposGravar(recurso: string, id: string | null, negociosAnt
     if (rows[0]) await recalcularContrato(rows[0].contrato_id, db);
   }
 
-  // Público do segmento acompanha os critérios gravados
-  if (recurso === 'campanha_segmentos' && id) {
-    const [rows] = await db.query<any[]>(
-      'SELECT c.empresa_id FROM campanha_segmentos s JOIN campanhas c ON c.id = s.campanha_id WHERE s.id = ?',
-      [id],
-    );
-    if (rows.length) await calcularSegmento(Number(id), String(rows[0].empresa_id), db);
-  }
 
   // Campanha encerrada (concluída, cancelada ou excluída): data de encerramento e
   // os disparos que ainda não saíram são cancelados
@@ -168,11 +154,17 @@ export async function aposGravar(recurso: string, id: string | null, negociosAnt
       [id],
     );
     await db.query(
-      `UPDATE disparos_mensagens d JOIN campanha_mensagens m ON m.id = d.mensagem_id JOIN campanhas c ON c.id = m.campanha_id
+      `UPDATE campanha_disparos d JOIN campanhas c ON c.id = d.campanha_id
           SET d.situacao = 'cancelado'
         WHERE c.id = ? AND d.situacao = 'pendente' AND (c.situacao IN ('concluida', 'cancelada') OR c.excluida_em IS NOT NULL)`,
       [id],
     );
+    // Público estimado acompanha os critérios gravados
+    const [c] = await db.query<any[]>('SELECT empresa_id, criterios FROM campanhas WHERE id = ?', [id]);
+    if (c[0]?.criterios) {
+      const n = await contarPublico(c[0].criterios, c[0].empresa_id, db).catch(() => null);
+      if (n !== null) await db.query('UPDATE campanhas SET publico_estimado = ? WHERE id = ?', [n, id]);
+    }
   }
 
   for (const n of negocios) await sincronizarNegocio(n, db);

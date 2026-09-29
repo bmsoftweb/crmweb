@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { normalizarCriterios, sqlCriterios, variaveisDoTexto, personalizar } from './campanhas.js';
+import { celularWhatsApp, destinoDe, normalizarCriterios, sqlCriterios, variaveisDoTexto, personalizar } from './campanhas.js';
 
 // Objeto único (formato do exemplo do migration) vira lista; número e sim/não são convertidos
 const c = normalizarCriterios('{"regra":"ultima_compra","operador":">","valor":"60"}');
@@ -21,5 +21,22 @@ assert.deepStrictEqual(params, [7, "x' OR '1'='1"]);
 assert.deepStrictEqual(variaveisDoTexto('Olá {{nome}}', 'desde {{ ultima_compra }} {{nome}}'), ['nome', 'ultima_compra']);
 assert.throws(() => variaveisDoTexto('{{senha}}'), /inexistente: \{\{senha\}\}/);
 assert.strictEqual(personalizar('Olá {{Primeiro_Nome}}, {{cidade}}!', { primeiro_nome: 'Ana', cidade: null }), 'Olá Ana, !');
+
+// Destino do disparo: celular (só celular brasileiro: fixo não tem WhatsApp) ou e-mail válido
+assert.strictEqual(celularWhatsApp('(47) 98848-9722'), '5547988489722');
+assert.strictEqual(celularWhatsApp('47 3521-0000'), null);
+assert.strictEqual(celularWhatsApp(''), null);
+const comTudo = { email: 'a@b.com.br', whatsapp: '47988489722' };
+const soEmail = { email: 'a@b.com.br', whatsapp: '4735210000' };
+assert.deepStrictEqual(destinoDe('whatsapp', comTudo), { canal: 'whatsapp', destino: '5547988489722' });
+assert.strictEqual(destinoDe('whatsapp', soEmail), null);
+assert.deepStrictEqual(destinoDe('email', comTudo), { canal: 'email', destino: 'a@b.com.br' });
+assert.strictEqual(destinoDe('email', { email: 'sem-arroba', whatsapp: '47988489722' }), null);
+// Multicanal: WhatsApp quando tem celular, senão e-mail; sem nenhum, fica de fora
+assert.deepStrictEqual(destinoDe('multicanal', comTudo), { canal: 'whatsapp', destino: '5547988489722' });
+assert.deepStrictEqual(destinoDe('multicanal', soEmail), { canal: 'email', destino: 'a@b.com.br' });
+assert.strictEqual(destinoDe('multicanal', { email: '', whatsapp: '' }), null);
+// Canal sem envio automático: ninguém
+assert.strictEqual(destinoDe('sms', comTudo), null);
 
 console.log('campanhas: ok');

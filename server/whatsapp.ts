@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import { pool } from './db.js';
-import { VARIAVEIS, personalizar } from './campanhas.js';
 import { lerConfig } from './config.js';
 import { cifrar, decifrar, textoConfig } from './segredo.js';
 
@@ -427,8 +426,8 @@ export async function donoDoTelefone(empresaId: string | number, telefone: strin
  */
 async function repassarAoDisparo(empresaId: string | number, waId: string) {
   await pool.query(
-    `UPDATE disparos_mensagens d JOIN whatsapp_mensagens w ON w.disparo_id = d.id
-        SET d.mensagem_erro = IF(w.situacao = 'falhou' AND d.situacao = 'enviado', 'O WhatsApp não entregou a mensagem.', d.mensagem_erro),
+    `UPDATE campanha_disparos d JOIN whatsapp_mensagens w ON w.disparo_id = d.id
+        SET d.erro = IF(w.situacao = 'falhou' AND d.situacao = 'enviado', 'O WhatsApp não entregou a mensagem.', d.erro),
             d.entregue_em = IF(w.situacao IN ('entregue', 'lida'), COALESCE(d.entregue_em, NOW()), d.entregue_em),
             d.lido_em = IF(w.situacao = 'lida', COALESCE(d.lido_em, NOW()), d.lido_em),
             d.situacao = CASE
@@ -742,16 +741,13 @@ export async function enviarPendentes(limite = 50, prazoMs = Infinity): Promise<
     const [trava] = await conn.query<any[]>("SELECT GET_LOCK('crmweb_envio_whatsapp', 0) AS ok");
     if (!trava[0]?.ok) return 0;
     try {
-      const colunas = Object.entries(VARIAVEIS).map(([k, sql]) => `${sql} AS ${k}`).join(', ');
+      // Disparos das campanhas (server/campanhas.ts): destino e texto já vêm prontos, personalizados ao gerar
       const [fila] = await conn.query<any[]>(
-        `SELECT d.id, d.pessoa_id, c.empresa_id, m.assunto, m.corpo, COALESCE(NULLIF(p.whatsapp, ''), p.telefone) AS telefone_destino, ${colunas}
-           FROM disparos_mensagens d
-           JOIN campanha_mensagens m ON m.id = d.mensagem_id
-           JOIN campanhas c ON c.id = m.campanha_id
-           JOIN pessoas p ON p.id = d.pessoa_id
-          WHERE d.situacao = 'pendente' AND d.agendado_para <= NOW()
+        `SELECT d.id, d.pessoa_id, c.empresa_id, d.destino, d.assunto, d.mensagem
+           FROM campanha_disparos d
+           JOIN campanhas c ON c.id = d.campanha_id
+          WHERE d.situacao = 'pendente' AND d.canal = 'whatsapp' AND d.agendado_para <= NOW()
             AND c.situacao = 'em_execucao' AND c.excluida_em IS NULL
-            AND c.canal IN ('whatsapp', 'multicanal')
           ORDER BY d.agendado_para, d.id
           LIMIT ?`,
         [limite],
@@ -767,12 +763,12 @@ export async function enviarPendentes(limite = 50, prazoMs = Infinity): Promise<
           const c = creds.get(d.empresa_id)!;
           if (Date.now() + c.intervalo * 1000 + 10_000 > fim) break; // pausa + envio não cabem mais no prazo
           if (processados) await esperar(c.intervalo * 1000);
-          const assunto = personalizar(d.assunto, d).trim();
-          const telefone = telefoneWhatsApp(d.telefone_destino);
-          const texto = (assunto ? `*${assunto}*\n\n` : '') + personalizar(d.corpo, d);
+          const assunto = String(d.assunto ?? '').trim();
+          const telefone = telefoneWhatsApp(d.destino);
+          const texto = (assunto ? `*${assunto}*\n\n` : '') + d.mensagem;
           const resposta = await textoPara(c, telefone, texto);
           await conn.query(
-            "UPDATE disparos_mensagens SET situacao = 'enviado', enviado_em = NOW(), mensagem_erro = NULL WHERE id = ? AND situacao = 'pendente'",
+            "UPDATE campanha_disparos SET situacao = 'enviado', enviado_em = NOW(), erro = NULL WHERE id = ? AND situacao = 'pendente'",
             [d.id],
           );
           await registrarEnviada(d.empresa_id, telefone, resposta, { tipo: 'texto', texto, pessoa_id: d.pessoa_id, disparo_id: d.id });
@@ -784,7 +780,7 @@ export async function enviarPendentes(limite = 50, prazoMs = Infinity): Promise<
             continue;
           }
           await conn.query(
-            "UPDATE disparos_mensagens SET situacao = 'falhou', mensagem_erro = ? WHERE id = ? AND situacao = 'pendente'",
+            "UPDATE campanha_disparos SET situacao = 'falhou', erro = ? WHERE id = ? AND situacao = 'pendente'",
             [String(err?.message || err).slice(0, 255), d.id],
           );
           processados++;

@@ -1,11 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { friendlyDbError } from './crud.js';
+import { enviarEmail } from './email.js';
+import { telefoneWhatsApp } from './whatsapp.js';
 
 /**
- * Campanhas: segmentos calculados por critérios, mensagens com variáveis ({{nome}})
- * e a fila de disparos "pendente", agendados. O envio por WhatsApp é feito por
- * server/whatsapp.ts; os demais canais ficam na fila.
+ * Campanhas (tudo numa tabela só): o público vem dos critérios da campanha, a mensagem (com variáveis
+ * {{nome}}) e o canal também. "Gerar disparos" cria em campanha_disparos um registro por pessoa, já com o
+ * destino e o texto personalizado; o envio sai sozinho enquanto a campanha está "em execução": WhatsApp por
+ * server/whatsapp.ts, e-mail por aqui (enviarEmailsCampanha). Outro público ou outro texto = outra campanha.
  */
 
 type Executor = { query: typeof pool.query };
@@ -104,8 +107,8 @@ export function normalizarCriterios(bruto: unknown): Criterio[] {
     }
   }
   if (v && !Array.isArray(v) && typeof v === 'object') v = [v];
-  if (!Array.isArray(v) || !v.length) throw new Error('Informe ao menos um critério do segmento.');
-  if (v.length > 20) throw new Error('São aceitos no máximo 20 critérios por segmento.');
+  if (!Array.isArray(v) || !v.length) throw new Error('Informe ao menos um critério do público da campanha.');
+  if (v.length > 20) throw new Error('São aceitos no máximo 20 critérios por campanha.');
 
   return v.map((c: any, i) => {
     const regra = REGRAS[String(c?.regra)];
@@ -136,28 +139,6 @@ export function sqlCriterios(criterios: Criterio[], empresaId: string | number):
     params.push(c.valor);
   }
   return { where: partes.join(' AND '), params };
-}
-
-/**
- * Refaz o público do segmento (campanha_segmento_pessoas) a partir dos critérios e
- * atualiza o tamanho_estimado. Devolve quantas pessoas entraram.
- */
-export async function calcularSegmento(segmentoId: number, empresaId: string, db: Executor = pool): Promise<number> {
-  const [segs] = await db.query<any[]>(
-    `SELECT s.criterios FROM campanha_segmentos s JOIN campanhas c ON c.id = s.campanha_id
-      WHERE s.id = ? AND c.empresa_id = ?`,
-    [segmentoId, empresaId],
-  );
-  if (!segs.length) throw new Error('Segmento não encontrado.');
-  const { where, params } = sqlCriterios(normalizarCriterios(segs[0].criterios), empresaId);
-
-  await db.query('DELETE FROM campanha_segmento_pessoas WHERE segmento_id = ?', [segmentoId]);
-  const [r] = await db.query<any>(
-    `INSERT INTO campanha_segmento_pessoas (segmento_id, pessoa_id) SELECT ?, p.id FROM pessoas p WHERE ${where}`,
-    [segmentoId, ...params],
-  );
-  await db.query('UPDATE campanha_segmentos SET tamanho_estimado = ? WHERE id = ?', [r.affectedRows, segmentoId]);
-  return r.affectedRows;
 }
 
 // ------------------------------------------------------------
@@ -198,16 +179,195 @@ export function personalizar(texto: string | null | undefined, dados: Record<str
   return String(texto ?? '').replace(RE_VARIAVEL, (_, v) => String(dados[v.toLowerCase()] ?? ''));
 }
 
+
+// ------------------------------------------------------------
+// Público e disparos
+// ------------------------------------------------------------
+
+/** Canais com envio automático. Multicanal = WhatsApp quando a pessoa tem celular, senão e-mail */
+export const CANAIS_COM_ENVIO = ['whatsapp', 'email', 'multicanal'];
+
+/** Quantas pessoas atendem aos critérios (o "público estimado" da campanha) */
+export async function contarPublico(criterios: unknown, empresaId: string | number, db: Executor = pool): Promise<number> {
+  const { where, params } = sqlCriterios(normalizarCriterios(criterios), empresaId);
+  const [r] = await db.query<any[]>(`SELECT COUNT(*) AS n FROM pessoas p WHERE ${where}`, params);
+  return Number(r[0].n);
+}
+
+const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Celular para WhatsApp (só dígitos, com DDI); no Brasil só celular (DDD + 9 + 8 dígitos): fixo não tem WhatsApp */
+export function celularWhatsApp(bruto: string | null | undefined): string | null {
+  try {
+    const t = telefoneWhatsApp(bruto);
+    return !t.startsWith('55') || /^55[1-9]{2}9\d{8}$/.test(t) ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Canal e destino do disparo para a pessoa; null = sem o contato do canal (fica de fora) */
+export function destinoDe(canal: string, p: { email?: string | null; whatsapp?: string | null }): { canal: 'whatsapp' | 'email'; destino: string } | null {
+  const celular = canal === 'email' ? null : celularWhatsApp(p.whatsapp);
+  const email = String(p.email ?? '').trim();
+  if (canal === 'whatsapp') return celular ? { canal: 'whatsapp', destino: celular } : null;
+  if (canal === 'email') return EMAIL_VALIDO.test(email) ? { canal: 'email', destino: email } : null;
+  if (canal === 'multicanal') {
+    if (celular) return { canal: 'whatsapp', destino: celular };
+    return EMAIL_VALIDO.test(email) ? { canal: 'email', destino: email } : null;
+  }
+  return null;
+}
+
+/** Campanha da empresa, ainda não excluída */
+async function campanhaDa(id: string | number, empresaId: string | number, db: Executor = pool) {
+  const [r] = await db.query<any[]>('SELECT * FROM campanhas WHERE id = ? AND empresa_id = ? AND excluida_em IS NULL', [id, empresaId]);
+  if (!r[0]) throw Object.assign(new Error('Campanha não encontrada.'), { status: 404 });
+  return r[0];
+}
+
+/** Pessoas do público com as variáveis da mensagem (nome, email, whatsapp...) */
+async function publicoDa(c: any, empresaId: string | number, db: Executor, limite?: number) {
+  const { where, params } = sqlCriterios(normalizarCriterios(c.criterios), empresaId);
+  const colunas = Object.entries(VARIAVEIS).map(([k, sql]) => `${sql} AS ${k}`).join(', ');
+  const [r] = await db.query<any[]>(`SELECT p.id, ${colunas} FROM pessoas p WHERE ${where} ORDER BY p.nome${limite ? ` LIMIT ${Number(limite)}` : ''}`, params);
+  return r;
+}
+
+/**
+ * Gerar disparos: um registro por pessoa do público (nome, canal, destino, assunto e mensagem já personalizados),
+ * agendado para agora ou para "Enviar a partir de". Pode ser repetido: os pendentes são refeitos com o texto e o
+ * público atuais; quem já recebeu (ou falhou) não ganha outro. A campanha passa a "em execução" e o envio começa.
+ */
+export async function gerarDisparos(campanhaId: string | number, empresaId: string | number) {
+  const conn = await pool.getConnection();
+  try {
+    const c = await campanhaDa(campanhaId, empresaId, conn);
+    if (c.situacao === 'concluida' || c.situacao === 'cancelada') throw new Error(`A campanha está ${c.situacao}: não gera mais disparos.`);
+    if (!CANAIS_COM_ENVIO.includes(c.canal)) throw new Error('Envio automático só por WhatsApp, e-mail ou multicanal: troque o canal da campanha.');
+    if (!String(c.mensagem ?? '').trim()) throw new Error('Escreva a mensagem da campanha antes de gerar os disparos.');
+    variaveisDoTexto(c.assunto, c.mensagem);
+    const pessoas = await publicoDa(c, empresaId, conn);
+    const [[{ quando }]] = await conn.query<any>(
+      "SELECT DATE_FORMAT(GREATEST(NOW(), COALESCE(enviar_a_partir_de, NOW())), '%Y-%m-%d %H:%i:%s') AS quando FROM campanhas WHERE id = ?",
+      [c.id],
+    );
+
+    await conn.beginTransaction();
+    await conn.query("DELETE FROM campanha_disparos WHERE campanha_id = ? AND situacao = 'pendente'", [c.id]);
+    const [feitos] = await conn.query<any[]>('SELECT pessoa_id, canal FROM campanha_disparos WHERE campanha_id = ?', [c.id]);
+    const jaFeito = new Set(feitos.map((f) => `${f.pessoa_id}|${f.canal}`));
+    const linhas: any[][] = [];
+    let semContato = 0;
+    let jaEnviados = 0;
+    for (const p of pessoas) {
+      const d = destinoDe(c.canal, p);
+      if (!d) {
+        semContato++;
+        continue;
+      }
+      if (jaFeito.has(`${p.id}|${d.canal}`)) {
+        jaEnviados++;
+        continue;
+      }
+      const assunto = personalizar(c.assunto, p).trim().slice(0, 255) || null;
+      linhas.push([c.id, p.id, String(p.nome ?? '').slice(0, 255), d.canal, d.destino, assunto, personalizar(c.mensagem, p), quando]);
+    }
+    for (let i = 0; i < linhas.length; i += 500) {
+      await conn.query('INSERT INTO campanha_disparos (campanha_id, pessoa_id, nome, canal, destino, assunto, mensagem, agendado_para) VALUES ?', [
+        linhas.slice(i, i + 500),
+      ]);
+    }
+    await conn.query(
+      `UPDATE campanhas SET situacao = IF(situacao IN ('rascunho', 'agendada'), 'em_execucao', situacao),
+              iniciada_em = COALESCE(iniciada_em, NOW()), publico_estimado = ? WHERE id = ?`,
+      [pessoas.length, c.id],
+    );
+    await conn.commit();
+    return { publico: pessoas.length, gerados: linhas.length, sem_contato: semContato, ja_enviados: jaEnviados, situacao: c.situacao };
+  } catch (err) {
+    await conn.rollback().catch(() => {});
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+// ------------------------------------------------------------
+// Envio por e-mail (o WhatsApp sai por server/whatsapp.ts)
+// ------------------------------------------------------------
+
+/** Erro do servidor de e-mail da empresa (não do destinatário): o disparo continua pendente para o próximo ciclo */
+const erroDoSmtp = (err: any) =>
+  /^E-mail não configurado/.test(err?.message) || ['EAUTH', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'ECONNREFUSED'].includes(err?.code);
+
+/** Um ciclo de envio dos disparos por e-mail das campanhas em execução; devolve quantos foram processados */
+export async function enviarEmailsCampanha(limite = 50, prazoMs = Infinity): Promise<number> {
+  const fim = Date.now() + prazoMs;
+  const conn = await pool.getConnection();
+  try {
+    // Dois servidores no mesmo banco (Vercel e local) não mandam o mesmo e-mail duas vezes
+    const [trava] = await conn.query<any[]>("SELECT GET_LOCK('crmweb_envio_email_campanha', 0) AS ok");
+    if (!trava[0]?.ok) return 0;
+    try {
+      const [fila] = await conn.query<any[]>(
+        `SELECT d.id, d.destino, d.assunto, d.mensagem, c.empresa_id, c.nome AS campanha
+           FROM campanha_disparos d JOIN campanhas c ON c.id = d.campanha_id
+          WHERE d.situacao = 'pendente' AND d.canal = 'email' AND d.agendado_para <= NOW()
+            AND c.situacao = 'em_execucao' AND c.excluida_em IS NULL
+          ORDER BY d.agendado_para, d.id LIMIT ?`,
+        [limite],
+      );
+      const semSmtp = new Set<number>();
+      let processados = 0;
+      for (const d of fila) {
+        if (Date.now() + 15_000 > fim) break;
+        if (semSmtp.has(d.empresa_id)) continue;
+        try {
+          await enviarEmail(String(d.empresa_id), { para: d.destino, assunto: d.assunto || d.campanha, texto: d.mensagem });
+          await conn.query("UPDATE campanha_disparos SET situacao = 'enviado', enviado_em = NOW(), erro = NULL WHERE id = ? AND situacao = 'pendente'", [d.id]);
+        } catch (err: any) {
+          if (erroDoSmtp(err)) {
+            semSmtp.add(d.empresa_id);
+            console.error(`Campanhas: e-mail da empresa ${d.empresa_id}: ${err.message}`);
+            continue;
+          }
+          await conn.query("UPDATE campanha_disparos SET situacao = 'falhou', erro = ? WHERE id = ? AND situacao = 'pendente'", [
+            String(err?.message || err).slice(0, 255),
+            d.id,
+          ]);
+        }
+        processados++;
+      }
+      return processados;
+    } finally {
+      await conn.query("SELECT RELEASE_LOCK('crmweb_envio_email_campanha')");
+    }
+  } finally {
+    conn.release();
+  }
+}
+
+/** Fora da Vercel: um ciclo por minuto (na Vercel é o cron de /api/cron/whatsapp) */
+export function iniciarEmailsCampanha() {
+  let rodando = false;
+  setInterval(async () => {
+    if (rodando) return;
+    rodando = true;
+    try {
+      const n = await enviarEmailsCampanha();
+      if (n) console.log(`Campanhas: ${n} e-mail(s) processado(s).`);
+    } catch (err: any) {
+      console.error('Campanhas: falha no ciclo de e-mail:', err.message);
+    } finally {
+      rodando = false;
+    }
+  }, 60_000);
+}
+
 // ------------------------------------------------------------
 // Rotas
 // ------------------------------------------------------------
-
-/** Pessoa sem o contato do canal não recebe: e-mail precisa de e-mail; SMS e WhatsApp, de telefone */
-const CONTATO_DO_CANAL: Record<string, string> = {
-  email: "AND p.email IS NOT NULL AND p.email <> ''",
-  sms: "AND p.telefone IS NOT NULL AND p.telefone <> ''",
-  whatsapp: "AND COALESCE(NULLIF(p.whatsapp, ''), p.telefone) <> ''",
-};
 
 export function createCampanhasRouter() {
   const router = Router();
@@ -217,96 +377,34 @@ export function createCampanhasRouter() {
     res.json(Object.entries(REGRAS).map(([regra, r]) => ({ regra, rotulo: r.rotulo, valor: r.valor })));
   });
 
-  /** Recalcula o público do segmento */
-  router.post('/campanhas/segmentos/:id/calcular', async (req: Request, res: Response) => {
-    try {
-      const total = await calcularSegmento(Number(req.params.id), res.locals.empresaId);
-      res.json({ success: true, total });
-    } catch (err: any) {
-      res.status(400).json({ error: friendlyDbError(err, 'segmento') });
-    }
-  });
-
   /** Mensagem personalizada para as primeiras pessoas do público (sem gravar nada) */
-  router.get('/campanhas/mensagens/:id/previa', async (req: Request, res: Response) => {
+  router.get('/campanhas/:id/previa', async (req: Request, res: Response) => {
     try {
-      const [msgs] = await pool.query<any[]>(
-        `SELECT m.* FROM campanha_mensagens m JOIN campanhas c ON c.id = m.campanha_id
-          WHERE m.id = ? AND c.empresa_id = ?`,
-        [req.params.id, res.locals.empresaId],
-      );
-      if (!msgs.length) return res.status(404).json({ error: 'Mensagem não encontrada.' });
-      const m = msgs[0];
-      const colunas = Object.entries(VARIAVEIS).map(([k, sql]) => `${sql} AS ${k}`).join(', ');
-      const [pessoas] = await pool.query<any[]>(
-        `SELECT ${colunas} FROM pessoas p
-          WHERE p.id IN (${publicoSql(m)})
-          ORDER BY p.nome LIMIT 3`,
-        [m.segmento_id ?? m.campanha_id],
-      );
-      res.json(pessoas.map((p) => ({ nome: p.nome, assunto: personalizar(m.assunto, p), corpo: personalizar(m.corpo, p) })));
+      const c = await campanhaDa(req.params.id, res.locals.empresaId);
+      if (!String(c.mensagem ?? '').trim()) return res.status(400).json({ error: 'A campanha ainda não tem mensagem.' });
+      const pessoas = await publicoDa(c, res.locals.empresaId, pool, 3);
+      res.json({
+        publico: await contarPublico(c.criterios, res.locals.empresaId),
+        exemplos: pessoas.map((p) => ({
+          nome: p.nome,
+          destino: destinoDe(c.canal, p)?.destino ?? null,
+          assunto: personalizar(c.assunto, p),
+          corpo: personalizar(c.mensagem, p),
+        })),
+      });
     } catch (err: any) {
-      res.status(400).json({ error: friendlyDbError(err, 'mensagem') });
+      res.status(err.status || 400).json({ error: friendlyDbError(err, 'campanha') });
     }
   });
 
-  /**
-   * Gera os disparos: recalcula os segmentos da campanha e cria um disparo "pendente"
-   * por pessoa para cada mensagem aprovada, agendado para agora + atraso da mensagem.
-   * Pode ser repetido: quem já tem disparo daquela mensagem não ganha outro.
-   */
+  /** Gerar disparos (ver gerarDisparos) */
   router.post('/campanhas/:id/disparos', async (req: Request, res: Response) => {
-    const empresaId = res.locals.empresaId;
-    const conn = await pool.getConnection();
     try {
-      const [camps] = await conn.query<any[]>(
-        'SELECT * FROM campanhas WHERE id = ? AND empresa_id = ? AND excluida_em IS NULL',
-        [req.params.id, empresaId],
-      );
-      if (!camps.length) return res.status(404).json({ error: 'Campanha não encontrada.' });
-      const c = camps[0];
-      if (c.situacao === 'concluida' || c.situacao === 'cancelada') {
-        return res.status(400).json({ error: `A campanha está ${c.situacao}: não gera mais disparos.` });
-      }
-      const [msgs] = await conn.query<any[]>("SELECT * FROM campanha_mensagens WHERE campanha_id = ? AND situacao = 'aprovada'", [c.id]);
-      if (!msgs.length) return res.status(400).json({ error: 'Nenhuma mensagem aprovada nesta campanha.' });
-      const [segs] = await conn.query<any[]>('SELECT id FROM campanha_segmentos WHERE campanha_id = ?', [c.id]);
-      if (!segs.length) return res.status(400).json({ error: 'A campanha não tem segmentos.' });
-
-      await conn.beginTransaction();
-      for (const s of segs) await calcularSegmento(s.id, empresaId, conn);
-      let gerados = 0;
-      for (const m of msgs) {
-        const [r] = await conn.query<any>(
-          `INSERT IGNORE INTO disparos_mensagens (mensagem_id, pessoa_id, agendado_para)
-           SELECT ?, p.id, NOW() + INTERVAL ? MINUTE FROM pessoas p
-            WHERE p.id IN (${publicoSql(m)}) ${CONTATO_DO_CANAL[c.canal] || ''}`,
-          [m.id, m.atraso_minutos, m.segmento_id ?? m.campanha_id],
-        );
-        gerados += r.affectedRows;
-      }
-      await conn.query(
-        `UPDATE campanhas SET situacao = IF(situacao IN ('rascunho', 'agendada'), 'em_execucao', situacao),
-                iniciada_em = COALESCE(iniciada_em, NOW()) WHERE id = ?`,
-        [c.id],
-      );
-      await conn.commit();
-      res.json({ success: true, gerados });
+      res.json({ success: true, ...(await gerarDisparos(req.params.id, res.locals.empresaId)) });
     } catch (err: any) {
-      await conn.rollback().catch(() => {});
-      res.status(400).json({ error: friendlyDbError(err, 'campanha') });
-    } finally {
-      conn.release();
+      res.status(err.status || 400).json({ error: friendlyDbError(err, 'campanha') });
     }
   });
 
   return router;
-}
-
-/** Subconsulta das pessoas do público da mensagem (um "?": segmento, ou a campanha quando a mensagem vale para todos) */
-function publicoSql(m: { segmento_id: number | null }): string {
-  return m.segmento_id
-    ? 'SELECT sp.pessoa_id FROM campanha_segmento_pessoas sp WHERE sp.segmento_id = ?'
-    : `SELECT sp.pessoa_id FROM campanha_segmento_pessoas sp
-         JOIN campanha_segmentos s ON s.id = sp.segmento_id WHERE s.campanha_id = ?`;
 }

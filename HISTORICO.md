@@ -2,6 +2,14 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.51 — 2026-09-28
+
+- Banco: campanhas unificadas. `campanhas` ganhou criterios, publico_estimado, assunto, mensagem e enviar_a_partir_de; nova tabela `campanha_disparos`; saem campanha_segmentos, campanha_segmento_pessoas, campanha_mensagens e disparos_mensagens (SQL em extras/crmweb_schema.sql; etapa 2 — apagar as tabelas antigas — depois desta versão no ar).
+- Campanhas: tudo numa tela só — público por critérios, "Enviar por" (WhatsApp, e-mail ou WhatsApp ou e-mail), assunto, mensagem com variáveis e "Enviar a partir de". Outro público ou outro texto = outra campanha. Menu Marketing: só Campanhas e Disparos.
+- Campanhas: "Gerar disparos" cria um registro por pessoa (cliente, canal, celular/e-mail, assunto e mensagem já personalizados, situação, agendamento); quem não tem o contato fica de fora, quem já recebeu não recebe de novo, os pendentes são refeitos. "Pré-visualizar" mostra o público e a mensagem pronta. Ações no menu "...".
+- Campanhas: envio por e-mail (SMTP da empresa), além do WhatsApp; falha do servidor de e-mail deixa o disparo pendente para o próximo ciclo.
+- Segmentos de campanha: o campo "Tipo" saiu da tela (coluna com padrão no banco).
+
 ## 0.0.50 — 2026-09-28
 
 - Importar BM (pessoas): o campo personalizado "revenda", se existir, recebe o nome do vendedor do bmsoft (PESSOAS.ID_Vendedor → VENDEDORES.Nome), usando a opção da lista com o mesmo nome (sem diferenciar maiúsculas) ou o nome como veio.
