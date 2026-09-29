@@ -13,7 +13,8 @@ import { ErroProvedor, enviarAutomatica, intervaloWhatsApp, telefoneWhatsApp } f
 export interface ConfigAutomaticas {
   /**
    * Lembrete de atividade, X horas antes. Vai para quem a atividade manda (lembrete_para):
-   * a pessoa (texto), o vendedor responsável do negócio (texto_vendedor), os dois ou ninguém
+   * a pessoa (texto), o vendedor responsável do negócio (texto_vendedor), os dois, todos (os dois e os
+   * envolvidos, com o texto do vendedor) ou ninguém. Atividade executada pelo Bot fica de fora (ele contata)
    */
   atividade: { ativo: boolean; horas: number; tipos: string[]; texto: string; texto_vendedor: string };
   /** Proposta enviada, X dias antes da validade */
@@ -194,6 +195,7 @@ export async function avisosDevidos(empresaId: number, cfg: ConfigAutomaticas, d
          LEFT JOIN contratos ct ON ct.id = a.contrato_id
          LEFT JOIN usuarios u ON u.id = COALESCE(a.executor_id, n.proprietario_id, ct.proprietario_id) AND u.ativo = 1
         WHERE a.empresa_id = ? AND a.concluida = 0 AND a.hora_vencimento IS NOT NULL AND a.tipo IN (?) AND a.lembrete_para <> 'nenhum'
+          AND a.executor_bot = 0
           AND TIMESTAMP(a.data_vencimento, a.hora_vencimento) BETWEEN NOW() AND NOW() + INTERVAL ? HOUR`,
       [empresaId, cfg.atividade.tipos, cfg.atividade.horas],
     );
@@ -203,6 +205,17 @@ export async function avisosDevidos(empresaId: number, cfg: ConfigAutomaticas, d
       if (r.pessoa_id && r.lembrete_para !== 'vendedor') linhas.push({ origem: `atividade:${r.id}:${r.quando}`, texto: cfg.atividade.texto, dados });
       if (r.telefone_vendedor && r.lembrete_para !== 'cliente') {
         linhas.push({ origem: `atividade-vendedor:${r.id}:${r.quando}`, texto: cfg.atividade.texto_vendedor, dados, para: { telefone: r.telefone_vendedor, pessoa_id: null } });
+      }
+      // Todos: os envolvidos também recebem o texto do vendedor (quem já é o vendedor não recebe duas vezes)
+      if (r.lembrete_para === 'todos') {
+        const [env] = await db.query<any[]>(
+          `SELECT u.id, u.telefone FROM atividade_envolvidos e JOIN usuarios u ON u.id = e.usuario_id AND u.ativo = 1
+            WHERE e.atividade_id = ? AND u.telefone <> '' AND u.telefone <> COALESCE(?, '')`,
+          [r.id, r.telefone_vendedor],
+        );
+        for (const u of env) {
+          linhas.push({ origem: `atividade-envolvido:${r.id}:${u.id}:${r.quando}`, texto: cfg.atividade.texto_vendedor, dados, para: { telefone: u.telefone, pessoa_id: null } });
+        }
       }
     }
   }

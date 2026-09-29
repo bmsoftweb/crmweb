@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CalendarPlus, Loader2, X } from 'lucide-react';
 import { createRecord, criarTarefaChamado, fetchOptions } from '../services/api';
 import { Id, OpcaoRef } from '../types';
-import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
+import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { LEMBRETE_PARA, TIPOS_ATIVIDADE } from '../utils/crm';
 import { DateField } from './DateField';
@@ -34,7 +34,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
   // Tarefa interna do suporte: o lembrete vai para quem executa, não para o cliente
   const [lembretePara, setLembretePara] = useState(chamadoId ? 'vendedor' : 'cliente');
   /** Quem executa: qualquer pessoa, um usuário ou um departamento */
-  const [quem, setQuem] = useState<'qualquer' | 'usuario' | 'departamento'>(executorPadraoId ? 'usuario' : 'qualquer');
+  const [quem, setQuem] = useState<'qualquer' | 'usuario' | 'departamento' | 'bot'>(executorPadraoId ? 'usuario' : 'qualquer');
   const [executorId, setExecutorId] = useState(executorPadraoId ? String(executorPadraoId) : '');
   /** Outros usuários que acompanham a atividade */
   const [envolvidos, setEnvolvidos] = useState<number[]>([]);
@@ -55,6 +55,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
     if (!data) return setErro('Informe a data de vencimento.');
     if (quem === 'usuario' && !executorId) return setErro('Escolha o usuário que executa a atividade.');
     if (quem === 'departamento' && !departamentoId) return setErro('Escolha o departamento que executa a atividade.');
+    if (quem === 'bot' && lembretePara === 'nenhum') return setErro('Com o Bot executando, escolha com quem ele conversa.');
     setSalvando(true);
     setErro(null);
     try {
@@ -68,6 +69,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
         lembrete_para: lembretePara,
         executor_id: quem === 'usuario' ? executorId : null,
         departamento_id: quem === 'departamento' ? departamentoId : null,
+        executor_bot: quem === 'bot' ? 1 : 0,
         observacao: observacao || null,
         concluida: concluida ? 1 : 0,
         envolvidos: envolvidos.filter((id) => String(id) !== executor) as any,
@@ -156,6 +158,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
                 <option value="qualquer">Qualquer pessoa</option>
                 <option value="usuario">Um usuário</option>
                 <option value="departamento">Um departamento</option>
+                <option value="bot">Bot (a IA conversa no dia e hora)</option>
               </select>
             </div>
             {quem === 'usuario' && (
@@ -195,7 +198,7 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
           />
 
           <div className={FIELD_CLASS}>
-            <label htmlFor="atv-lembrete" className={LABEL_CLASS}>Lembrete por WhatsApp para</label>
+            <label htmlFor="atv-lembrete" className={LABEL_CLASS}>{quem === 'bot' ? 'O Bot conversa com' : 'Lembrete por WhatsApp para'}</label>
             <select id="atv-lembrete" value={lembretePara} onChange={(e) => setLembretePara(e.target.value)} className={`${INPUT_CLASS} w-full sm:w-1/2 cursor-pointer`}>
               {LEMBRETE_PARA.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -203,6 +206,12 @@ export const AtividadeModal: React.FC<AtividadeModalProps> = ({ negocioId, pesso
                 </option>
               ))}
             </select>
+            {quem === 'bot' && (
+              <span className={HINT_CLASS}>
+                No dia e hora (sem hora: 8h), a IA conversa pelo WhatsApp seguindo o assunto e a observação, até cumprir a atividade; sem WhatsApp, manda um e-mail.
+                Escreva na observação o que o Bot deve fazer.
+              </span>
+            )}
           </div>
 
           <div className={FIELD_CLASS}>

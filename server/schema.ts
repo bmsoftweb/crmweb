@@ -165,6 +165,7 @@ export const LEMBRETE_PARA = [
   { value: 'cliente', label: 'Cliente' },
   { value: 'vendedor', label: 'Vendedor' },
   { value: 'ambos', label: 'Cliente e vendedor' },
+  { value: 'todos', label: 'Todos os envolvidos' },
   { value: 'nenhum', label: 'Ninguém' },
 ];
 
@@ -411,7 +412,7 @@ export const RESOURCES: ResourceDef[] = [
         required: true,
         options: LEMBRETE_PARA,
         default: 'cliente',
-        hint: 'WhatsApp automático antes da atividade, se ligado em Configurações › Mensagens automáticas. Vendedor = o usuário que executa ou, sem ele, o responsável do negócio.',
+        hint: 'WhatsApp automático antes da atividade, se ligado em Configurações › Mensagens automáticas. Vendedor = o usuário que executa ou, sem ele, o responsável do negócio. Todos = cliente, vendedor e envolvidos. Com o Bot executando: com quem ele conversa.',
       },
       {
         name: 'quem_executa',
@@ -419,8 +420,15 @@ export const RESOURCES: ResourceDef[] = [
         type: 'text',
         readOnly: true,
         listed: true,
-        sql: `COALESCE((SELECT u.nome FROM usuarios u WHERE u.id = t.executor_id),
-                       (SELECT d.nome FROM departamentos d WHERE d.id = t.departamento_id), 'Qualquer pessoa')`,
+        sql: `IF(t.executor_bot = 1, 'Bot', COALESCE((SELECT u.nome FROM usuarios u WHERE u.id = t.executor_id),
+                       (SELECT d.nome FROM departamentos d WHERE d.id = t.departamento_id), 'Qualquer pessoa'))`,
+      },
+      {
+        name: 'executor_bot',
+        label: 'Executor: Bot',
+        type: 'boolean',
+        filterable: true,
+        hint: 'No dia e hora, a IA conversa pelo WhatsApp com quem está em "Lembrete para" seguindo o assunto e a observação (sem WhatsApp, manda um e-mail). Sem hora: começa às 8h',
       },
       { name: 'executor_id', label: 'Executor (usuário)', type: 'text', filterable: true, ref: { resource: 'usuarios', labelField: 'nome' }, hint: 'Ou um usuário ou um departamento; os dois vazios = qualquer pessoa' },
       { name: 'departamento_id', label: 'Executor (departamento)', type: 'text', filterable: true, ref: { resource: 'departamentos', labelField: 'nome' } },
@@ -450,6 +458,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'concluida', label: 'Concluída', type: 'boolean', listed: true, filterable: true },
       { name: 'concluida_em', label: 'Concluída em', type: 'datetime', readOnly: true },
       { name: 'observacao', label: 'Observação', type: 'textarea' },
+      { name: 'bot_resumo', label: 'Resumo do bot', type: 'textarea', readOnly: true },
       ...CRIADO_ATUALIZADO,
     ],
   },

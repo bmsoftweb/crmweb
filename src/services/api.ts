@@ -717,7 +717,31 @@ export interface TarefaChamado {
   observacao: string | null;
   quem_executa: string;
   envolvidos: string | null;
+  executor_bot: number;
+  bot_resumo: string | null;
 }
+
+/** Conversas do bot de uma atividade (server/atividadeBot.ts) */
+export interface ConversaBotAtividade {
+  id: number;
+  assunto: string;
+  executor_bot: number;
+  bot_iniciado_em: string | null;
+  bot_resumo: string | null;
+  concluida: number;
+  conversas: {
+    id: number;
+    nome: string | null;
+    canal: 'whatsapp' | 'email';
+    destino: string;
+    situacao: 'conversando' | 'concluida' | 'humano' | 'sem_resposta' | 'enviado' | 'falhou';
+    resumo: string | null;
+    criado_em: string;
+    encerrada_em: string | null;
+    mensagens: { id: number; direcao: 'enviada' | 'recebida'; texto: string; criado_em: string }[];
+  }[];
+}
+export const fetchConversaBot = (atividadeId: Id): Promise<ConversaBotAtividade> => get(`/api/atividades/${atividadeId}/bot`);
 
 /** Nova tarefa no chamado: mesma janela e mesmos campos da atividade (server/chamados.ts) */
 export const criarTarefaChamado = (chamadoId: number, dados: RegistroCrud): Promise<{ id: number }> =>

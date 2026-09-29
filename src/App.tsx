@@ -28,6 +28,7 @@ import { AcaoCampanha, BotaoEnviarDisparo } from './components/AcoesCampanha';
 import { BotaoEnviar } from './components/BotaoEnviar';
 import { BotaoLinkAceite } from './components/BotaoLinkAceite';
 import { BotaoNovaVersao } from './components/BotaoNovaVersao';
+import { BotaoConversaBot } from './components/ConversaBot';
 import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
@@ -499,7 +500,9 @@ export default function App() {
                       ? (row) => <BotaoWhatsApp temNumero={Boolean(row.whatsapp || row.telefone)} onAbrir={() => pedirConversa({ pessoaId: row.id as string })} />
                       : activeResource.name === 'usuarios'
                         ? (row, { recarregar }) => <BotaoPermissoes usuario={row} resources={resources} onRecarregar={recarregar} onToast={showToast} />
-                        : undefined
+                        : activeResource.name === 'atividades'
+                          ? (row) => (Number(row.executor_bot) === 1 ? <BotaoConversaBot atividadeId={row.id as string} /> : null)
+                          : undefined
               }
               acoesDetalhe={(recurso, row, { recarregar }) =>
                 recurso === 'pessoas_contatos' ? (

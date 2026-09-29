@@ -802,6 +802,65 @@ async function respostaClaude(ctx: Contexto, cfg: ConfigChatbot, system: string,
   return '';
 }
 
+/** Uma fala de uma conversa conduzida fora da Automação (bot das atividades): ia = o assistente, pessoa = quem conversa */
+export interface FalaIa {
+  de: 'ia' | 'pessoa';
+  texto: string;
+}
+
+/** Ferramenta final da conversa (encerrar, transferir): a IA chama e o chamador decide o que fazer */
+export interface FerramentaIa {
+  nome: string;
+  descricao: string;
+  parametros: Record<string, string>;
+}
+
+/**
+ * Uma resposta da IA para uma conversa com instruções próprias (bot das atividades). As falas precisam
+ * começar e terminar pela pessoa (o chamador põe uma fala de abertura entre parênteses quando é a IA que
+ * começa). Devolve o texto e, se a IA pediu, a ferramenta (a primeira) com os argumentos
+ */
+export async function conversarIa(
+  cfg: ConfigChatbot,
+  system: string,
+  falas: FalaIa[],
+  ferramentas: FerramentaIa[],
+): Promise<{ texto: string; chamada: { nome: string; args: Record<string, unknown> } | null }> {
+  const contents: Content[] = [];
+  for (const f of falas) {
+    const role = f.de === 'pessoa' ? 'user' : 'model';
+    const ultimo = contents[contents.length - 1];
+    if (ultimo?.role === role) ultimo.parts!.push({ text: f.texto });
+    else contents.push({ role, parts: [{ text: f.texto }] });
+  }
+  const esquema = (t: FerramentaIa) => ({
+    type: 'object',
+    properties: Object.fromEntries(Object.entries(t.parametros).map(([k, d]) => [k, { type: 'string', description: d }])),
+    required: Object.keys(t.parametros),
+  });
+  if (formatoClaude(cfg)) {
+    const r = await perguntarClaude(cfg, {
+      system,
+      messages: paraClaude(contents),
+      tools: ferramentas.map((t) => ({ name: t.nome, description: t.descricao, input_schema: esquema(t) as Anthropic.Beta.BetaTool.InputSchema })),
+      max_tokens: 16000,
+    });
+    const uso = r.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
+    return { texto: textoClaude(r), chamada: uso ? { nome: uso.name, args: (uso.input ?? {}) as Record<string, unknown> } : null };
+  }
+  const r = await clienteGemini(cfg).models.generateContent({
+    model: modeloDe(cfg),
+    contents,
+    config: {
+      systemInstruction: system,
+      tools: [{ functionDeclarations: ferramentas.map((t) => ({ name: t.nome, description: t.descricao, parametersJsonSchema: esquema(t) })) }],
+      maxOutputTokens: 2048,
+    },
+  });
+  const c = r.functionCalls?.[0];
+  return { texto: (r.text ?? '').trim(), chamada: c ? { nome: c.name ?? '', args: c.args ?? {} } : null };
+}
+
 /**
  * Nó "IA Ex" da jornada: a IA conversa seguindo o texto-base do nó até o cliente indicar uma
  * das opções. Devolve o número da opção (0 = ainda não indicou) e a mensagem a mandar quando for 0.
@@ -927,6 +986,9 @@ async function tratarDescadastro(nova: MensagemNova): Promise<boolean> {
 
 export async function responderComBot(nova: MensagemNova): Promise<void> {
   if (await tratarDescadastro(nova)) return;
+  // Número numa conversa do bot de uma atividade: quem responde é ele, não a Automação (import dinâmico: ele usa este módulo)
+  const { responderAtividade } = await import('./atividadeBot.js');
+  if (await responderAtividade(nova)) return;
   const cfg = await lerChatbot(nova.empresaId);
   // Quem atende é a Automação (Configurações › Automação) ligada para este número.
   // Import dinâmico: jornada.ts usa este módulo

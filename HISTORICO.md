@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.58 — 2026-09-29
+
+- Banco: `atividades.executor_bot`, `bot_iniciado_em`, `bot_resumo`, "todos" em `lembrete_para`; tabelas `atividade_conversas` e `atividade_mensagens` (SQL em extras/crmweb_schema.sql).
+- Atividades: "Quem executa" = Bot. No dia e hora (sem hora: 8h), a IA (Configurações › Chatbot) conversa pelo WhatsApp com quem está em "Lembrete para", seguindo o assunto e a observação, até cumprir; sem WhatsApp, e-mail único. Pede atendente/reclama: passa para a equipe (conversa "Aguardando" no WhatsApp) e avisa o responsável. Sem resposta: insistência em 24 h e, mais 24 h, "sem resposta". Tudo cumprido: atividade concluída com resumo; senão fica pendente com o resumo. Janela "Conversa do Bot" (chat por pessoa) na lista de Atividades, na ficha do negócio e nas tarefas do chamado.
+- "Lembrete para": opção "Todos os envolvidos" (cliente, vendedor e envolvidos), também no lembrete automático.
+- Tela de login: versão do sistema no rodapé.
+
 ## 0.0.57 — 2026-09-29
 
 - Chat do site: a notificação do Windows aparece a cada mensagem do técnico (antes, com a anterior ainda na Central de Notificações, a nova só a substituía em silêncio).

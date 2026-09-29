@@ -26,6 +26,7 @@ export const LEMBRETE_PARA = [
   { value: 'cliente', label: 'Cliente' },
   { value: 'vendedor', label: 'Vendedor' },
   { value: 'ambos', label: 'Cliente e vendedor' },
+  { value: 'todos', label: 'Todos os envolvidos' },
   { value: 'nenhum', label: 'Ninguém' },
 ];
 

@@ -29,6 +29,7 @@ import { BotaoTemplates } from './BotaoTemplates';
 import { lerSessao } from '../utils/session';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
 import { AtividadeModal } from './AtividadeModal';
+import { BotaoConversaBot } from './ConversaBot';
 
 /**
  * Suporte › Fila de Chamados e Chamados Ativos (server/chamados.ts), no modelo do solweb: a fila
@@ -633,7 +634,9 @@ const ChamadoAberto: React.FC<{
                     {' • '}{t.quem_executa}
                     {t.envolvidos && ` • envolvidos: ${t.envolvidos}`}
                   </span>
+                  {t.bot_resumo && <div className="text-[11px] text-blue-700 dark:text-blue-300 whitespace-pre-wrap">Bot: {t.bot_resumo}</div>}
                 </div>
+                {t.executor_bot === 1 && <BotaoConversaBot atividadeId={t.id} className="shrink-0 p-0.5 rounded text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer" />}
               </li>
             ))}
           </ul>

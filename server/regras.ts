@@ -45,8 +45,11 @@ export async function antesDeGravar(recurso: string, payload: Record<string, any
     const [rows] = await pool.query<any[]>('SELECT 1 FROM pessoas WHERE id = ? AND empresa_id = ?', [payload.pessoa_id, empresaId]);
     if (!rows.length) throw new Error('A pessoa do contato não existe nesta empresa.');
   }
-  if (recurso === 'atividades' && payload.executor_id && payload.departamento_id) {
-    throw new Error('Quem executa: escolha um usuário ou um departamento, não os dois (os dois vazios = qualquer pessoa).');
+  if (recurso === 'atividades' && [payload.executor_id, payload.departamento_id, Number(payload.executor_bot) || null].filter(Boolean).length > 1) {
+    throw new Error('Quem executa: escolha um usuário, um departamento ou o Bot, só um deles (nenhum = qualquer pessoa).');
+  }
+  if (recurso === 'atividades' && Number(payload.executor_bot) && payload.lembrete_para === 'nenhum') {
+    throw new Error('Com o Bot executando, escolha em "Lembrete para" com quem ele conversa.');
   }
   if (recurso === 'negocios' && payload.etapa_id) {
     const [rows] = await pool.query<any[]>('SELECT funil_id FROM etapas WHERE id = ?', [payload.etapa_id]);

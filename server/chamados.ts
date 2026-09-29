@@ -261,8 +261,8 @@ export function createChamadosRouter(): Router {
     );
     // Tarefas do chamado: atividades ligadas a ele (quem executa e os envolvidos)
     const [tarefas] = await pool.query<any[]>(
-      `SELECT a.id, a.assunto, a.tipo, a.data_vencimento, a.hora_vencimento, a.concluida, a.concluida_em, a.observacao,
-              COALESCE(u.nome, d.nome, 'Qualquer pessoa') AS quem_executa,
+      `SELECT a.id, a.assunto, a.tipo, a.data_vencimento, a.hora_vencimento, a.concluida, a.concluida_em, a.observacao, a.executor_bot, a.bot_resumo,
+              IF(a.executor_bot = 1, 'Bot', COALESCE(u.nome, d.nome, 'Qualquer pessoa')) AS quem_executa,
               (SELECT GROUP_CONCAT(x.nome ORDER BY x.nome SEPARATOR ', ') FROM atividade_envolvidos e JOIN usuarios x ON x.id = e.usuario_id
                 WHERE e.atividade_id = a.id) AS envolvidos
          FROM atividades a LEFT JOIN usuarios u ON u.id = a.executor_id LEFT JOIN departamentos d ON d.id = a.departamento_id
@@ -474,7 +474,9 @@ export function createChamadosRouter(): Router {
     const duracao = /^\d{2}:\d{2}/.test(String(b.duracao ?? '')) ? b.duracao : null;
     const executorId = Number(b.executor_id) || null;
     const departamentoId = Number(b.departamento_id) || null;
-    if (executorId && departamentoId) throw erro(400, 'Quem executa: escolha um usuário ou um departamento, não os dois.');
+    const bot = Number(b.executor_bot) ? 1 : 0;
+    if ([executorId, departamentoId, bot].filter(Boolean).length > 1) throw erro(400, 'Quem executa: escolha um usuário, um departamento ou o Bot, só um deles.');
+    if (bot && lembrete === 'nenhum') throw erro(400, 'Com o Bot executando, escolha com quem ele conversa.');
     if (executorId) {
       const [x] = await pool.query<any[]>('SELECT 1 FROM usuarios WHERE id = ? AND empresa_id = ?', [executorId, emp(res)]);
       if (!x.length) throw erro(400, 'Usuário que executa não encontrado nesta empresa.');
@@ -487,9 +489,9 @@ export function createChamadosRouter(): Router {
     const concluida = Boolean(b.concluida);
     const [ins] = await pool.query<any>(
       `INSERT INTO atividades (empresa_id, pessoa_id, chamado_id, assunto, tipo, data_vencimento, hora_vencimento, duracao, lembrete_para,
-                               executor_id, departamento_id, observacao, concluida, concluida_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(?, NOW(), NULL))`,
-      [emp(res), c.pessoa_id, c.id, assunto, tipo, b.data_vencimento, hora, duracao, lembrete, executorId, departamentoId,
+                               executor_id, departamento_id, executor_bot, observacao, concluida, concluida_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(?, NOW(), NULL))`,
+      [emp(res), c.pessoa_id, c.id, assunto, tipo, b.data_vencimento, hora, duracao, lembrete, executorId, departamentoId, bot,
         String(b.observacao ?? '').trim() || null, concluida ? 1 : 0, concluida],
     );
     await gravarEnvolvidosAtividade(ins.insertId, envolvidos);

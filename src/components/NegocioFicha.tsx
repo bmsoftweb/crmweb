@@ -26,6 +26,7 @@ import {
   mudarStatusNegocio,
   updateRecord,
 } from '../services/api';
+import { BotaoConversaBot } from './ConversaBot';
 import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoeda } from '../utils/formatters';
 import { INPUT_CLASS } from '../utils/formStyles';
 import { COR_SEMAFORO, TIPOS_INTERACAO, iconeAtividade, iconeInteracao, quando, semaforoFollowup } from '../utils/crm';
@@ -356,7 +357,9 @@ export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource,
                       {feita && a.concluida_em && ` • concluída em ${formatDateTimeBR(a.concluida_em)}`}
                     </div>
                     {a.observacao && <p className="mt-1 text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap">{a.observacao}</p>}
+                    {a.bot_resumo && <p className="mt-1 text-xs text-blue-700 dark:text-blue-300 whitespace-pre-wrap">Bot: {a.bot_resumo}</p>}
                   </div>
+                  {Number(a.executor_bot) === 1 && <BotaoConversaBot atividadeId={a.id} className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer" />}
                   <button onClick={() => setExcluindo({ recurso: 'atividades', registro: a, rotulo: a.assunto })} title="Excluir atividade" className="p-1 rounded text-stone-300 opacity-0 group-hover:opacity-100 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
