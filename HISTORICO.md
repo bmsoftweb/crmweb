@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.57 — 2026-09-29
+
+- Chat do site: a notificação do Windows aparece a cada mensagem do técnico (antes, com a anterior ainda na Central de Notificações, a nova só a substituía em silêncio).
+
 ## 0.0.56 — 2026-09-29
 
 - Banco: `atividades.chamado_id` e tabela `atividade_envolvidos` (SQL em extras/crmweb_schema.sql).

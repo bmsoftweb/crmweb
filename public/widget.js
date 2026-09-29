@@ -87,10 +87,15 @@
       }
     }
   }
+  // Sem "tag": com ela, a notificação nova só substitui a anterior em silêncio (não aparece de novo na tela).
+  // A anterior é fechada, para não acumular uma por mensagem
+  var ultimaNotificacao = null;
   function notificar(titulo, texto) {
     if (!podeNotificar || Notification.permission !== 'granted') return;
     try {
-      var n = new Notification(titulo, { body: texto, tag: 'crmweb-suporte' });
+      if (ultimaNotificacao) ultimaNotificacao.close();
+      var n = new Notification(titulo, { body: texto });
+      ultimaNotificacao = n;
       n.onclick = function () {
         window.focus();
         abrirPainel();
