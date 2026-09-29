@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { chaveTelefone, conteudoMensagem, escolherDono, telefoneWhatsApp } from './whatsapp.js';
+import { chaveTelefone, conteudoMensagem, escolherDono, telefoneWhatsApp, imagemDaCampanha } from './whatsapp.js';
 
 assert.strictEqual(telefoneWhatsApp('(41) 99901-2223'), '5541999012223');
 assert.strictEqual(telefoneWhatsApp('(41)35238200'), '554135238200');
@@ -49,5 +49,11 @@ assert.deepStrictEqual(escolherDono(k, [{ ...pessoaFixo, whatsapp: '(47) 98848-9
 assert.deepStrictEqual(escolherDono(k, [{ de: 'c', pessoa_id: 3, contato_id: 30, whatsapp: null, celular: '47988489722', telefone: null }]), { pessoa_id: 3, contato_id: 30 });
 assert.deepStrictEqual(escolherDono(k, [{ de: 'p', pessoa_id: 4, contato_id: null, whatsapp: null, telefone: '8848-9722' }]), { pessoa_id: 4, contato_id: null });
 assert.deepStrictEqual(escolherDono(k, [{ de: 'p', pessoa_id: 5, contato_id: null, whatsapp: null, telefone: '(41) 98848-9722' }]), { pessoa_id: null, contato_id: null });
+
+// Imagem da campanha (data URL) → arquivo; formato estranho ou vazio = sem imagem
+assert.deepStrictEqual(imagemDaCampanha('data:image/jpeg;base64,QUJD'), { mimetype: 'image/jpeg', base64: 'QUJD', nome: 'imagem.jpg' });
+assert.strictEqual(imagemDaCampanha('data:image/png;base64,QUJD')?.nome, 'imagem.png');
+assert.strictEqual(imagemDaCampanha('data:application/pdf;base64,QUJD'), null);
+assert.strictEqual(imagemDaCampanha(null), null);
 
 console.log('whatsapp: ok');

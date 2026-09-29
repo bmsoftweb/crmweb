@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, Send, X } from 'lucide-react';
+import { Eye, Loader2, Send, X } from 'lucide-react';
 import { RegistroCrud } from '../types';
-import { gerarDisparos, previaCampanha, PreviaCampanha } from '../services/api';
+import { enviarDisparoAgora, gerarDisparos, previaCampanha, PreviaCampanha } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BotaoAcao } from './MenuAcoes';
 
@@ -85,6 +85,7 @@ export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast 
                       <div className="text-[11px] font-semibold text-stone-400 mb-1">
                         Para: {p.nome} {p.destino ? `(${p.destino})` : '— sem o contato do canal: fica de fora'}
                       </div>
+                      {previa.imagem && <img src={previa.imagem} alt="Imagem da campanha" className="max-h-48 rounded-lg mb-2" />}
                       {p.assunto && <div className="text-xs font-bold text-stone-800 dark:text-stone-100 mb-1">{p.assunto}</div>}
                       <div className="text-xs text-stone-700 dark:text-stone-300 whitespace-pre-wrap">{p.corpo}</div>
                     </div>
@@ -95,5 +96,38 @@ export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast 
           </div>,
         )}
     </>
+  );
+};
+
+/** Detalhe Disparos: envia na hora um disparo pendente ou que falhou (os já enviados ficam com o botão apagado) */
+export const BotaoEnviarDisparo: React.FC<{ registro: RegistroCrud; onEnviado: () => void; onToast: (msg: string) => void }> = ({
+  registro,
+  onEnviado,
+  onToast,
+}) => {
+  const [enviando, setEnviando] = useState(false);
+  const pode = registro.situacao === 'pendente' || registro.situacao === 'falhou';
+  return (
+    <button
+      type="button"
+      disabled={!pode || enviando}
+      onClick={async (e) => {
+        e.stopPropagation();
+        setEnviando(true);
+        try {
+          await enviarDisparoAgora(registro.id as number);
+          onToast(`Mensagem enviada para ${registro.nome} (${registro.destino}).`);
+        } catch (err: any) {
+          onToast(err.message || 'Não foi possível enviar.');
+        } finally {
+          setEnviando(false);
+          onEnviado();
+        }
+      }}
+      title={pode ? `Enviar agora para ${registro.destino}${registro.situacao === 'falhou' ? ' (tenta de novo)' : ''}` : `Já ${registro.situacao}: não é enviado de novo`}
+      className="p-1 rounded text-stone-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-stone-400"
+    >
+      {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+    </button>
   );
 };

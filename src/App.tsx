@@ -24,7 +24,7 @@ import { BotaoImportarBM } from './components/ImportarBMModal';
 import { BotaoImportarArquivo } from './components/ImportarArquivoModal';
 import { BotaoClonar } from './components/BotaoClonar';
 import { BotaoImprimir } from './components/BotaoImprimir';
-import { AcaoCampanha } from './components/AcoesCampanha';
+import { AcaoCampanha, BotaoEnviarDisparo } from './components/AcoesCampanha';
 import { BotaoEnviar } from './components/BotaoEnviar';
 import { BotaoLinkAceite } from './components/BotaoLinkAceite';
 import { BotaoNovaVersao } from './components/BotaoNovaVersao';
@@ -501,9 +501,11 @@ export default function App() {
                         ? (row, { recarregar }) => <BotaoPermissoes usuario={row} resources={resources} onRecarregar={recarregar} onToast={showToast} />
                         : undefined
               }
-              acoesDetalhe={(recurso, row) =>
+              acoesDetalhe={(recurso, row, { recarregar }) =>
                 recurso === 'pessoas_contatos' ? (
                   <BotaoWhatsApp temNumero={Boolean(row.whatsapp || row.celular || row.telefone)} onAbrir={() => pedirConversa({ contatoId: row.id as string })} />
+                ) : recurso === 'campanha_disparos' ? (
+                  <BotaoEnviarDisparo registro={row} onEnviado={recarregar} onToast={showToast} />
                 ) : null
               }
             />

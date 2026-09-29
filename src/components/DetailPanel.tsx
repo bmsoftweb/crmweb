@@ -24,7 +24,7 @@ interface DetailPanelProps {
   /** Navega para a tela própria do recurso filho */
   onOpenResource: (resourceName: string) => void;
   /** Botões extras na linha (ex.: WhatsApp do contato); null quando o recurso não tem */
-  acoesLinha?: (recurso: string, row: RegistroCrud) => React.ReactNode;
+  acoesLinha?: (recurso: string, row: RegistroCrud, ctx: { recarregar: () => void }) => React.ReactNode;
 }
 
 const DETAIL_LIMIT = 200;
@@ -171,7 +171,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
   const podeExcluir = editavel && childResource.canDelete;
   const pkFilho = (r: RegistroCrud) => r[childResource.pk[0]] as string | number;
   /** O recurso tem botões extras nas linhas (a coluna Ações aparece mesmo sem editar/excluir) */
-  const extras = Boolean(rows.length && acoesLinha?.(childResource.name, rows[0]));
+  const extras = Boolean(rows.length && acoesLinha?.(childResource.name, rows[0], { recarregar: load }));
   const aposAlterar = () => {
     invalidateOptions(childResource.name); // combos que usam o filho (ex.: etapa do negócio)
     load();
@@ -292,7 +292,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
                         {f.label}
                       </th>
                     ))}
-                    {(podeEditar || podeExcluir) && (
+                    {/* Mesma condição da coluna nas linhas: botões extras (ex.: enviar disparo) também contam */}
+                    {(podeEditar || podeExcluir || extras) && (
                       <th className="w-px px-3 py-2 text-center font-semibold text-stone-600 dark:text-stone-300 border-b border-stone-200 dark:border-stone-800">
                         Ações
                       </th>
@@ -317,7 +318,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
                       {(podeEditar || podeExcluir || extras) && (
                         <td className="px-3 py-1 text-center whitespace-nowrap border-b border-stone-100 dark:border-stone-800/60">
                           <div className="inline-flex items-center gap-1">
-                            {acoesLinha?.(childResource.name, row)}
+                            {acoesLinha?.(childResource.name, row, { recarregar: load })}
                             {podeEditar && (
                               <button
                                 onClick={() => setEditando({ record: row })}

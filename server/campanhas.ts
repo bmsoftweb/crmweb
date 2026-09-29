@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { friendlyDbError } from './crud.js';
 import { enviarEmail } from './email.js';
-import { telefoneWhatsApp } from './whatsapp.js';
+import { enviarWhatsAppCampanha, imagemDaCampanha, telefoneWhatsApp } from './whatsapp.js';
 
 /**
  * Campanhas (tudo numa tabela só): o público vem dos critérios da campanha, a mensagem (com variáveis
@@ -297,6 +297,12 @@ export async function gerarDisparos(campanhaId: string | number, empresaId: stri
 // Envio por e-mail (o WhatsApp sai por server/whatsapp.ts)
 // ------------------------------------------------------------
 
+/** Imagem da campanha como anexo do e-mail */
+const anexosDa = (imagem: string | null | undefined) => {
+  const img = imagemDaCampanha(imagem);
+  return img ? [{ nome: img.nome, conteudo: Buffer.from(img.base64, 'base64') }] : undefined;
+};
+
 /** Erro do servidor de e-mail da empresa (não do destinatário): o disparo continua pendente para o próximo ciclo */
 const erroDoSmtp = (err: any) =>
   /^E-mail não configurado/.test(err?.message) || ['EAUTH', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'ECONNREFUSED'].includes(err?.code);
@@ -311,7 +317,7 @@ export async function enviarEmailsCampanha(limite = 50, prazoMs = Infinity): Pro
     if (!trava[0]?.ok) return 0;
     try {
       const [fila] = await conn.query<any[]>(
-        `SELECT d.id, d.destino, d.assunto, d.mensagem, c.empresa_id, c.nome AS campanha
+        `SELECT d.id, d.destino, d.assunto, d.mensagem, c.empresa_id, c.nome AS campanha, c.imagem
            FROM campanha_disparos d JOIN campanhas c ON c.id = d.campanha_id
           WHERE d.situacao = 'pendente' AND d.canal = 'email' AND d.agendado_para <= NOW()
             AND c.situacao = 'em_execucao' AND c.excluida_em IS NULL
@@ -324,7 +330,7 @@ export async function enviarEmailsCampanha(limite = 50, prazoMs = Infinity): Pro
         if (Date.now() + 15_000 > fim) break;
         if (semSmtp.has(d.empresa_id)) continue;
         try {
-          await enviarEmail(String(d.empresa_id), { para: d.destino, assunto: d.assunto || d.campanha, texto: d.mensagem });
+          await enviarEmail(String(d.empresa_id), { para: d.destino, assunto: d.assunto || d.campanha, texto: d.mensagem, anexos: anexosDa(d.imagem) });
           await conn.query("UPDATE campanha_disparos SET situacao = 'enviado', enviado_em = NOW(), erro = NULL WHERE id = ? AND situacao = 'pendente'", [d.id]);
         } catch (err: any) {
           if (erroDoSmtp(err)) {
@@ -342,6 +348,57 @@ export async function enviarEmailsCampanha(limite = 50, prazoMs = Infinity): Pro
       return processados;
     } finally {
       await conn.query("SELECT RELEASE_LOCK('crmweb_envio_email_campanha')");
+    }
+  } finally {
+    conn.release();
+  }
+}
+
+/**
+ * Enviar agora (botão no detalhe Disparos): manda um disparo pendente ou que falhou, sem esperar o agendamento
+ * nem a situação da campanha. Usa a mesma trava do envio automático do canal: os dois juntos não mandam duas vezes.
+ */
+export async function enviarDisparoAgora(id: string | number, empresaId: string | number): Promise<{ situacao: string }> {
+  const [r] = await pool.query<any[]>(
+    `SELECT d.id, d.canal FROM campanha_disparos d JOIN campanhas c ON c.id = d.campanha_id
+      WHERE d.id = ? AND c.empresa_id = ? AND c.excluida_em IS NULL`,
+    [id, empresaId],
+  );
+  if (!r[0]) throw Object.assign(new Error('Disparo não encontrado.'), { status: 404 });
+  const trava = r[0].canal === 'email' ? 'crmweb_envio_email_campanha' : 'crmweb_envio_whatsapp';
+  const conn = await pool.getConnection();
+  try {
+    const [t] = await conn.query<any[]>('SELECT GET_LOCK(?, 30) AS ok', [trava]);
+    if (!t[0]?.ok) throw new Error('O envio automático está ocupado agora: tente de novo em instantes.');
+    try {
+      // Relido dentro da trava: o envio automático pode ter mandado enquanto esperava
+      const [ds] = await conn.query<any[]>(
+        'SELECT d.*, c.nome AS campanha, c.imagem FROM campanha_disparos d JOIN campanhas c ON c.id = d.campanha_id WHERE d.id = ?',
+        [id],
+      );
+      const d = ds[0];
+      if (!['pendente', 'falhou'].includes(d.situacao)) throw new Error(`Este disparo já está "${d.situacao}": não é enviado de novo.`);
+      try {
+        if (d.canal === 'email') {
+          await enviarEmail(String(empresaId), { para: d.destino, assunto: d.assunto || d.campanha, texto: d.mensagem, anexos: anexosDa(d.imagem) });
+        } else {
+          const assunto = String(d.assunto ?? '').trim();
+          await enviarWhatsAppCampanha(
+            empresaId,
+            telefoneWhatsApp(d.destino),
+            (assunto ? `*${assunto}*\n\n` : '') + d.mensagem,
+            { pessoa_id: d.pessoa_id, disparo_id: d.id },
+            d.imagem,
+          );
+        }
+      } catch (err: any) {
+        await conn.query("UPDATE campanha_disparos SET situacao = 'falhou', erro = ? WHERE id = ?", [String(err?.message || err).slice(0, 255), d.id]);
+        throw err;
+      }
+      await conn.query("UPDATE campanha_disparos SET situacao = 'enviado', enviado_em = NOW(), erro = NULL WHERE id = ?", [d.id]);
+      return { situacao: 'enviado' };
+    } finally {
+      await conn.query('SELECT RELEASE_LOCK(?)', [trava]);
     }
   } finally {
     conn.release();
@@ -385,6 +442,7 @@ export function createCampanhasRouter() {
       const pessoas = await publicoDa(c, res.locals.empresaId, pool, 3);
       res.json({
         publico: await contarPublico(c.criterios, res.locals.empresaId),
+        imagem: c.imagem || null,
         exemplos: pessoas.map((p) => ({
           nome: p.nome,
           destino: destinoDe(c.canal, p)?.destino ?? null,
@@ -394,6 +452,15 @@ export function createCampanhasRouter() {
       });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: friendlyDbError(err, 'campanha') });
+    }
+  });
+
+  /** Enviar agora um disparo (ver enviarDisparoAgora) */
+  router.post('/campanhas/disparos/:id/enviar', async (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, ...(await enviarDisparoAgora(req.params.id, res.locals.empresaId)) });
+    } catch (err: any) {
+      res.status(err.status || 400).json({ error: friendlyDbError(err, 'disparo') });
     }
   });
 

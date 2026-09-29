@@ -107,7 +107,21 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
 
           {aba === 'pessoas' && <CamposPersonalizados somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'email' && <ConfigEmail somenteLeitura={somenteLeitura} onToast={onToast} />}
-          {aba === 'whatsapp' && <ConfigWhatsApp somenteLeitura={somenteLeitura} onToast={onToast} />}
+          {aba === 'whatsapp' && (
+            <div className="flex flex-col gap-8">
+              <ConfigWhatsApp somenteLeitura={somenteLeitura} onToast={onToast} />
+              <section className="flex flex-col gap-3 pt-6 border-t border-stone-200 dark:border-stone-800">
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">WhatsApp das campanhas</h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 max-w-3xl">
+                    Outro número só para as campanhas: se o disparo em massa levar a um bloqueio, o número do atendimento continua
+                    funcionando. Sem ele, as campanhas saem pelo WhatsApp acima.
+                  </p>
+                </div>
+                <ConfigWhatsApp conta="campanhas" somenteLeitura={somenteLeitura} onToast={onToast} />
+              </section>
+            </div>
+          )}
           {aba === 'chatbot' && (
             <>
               <ConfigChatbot somenteLeitura={somenteLeitura} onToast={onToast} />

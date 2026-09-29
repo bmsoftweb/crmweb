@@ -353,7 +353,8 @@ export const DateField: React.FC<DateFieldProps> = ({
           type="time"
           value={hora}
           onChange={(e) => emitir(isoData || hojeIso, e.target.value)}
-          className={`${className} w-24 font-mono shrink-0`}
+          // Sem o w-full do formulário: com ele a hora tomava a linha e a data (com o ícone do calendário) sumia
+          className={`${className.replace(/\bw-full\b/g, '')} w-28 font-mono shrink-0`}
         />
       )}
 

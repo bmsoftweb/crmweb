@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, PlugZap, QrCode, Save, Smartphone, Unplug, Webhook, X } from 'lucide-react';
-import { ativarRecebimentoWhatsApp, conectarWhatsApp, desconectarWhatsApp, fetchConfig, salvarConfig, testarWhatsApp } from '../services/api';
+import { ativarRecebimentoWhatsApp, conectarWhatsApp, ContaWhats, desconectarWhatsApp, fetchConfig, salvarConfig, testarWhatsApp } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { NumberField } from './NumberField';
 import { AvisoErro } from './AvisoErro';
@@ -22,13 +22,20 @@ const VAZIO: Whats = { provedor: '', url: '', instancia: '', intervalo: '5', tok
 interface Props {
   somenteLeitura: boolean;
   onToast: (msg: string) => void;
+  /** provedor = WhatsApp padrão (atendimento, propostas); campanhas = outro número só para as campanhas */
+  conta?: ContaWhats;
 }
 
 /**
- * Configurações › WhatsApp: provedor usado no envio de propostas e nas campanhas.
+ * Configurações › WhatsApp: provedor usado no atendimento e no envio de propostas (conta padrão) ou, na conta
+ * "campanhas", o número só das campanhas (sem ele, as campanhas saem pelo padrão).
  * Os tokens são gravados cifrados no servidor e nunca voltam para a tela: só se sabe se existem.
  */
-export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => {
+export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast, conta: contaProp }) => {
+  const conta: ContaWhats = contaProp ?? 'provedor';
+  const campanhas = conta === 'campanhas';
+  /** Ids dos campos: as duas contas ficam na mesma tela */
+  const idc = (nome: string) => `wa-${conta}-${nome}`;
   const [v, setV] = useState<Whats | null>(null);
   const [definidos, setDefinidos] = useState({ token: false, client: false, provedor: '' });
   const [ocupado, setOcupado] = useState<'salvar' | 'testar' | 'receber' | null>(null);
@@ -44,7 +51,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
   const [recebimento, setRecebimento] = useState<{ origem: string; em: string } | null>(null);
 
   const consultarSituacao = () =>
-    testarWhatsApp()
+    testarWhatsApp(conta)
       .then((r) => {
         setConectado(r.conectado);
         setNumero(r.numero);
@@ -53,7 +60,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
 
   useEffect(() => {
     consultarSituacao();
-    fetchConfig<any>('whatsapp', 'provedor')
+    fetchConfig<any>('whatsapp', conta)
       .then(({ valor }) => {
         setV(valor ? { ...VAZIO, provedor: valor.provedor, url: valor.url || '', instancia: valor.instancia || '', intervalo: String(valor.intervalo ?? 5) } : VAZIO);
         setDefinidos({ token: Boolean(valor?.token_definido), client: Boolean(valor?.client_token_definido), provedor: valor?.provedor || '' });
@@ -73,7 +80,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
     const ciclo = async () => {
       try {
         const agora = Date.now();
-        const r = agora >= proximoQr ? await conectarWhatsApp() : await testarWhatsApp();
+        const r = agora >= proximoQr ? await conectarWhatsApp(conta) : await testarWhatsApp(conta);
         if (!vivo) return;
         if (r.conectado) {
           setQrcode(null);
@@ -115,7 +122,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
     e.preventDefault();
     setOcupado('salvar');
     try {
-      await salvarConfig('whatsapp', 'provedor', { ...v, intervalo: Number(v.intervalo) });
+      await salvarConfig('whatsapp', conta, { ...v, intervalo: Number(v.intervalo) });
       setDefinidos({
         token: ativo && (Boolean(v.token) || tokenGravado),
         client: v.provedor === 'zapi' && (Boolean(v.client_token) || clientGravado),
@@ -124,10 +131,16 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
       setV({ ...v, token: '', client_token: '' });
       consultarSituacao();
       // Trocar servidor ou instância desfaz o recebimento (o servidor decide)
-      fetchConfig<any>('whatsapp', 'provedor')
+      fetchConfig<any>('whatsapp', conta)
         .then(({ valor }) => setRecebimento(valor?.webhook ?? null))
         .catch(() => {});
-      onToast(ativo ? 'Configuração do WhatsApp gravada.' : 'Configuração do WhatsApp removida: vale a do servidor (.env).');
+      onToast(
+        ativo
+          ? `Configuração do WhatsApp${campanhas ? ' das campanhas' : ''} gravada.`
+          : campanhas
+            ? 'WhatsApp das campanhas removido: as campanhas voltam a sair pelo WhatsApp padrão.'
+            : 'Configuração do WhatsApp removida: vale a do servidor (.env).',
+      );
     } catch (err: any) {
       setErro(err.message);
     } finally {
@@ -138,7 +151,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
   const testar = async () => {
     setOcupado('testar');
     try {
-      const r = await testarWhatsApp();
+      const r = await testarWhatsApp(conta);
       setConectado(r.conectado);
       setNumero(r.numero);
       onToast(r.mensagem);
@@ -152,7 +165,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
   const ativarRecebimento = async () => {
     setOcupado('receber');
     try {
-      setRecebimento(await ativarRecebimentoWhatsApp(window.location.origin));
+      setRecebimento(await ativarRecebimentoWhatsApp(window.location.origin, conta));
       onToast('Recebimento de mensagens ativado na Evolution.');
     } catch (err: any) {
       setErro(err.message);
@@ -172,35 +185,35 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
 
       <fieldset disabled={somenteLeitura} className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className={`${FIELD_CLASS} sm:col-span-2`}>
-          <label htmlFor="wa-provedor" className={LABEL_CLASS}>Provedor</label>
-          <select id="wa-provedor" value={v.provedor} onChange={(e) => alterar({ provedor: e.target.value as Whats['provedor'] })} className={`${campo} cursor-pointer`}>
-            <option value="">— Nenhum (usa o .env do servidor) —</option>
+          <label htmlFor={idc('provedor')} className={LABEL_CLASS}>Provedor</label>
+          <select id={idc('provedor')} value={v.provedor} onChange={(e) => alterar({ provedor: e.target.value as Whats['provedor'] })} className={`${campo} cursor-pointer`}>
+            <option value="">{campanhas ? '— Nenhum (as campanhas usam o WhatsApp padrão) —' : '— Nenhum (usa o .env do servidor) —'}</option>
             <option value="evolution">Evolution API</option>
             <option value="zapi">Z-API</option>
           </select>
         </div>
         <div className={FIELD_CLASS}>
-          <label htmlFor="wa-intervalo" className={LABEL_CLASS}>Intervalo (segundos)</label>
-          <NumberField id="wa-intervalo" value={v.intervalo} onChange={(i) => alterar({ intervalo: i })} scale={0} disabled={!ativo} className={campo} />
-          <span className={HINT_CLASS}>Pausa entre mensagens das campanhas</span>
+          <label htmlFor={idc('intervalo')} className={LABEL_CLASS}>Intervalo (segundos)</label>
+          <NumberField id={idc('intervalo')} value={v.intervalo} onChange={(i) => alterar({ intervalo: i })} scale={0} disabled={!ativo} className={campo} />
+          <span className={HINT_CLASS}>{campanhas ? 'Pausa entre as mensagens das campanhas' : 'Pausa entre mensagens das campanhas (sem o WhatsApp das campanhas)'}</span>
         </div>
 
         {ativo && (
           <>
             {!ehZapi && (
               <div className={`${FIELD_CLASS} sm:col-span-4`}>
-                <label htmlFor="wa-url" className={LABEL_CLASS}>Endereço do servidor Evolution</label>
-                <input id="wa-url" value={v.url} onChange={(e) => alterar({ url: e.target.value })} maxLength={255} required placeholder="http://IP-DA-VPS:8080" className={campo} />
+                <label htmlFor={idc('url')} className={LABEL_CLASS}>Endereço do servidor Evolution</label>
+                <input id={idc('url')} value={v.url} onChange={(e) => alterar({ url: e.target.value })} maxLength={255} required placeholder="http://IP-DA-VPS:8080" className={campo} />
               </div>
             )}
             <div className={`${FIELD_CLASS} sm:col-span-2`}>
-              <label htmlFor="wa-instancia" className={LABEL_CLASS}>{ehZapi ? 'ID da instância' : 'Nome da instância'}</label>
-              <input id="wa-instancia" value={v.instancia} onChange={(e) => alterar({ instancia: e.target.value })} maxLength={200} required autoComplete="off" placeholder={ehZapi ? '3C...' : 'crmweb'} className={campo} />
+              <label htmlFor={idc('instancia')} className={LABEL_CLASS}>{ehZapi ? 'ID da instância' : 'Nome da instância'}</label>
+              <input id={idc('instancia')} value={v.instancia} onChange={(e) => alterar({ instancia: e.target.value })} maxLength={200} required autoComplete="off" placeholder={ehZapi ? '3C...' : 'crmweb'} className={campo} />
             </div>
             <div className={`${FIELD_CLASS} sm:col-span-2`}>
-              <label htmlFor="wa-token" className={LABEL_CLASS}>{ehZapi ? 'Token da instância' : 'API Key'}</label>
+              <label htmlFor={idc('token')} className={LABEL_CLASS}>{ehZapi ? 'Token da instância' : 'API Key'}</label>
               <input
-                id="wa-token"
+                id={idc('token')}
                 type="password"
                 value={v.token}
                 onChange={(e) => alterar({ token: e.target.value })}
@@ -214,9 +227,9 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
             </div>
             {ehZapi && (
               <div className={`${FIELD_CLASS} sm:col-span-2`}>
-                <label htmlFor="wa-client" className={LABEL_CLASS}>Token de segurança da conta</label>
+                <label htmlFor={idc('client')} className={LABEL_CLASS}>Token de segurança da conta</label>
                 <input
-                  id="wa-client"
+                  id={idc('client')}
                   type="password"
                   value={v.client_token}
                   onChange={(e) => alterar({ client_token: e.target.value })}
@@ -231,8 +244,9 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
             {!ehZapi && (
               <div className="sm:col-span-4 flex flex-wrap items-center gap-3 p-3 rounded-lg bg-stone-50 dark:bg-stone-950/60 border border-stone-200 dark:border-stone-800">
                 <div className="flex-1 min-w-64 text-xs text-stone-600 dark:text-stone-300">
-                  <b>Recebimento de mensagens</b>: a Evolution avisa o CRM das mensagens recebidas e da entrega e leitura das enviadas. Ative
-                  pelo endereço público do CRM (o da Vercel): a Evolution não alcança o computador local.
+                  <b>Recebimento de mensagens</b>: a Evolution avisa o CRM das mensagens recebidas e da entrega e leitura das enviadas
+                  {campanhas ? ' (respostas às campanhas entram na conversa, sem o bot responder)' : ''}. Ative pelo endereço público do CRM
+                  (o da Vercel): a Evolution não alcança o computador local.
                   <div className={`mt-1 font-semibold ${recebimento ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-500'}`}>
                     {recebimento
                       ? `Ativo desde ${recebimento.em.slice(8, 10)}/${recebimento.em.slice(5, 7)}/${recebimento.em.slice(0, 4)} ${recebimento.em.slice(11, 16)}, em ${recebimento.origem}`
@@ -341,11 +355,15 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast }) => 
       )}
       {desconectando && (
         <ConfirmDialog
-          titulo="Desconectar o WhatsApp?"
-          mensagem="O número sai da instância e as propostas e campanhas deixam de ser enviadas por WhatsApp até conectar de novo pelo QR Code."
+          titulo={campanhas ? 'Desconectar o WhatsApp das campanhas?' : 'Desconectar o WhatsApp?'}
+          mensagem={
+            campanhas
+              ? 'O número sai da instância e as campanhas deixam de ser enviadas por WhatsApp até conectar de novo pelo QR Code.'
+              : 'O número sai da instância e as propostas e campanhas deixam de ser enviadas por WhatsApp até conectar de novo pelo QR Code.'
+          }
           confirmar="Desconectar"
           onConfirmar={async () => {
-            await desconectarWhatsApp();
+            await desconectarWhatsApp(conta);
             setDesconectando(false);
             setConectado(false);
             onToast('WhatsApp desconectado.');

@@ -1162,6 +1162,12 @@ export const RESOURCES: ResourceDef[] = [
         hint: 'Variáveis: {{nome}}, {{primeiro_nome}}, {{email}}, {{telefone}}, {{cidade}}, {{ultima_compra}}, {{empresa}}',
       },
       {
+        name: 'imagem',
+        label: 'Imagem',
+        type: 'imagem',
+        hint: 'Opcional (PNG, JPEG ou WebP, até ~700 KB): no WhatsApp vai com a mensagem de legenda; no e-mail, como anexo',
+      },
+      {
         name: 'enviar_a_partir_de',
         label: 'Enviar a partir de',
         type: 'datetime',

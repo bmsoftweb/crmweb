@@ -354,9 +354,14 @@ export const fetchRegrasCriterio = (): Promise<RegraCriterio[]> =>
 /** Tamanho do público e a mensagem personalizada para as primeiras pessoas (não grava nada) */
 export interface PreviaCampanha {
   publico: number;
+  /** Imagem da campanha (data URL), se houver */
+  imagem: string | null;
   exemplos: { nome: string; destino: string | null; assunto: string; corpo: string }[];
 }
 export const previaCampanha = (id: Id): Promise<PreviaCampanha> => get(`/api/campanhas/${encodeURIComponent(String(id))}/previa`);
+/** Envia agora um disparo pendente ou que falhou */
+export const enviarDisparoAgora = (id: Id): Promise<{ situacao: string }> =>
+  enviar('POST', `/api/campanhas/disparos/${encodeURIComponent(String(id))}/enviar`);
 /** Gera os disparos da campanha (um por pessoa do público, já personalizado) */
 export const gerarDisparos = (
   id: Id,
@@ -375,17 +380,22 @@ export const enviarDocumento = (
 export const testarSmtp = (): Promise<{ success: boolean }> => enviar('POST', '/api/config/email/smtp/testar');
 
 /** Consulta no provedor se o número do WhatsApp gravado em Configurações está conectado */
-export const testarWhatsApp = (): Promise<{ conectado: boolean; numero?: string; mensagem: string }> => enviar('POST', '/api/config/whatsapp/provedor/testar');
+/** Conta do WhatsApp: a padrão ou a das campanhas (Configurações › WhatsApp) */
+export type ContaWhats = 'provedor' | 'campanhas';
+export const testarWhatsApp = (conta: ContaWhats = 'provedor'): Promise<{ conectado: boolean; numero?: string; mensagem: string }> =>
+  enviar('POST', `/api/config/whatsapp/${conta}/testar`);
 
 /** QR Code para conectar o número do WhatsApp gravado; conectado: true se já estiver */
-export const conectarWhatsApp = (): Promise<{ conectado: boolean; qrcode?: string }> => enviar('POST', '/api/config/whatsapp/provedor/conectar');
+export const conectarWhatsApp = (conta: ContaWhats = 'provedor'): Promise<{ conectado: boolean; qrcode?: string }> =>
+  enviar('POST', `/api/config/whatsapp/${conta}/conectar`);
 
 /** Liga o recebimento de mensagens: a Evolution passa a avisar o CRM neste endereço (origem) */
-export const ativarRecebimentoWhatsApp = (origem: string): Promise<{ origem: string; em: string }> =>
-  enviar('POST', '/api/config/whatsapp/provedor/receber', { origem });
+export const ativarRecebimentoWhatsApp = (origem: string, conta: ContaWhats = 'provedor'): Promise<{ origem: string; em: string }> =>
+  enviar('POST', `/api/config/whatsapp/${conta}/receber`, { origem });
 
 /** Desconecta o número do WhatsApp gravado (depois é preciso ler outro QR Code) */
-export const desconectarWhatsApp = (): Promise<{ success: boolean }> => enviar('POST', '/api/config/whatsapp/provedor/desconectar');
+export const desconectarWhatsApp = (conta: ContaWhats = 'provedor'): Promise<{ success: boolean }> =>
+  enviar('POST', `/api/config/whatsapp/${conta}/desconectar`);
 
 // ------------------------------------------------------------
 // Contratos: documentos e assinatura (D4Sign)

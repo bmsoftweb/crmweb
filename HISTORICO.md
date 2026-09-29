@@ -2,6 +2,14 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.52 — 2026-09-28
+
+- Banco: `campanhas.imagem` (SQL em extras/crmweb_schema.sql).
+- Campanhas: imagem opcional (PNG, JPEG ou WebP, até ~700 KB): no WhatsApp vai com a mensagem de legenda (texto acima de 1.000 caracteres sai numa mensagem logo depois da imagem); no e-mail, como anexo. A pré-visualização mostra a imagem.
+- Configurações › WhatsApp: "WhatsApp das campanhas", outro número só para as campanhas (mesmos campos, teste, QR Code e recebimento), para um bloqueio por disparo em massa não derrubar o número do atendimento. Sem ele, as campanhas saem pelo WhatsApp padrão. Respostas a esse número entram na conversa sem o bot responder. A instância precisa ser diferente da padrão.
+- Disparos: botão para enviar na hora um disparo pendente ou que falhou (mesma trava do envio automático, sem duplicar); o painel "Disparos" se atualiza depois de gerar e de enviar; cabeçalho "Ações" no painel de detalhe quando há botões extras.
+- Campo de data e hora: a hora não toma mais a linha (a data e o ícone do calendário sumiam).
+
 ## 0.0.51 — 2026-09-28
 
 - Banco: campanhas unificadas. `campanhas` ganhou criterios, publico_estimado, assunto, mensagem e enviar_a_partir_de; nova tabela `campanha_disparos`; saem campanha_segmentos, campanha_segmento_pessoas, campanha_mensagens e disparos_mensagens (SQL em extras/crmweb_schema.sql; etapa 2 — apagar as tabelas antigas — depois desta versão no ar).

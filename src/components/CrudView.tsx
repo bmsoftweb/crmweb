@@ -65,7 +65,7 @@ interface CrudViewProps {
   /** Ações da linha (as de acoesLinha, Editar e Excluir) num menu "..." com descrição, em vez de ícones soltos */
   acoesEmMenu?: boolean;
   /** Botões extras nas linhas do painel de detalhes (ex.: WhatsApp do contato), por recurso filho */
-  acoesDetalhe?: (recurso: string, row: RegistroCrud) => React.ReactNode;
+  acoesDetalhe?: (recurso: string, row: RegistroCrud, ctx: { recarregar: () => void }) => React.ReactNode;
 }
 
 /** Uma aba aberta sobre um registro (inclusão ou edição) */
@@ -612,6 +612,13 @@ export const CrudView: React.FC<CrudViewProps> = ({
     load();
   }, [load, refreshToken]);
 
+  /** Ação da linha (ex.: Gerar disparos) mudou algo: recarrega a lista e também o painel de detalhe */
+  const [versaoDetalhe, setVersaoDetalhe] = useState(0);
+  const recarregarComDetalhe = useCallback(() => {
+    load();
+    setVersaoDetalhe((v) => v + 1);
+  }, [load]);
+
   // ----------------------------------------------------------
   // Gestão das abas
   // ----------------------------------------------------------
@@ -860,7 +867,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
                     <td className={`sticky right-0 z-[5] ${larguraAcoes} px-3 py-[7.5px] text-center whitespace-nowrap bg-inherit border-l border-stone-200 dark:border-stone-800 ${bordasCelula}`}>
                       {acoesEmMenu ? (
                         <MenuAcoes>
-                          {acoesLinha?.(row, { abrir: abrirAbaEdicao, recarregar: load })}
+                          {acoesLinha?.(row, { abrir: abrirAbaEdicao, recarregar: recarregarComDetalhe })}
                           {(resource.canUpdate || resource.canDelete) && <SeparadorAcoes />}
                           {resource.canUpdate && (
                             <BotaoAcao icone={Pencil} titulo="Editar" descricao="Abre o registro numa aba de edição" onClick={() => abrirAbaEdicao(row)} />
@@ -871,7 +878,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
                         </MenuAcoes>
                       ) : (
                       <div className="inline-flex items-center gap-1">
-                        {acoesLinha?.(row, { abrir: abrirAbaEdicao, recarregar: load })}
+                        {acoesLinha?.(row, { abrir: abrirAbaEdicao, recarregar: recarregarComDetalhe })}
                         {resource.canUpdate && (
                           <button
                             onClick={(e) => {
@@ -1319,7 +1326,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
           details={resource.details!}
           allResources={allResources}
           parentLabel={recordLabel(selecionado)}
-          refreshToken={refreshToken}
+          refreshToken={refreshToken + versaoDetalhe}
           onClose={() => {
             painelFechado.current = true;
             setSelecionado(null);

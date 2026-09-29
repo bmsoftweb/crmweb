@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { configSmtpPublica, prepararConfigSmtp, testarSmtp } from './email.js';
-import { conferirInstanciaUnica, configWhatsPublica, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp, ativarRecebimento } from './whatsapp.js';
+import { conferirInstanciaUnica, configWhatsPublica, contaWhats, prepararConfigWhats, testarWhatsApp, conectarWhatsApp, desconectarWhatsApp, ativarRecebimento } from './whatsapp.js';
 import { automaticasPublica, prepararAutomaticas } from './automaticas.js';
 import { chatbotPublica, prepararChatbot, testarChatbot } from './chatbot.js';
 import { jornadaPublica, prepararJornada } from './jornada.js';
@@ -22,7 +22,8 @@ import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarCont
 const CHAVES: Record<string, string[]> = {
   pessoas: ['campos_personalizados'],
   email: ['smtp'],
-  whatsapp: ['provedor', 'automaticas', 'chatbot', 'jornada', 'pesquisa'],
+  // campanhas: outro número só para as campanhas (mesma estrutura da provedor)
+  whatsapp: ['provedor', 'campanhas', 'automaticas', 'chatbot', 'jornada', 'pesquisa'],
   // { ativo: boolean } — tarefa "Retorno Envio" ao enviar proposta ou pedido (sem configuração: ligado)
   vendas: ['retorno_envio'],
   assinatura: ['d4sign'],
@@ -35,6 +36,7 @@ const CHAVES: Record<string, string[]> = {
 const COM_SEGREDO: Record<string, { preparar: (valor: any, anterior: any) => any; publica: (valor: any) => any }> = {
   'email.smtp': { preparar: prepararConfigSmtp, publica: configSmtpPublica },
   'whatsapp.provedor': { preparar: prepararConfigWhats, publica: configWhatsPublica },
+  'whatsapp.campanhas': { preparar: prepararConfigWhats, publica: configWhatsPublica },
   'whatsapp.automaticas': { preparar: prepararAutomaticas, publica: automaticasPublica },
   'whatsapp.chatbot': { preparar: prepararChatbot, publica: chatbotPublica },
   // Funções chamadas na hora (jornada.ts importa este módulo)
@@ -104,7 +106,7 @@ export function createConfigRouter(): Router {
       const empresaId = String(res.locals.empresaId);
       const segredo = COM_SEGREDO[`${grupo}.${chave}`];
       const valor = segredo ? segredo.preparar(req.body?.valor, await lerConfig(empresaId, grupo, chave)) : req.body?.valor;
-      if (grupo === 'whatsapp' && chave === 'provedor') await conferirInstanciaUnica(empresaId, valor);
+      if (grupo === 'whatsapp' && (chave === 'provedor' || chave === 'campanhas')) await conferirInstanciaUnica(empresaId, valor, contaWhats(chave));
       const texto = JSON.stringify(valor ?? null);
       if (texto.length > TAMANHO_MAX) {
         return res.status(413).json({ error: 'Configuração grande demais.' });
@@ -162,20 +164,20 @@ export function createConfigRouter(): Router {
   });
 
   /** Consulta no provedor se o número do WhatsApp gravado está conectado */
-  router.post('/config/whatsapp/provedor/testar', async (_req: Request, res: Response) => {
+  router.post('/config/whatsapp/:conta(provedor|campanhas)/testar', async (req: Request, res: Response) => {
     try {
       somenteAdmin(res);
-      res.json({ success: true, ...(await testarWhatsApp(String(res.locals.empresaId))) });
+      res.json({ success: true, ...(await testarWhatsApp(String(res.locals.empresaId), contaWhats(req.params.conta))) });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message });
     }
   });
 
   /** QR Code para conectar o número do WhatsApp gravado (ou "já conectado") */
-  router.post('/config/whatsapp/provedor/conectar', async (_req: Request, res: Response) => {
+  router.post('/config/whatsapp/:conta(provedor|campanhas)/conectar', async (req: Request, res: Response) => {
     try {
       somenteAdmin(res);
-      res.json({ success: true, ...(await conectarWhatsApp(String(res.locals.empresaId))) });
+      res.json({ success: true, ...(await conectarWhatsApp(String(res.locals.empresaId), contaWhats(req.params.conta))) });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message });
     }
@@ -192,20 +194,20 @@ export function createConfigRouter(): Router {
   });
 
   /** Cadastra na Evolution o endereço do CRM para receber mensagens e avisos de entrega/leitura */
-  router.post('/config/whatsapp/provedor/receber', async (req: Request, res: Response) => {
+  router.post('/config/whatsapp/:conta(provedor|campanhas)/receber', async (req: Request, res: Response) => {
     try {
       somenteAdmin(res);
-      res.json({ success: true, ...(await ativarRecebimento(String(res.locals.empresaId), String(req.body?.origem ?? ''))) });
+      res.json({ success: true, ...(await ativarRecebimento(String(res.locals.empresaId), String(req.body?.origem ?? ''), contaWhats(req.params.conta))) });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message });
     }
   });
 
   /** Desconecta o número do WhatsApp gravado (logout na instância) */
-  router.post('/config/whatsapp/provedor/desconectar', async (_req: Request, res: Response) => {
+  router.post('/config/whatsapp/:conta(provedor|campanhas)/desconectar', async (req: Request, res: Response) => {
     try {
       somenteAdmin(res);
-      await desconectarWhatsApp(String(res.locals.empresaId));
+      await desconectarWhatsApp(String(res.locals.empresaId), contaWhats(req.params.conta));
       res.json({ success: true });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message });
