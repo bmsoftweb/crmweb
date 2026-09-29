@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.60 — 2026-09-29
+
+- WhatsApp: atendimento encerrado por falta de interação não manda mais a pesquisa de satisfação (o cliente estava ausente; a resposta atrasada abria um atendimento novo).
+- Atividades: menu renomeado para "Atividades/Tarefas"; coluna "Origem" (Bot, Pendência da conversa, Chamado, Manual), também na busca avançada; tarefas da análise de pendências saem com a hora da análise.
+- Busca avançada: "Aplicar filtros" sempre aplica e fecha o painel (Limpar mantém aberto).
+
 ## 0.0.59 — 2026-09-29
 
 - Pendências de conversa: quando um atendimento do WhatsApp é encerrado (botão, tempo, fim da automação, falta de interação), um chamado é encerrado ou uma conversa do Bot das atividades termina (inclusive passada para a equipe), a IA lê a conversa inteira e cria tarefas para o que ficou pendente (pediu para falar com alguém, reclamação, pedido não resolvido): para o usuário identificado, senão o departamento, senão o responsável escolhido em Configurações › Chatbot (sem ele: o primeiro administrador). Linha "Análise da conversa" no WhatsApp/chamado; não repete tarefas abertas do cliente. Liga/desliga em Configurações › Chatbot.

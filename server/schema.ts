@@ -382,7 +382,7 @@ export const RESOURCES: ResourceDef[] = [
     table: 'atividades',
     tenantColumn: 'empresa_id',
     scopeSql: 't.empresa_id = ?',
-    label: 'Atividades',
+    label: 'Atividades/Tarefas',
     labelSingular: 'Atividade',
     description: 'Follow-ups agendados: ligações, reuniões, tarefas e prazos',
     icon: 'CalendarCheck',
@@ -445,6 +445,24 @@ export const RESOURCES: ResourceDef[] = [
       },
       { name: 'negocio_id', label: 'Negócio', type: 'text', listed: true, filterable: true, ref: { resource: 'negocios', labelField: 'titulo' } },
       { name: 'pessoa_id', label: 'Contato', type: 'text', listed: true, ref: { resource: 'pessoas', labelField: 'nome' } },
+      {
+        // De onde veio: Bot executando, pendência achada na análise de uma conversa (server/pendencias.ts, pela
+        // observação), tarefa de chamado, ou lançada à mão. Calculada: não há coluna no banco
+        name: 'origem',
+        label: 'Origem',
+        type: 'enum',
+        readOnly: true,
+        listed: true,
+        filterable: true,
+        options: [
+          { value: 'bot', label: 'Bot' },
+          { value: 'pendencia', label: 'Pendência da conversa' },
+          { value: 'chamado', label: 'Chamado' },
+          { value: 'manual', label: 'Manual' },
+        ],
+        sql: `(CASE WHEN t.executor_bot = 1 THEN 'bot' WHEN t.observacao LIKE 'Identificada pela análise automática%' THEN 'pendencia'
+                    WHEN t.chamado_id IS NOT NULL THEN 'chamado' ELSE 'manual' END)`,
+      },
       {
         // Tarefa criada num chamado do suporte (server/chamados.ts)
         name: 'chamado',

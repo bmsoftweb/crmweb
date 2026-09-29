@@ -1028,11 +1028,11 @@ export const CrudView: React.FC<CrudViewProps> = ({
           camposExtras={camposPersonalizados}
           refOptions={refOptions}
           aplicados={filtros}
-          onAplicar={(novos) => {
+          onAplicar={(novos, fechar) => {
             setFiltros(novos);
             setPage(1);
-            // Aplicou: o painel fecha e fica o resumo dos filtros. Limpar (lista vazia) mantém aberto para montar outro
-            if (novos.length) setBuscaAvancadaAberta(false);
+            // Aplicar: o painel fecha (com filtros, fica o resumo). Limpar mantém aberto para montar outro
+            if (fechar) setBuscaAvancadaAberta(false);
           }}
           onFechar={() => setBuscaAvancadaAberta(false)}
         />

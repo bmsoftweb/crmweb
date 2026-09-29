@@ -12,7 +12,8 @@ interface AdvancedSearchProps {
   refOptions: Record<string, OpcaoRef[]>;
   /** Filtros atualmente aplicados, para reidratar o painel ao reabrir */
   aplicados: FiltroAvancado[];
-  onAplicar: (filtros: FiltroAvancado[]) => void;
+  /** fechar: veio do botão Aplicar (o painel fecha); Limpar mantém aberto para montar outro filtro */
+  onAplicar: (filtros: FiltroAvancado[], fechar: boolean) => void;
   onFechar: () => void;
   /** Campos exibidos no painel (escolhidos no formulário de edição) */
   camposVisiveis: string[];
@@ -93,12 +94,12 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
 
   const handleAplicar = (e: React.FormEvent) => {
     e.preventDefault();
-    onAplicar(montarFiltros());
+    onAplicar(montarFiltros(), true);
   };
 
   const handleLimpar = () => {
     setValores({});
-    onAplicar([]);
+    onAplicar([], false);
   };
 
   const inputClass = `${INPUT_CLASS} w-full`;

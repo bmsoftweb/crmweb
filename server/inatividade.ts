@@ -1,13 +1,12 @@
 import { pool } from './db.js';
 import { encerrarAtendimento, marcarEncerramento, minutosInatividade, type ConfigChatbot } from './chatbot.js';
-import { enviarPesquisa } from './pesquisa.js';
 import { enviarReservada, reservarEnvio } from './whatsapp.js';
 
 /**
  * Encerramento por falta de interação no WhatsApp. A última mensagem da conversa foi do bot ou do técnico, o
  * cliente já tinha escrito neste atendimento e não respondeu em X minutos (Configurações › Chatbot): o bot avisa
- * que vai encerrar; 30 s depois do aviso, sem resposta, encerra (linha de encerramento; pesquisa se um técnico
- * atendia). Não entram: conversa aguardando atendente (quem espera é o cliente), parada num Esperar da Automação
+ * que vai encerrar; 30 s depois do aviso, sem resposta, encerra (linha de encerramento, sem pesquisa de satisfação:
+ * o cliente estava ausente). Não entram: conversa aguardando atendente (quem espera é o cliente), parada num Esperar da Automação
  * e mensagens de campanha/automáticas. Roda no cron do WhatsApp (Vercel) e no setInterval local, com trava no
  * MySQL: os dois usam o mesmo banco e o aviso não pode sair duas vezes.
  */
@@ -59,8 +58,7 @@ async function passe(empresaId: number, minutos: number): Promise<{ avisadas: nu
         if (idade < ESPERA_S) continue;
         await encerrarAtendimento(empresaId, c.telefone);
         await marcarEncerramento(empresaId, c.telefone, null, null, TEXTO_ENCERRAMENTO);
-        // Pesquisa só se um técnico atendia (como no botão Encerrar)
-        if (c.atendente_id) await enviarPesquisa(empresaId, c.telefone, 'atendente', { id: c.atendente_id, nome: c.atendente_nome }, c.departamento_id ?? null);
+        // Sem pesquisa: o cliente estava ausente, e a resposta atrasada (depois da validade) abriria um atendimento novo
         encerradas++;
       } else if (idade >= minutos * 60) {
         // Origem com o id da última mensagem: o mesmo silêncio não gera dois avisos

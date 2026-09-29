@@ -15,6 +15,7 @@ import { verificarFim } from './atividadeBot.js';
  */
 
 /** Início das linhas de análise na conversa do WhatsApp: a próxima análise começa depois da última */
+// A observação das tarefas começa com "Identificada pela análise automática": é por ela que a lista mostra a Origem (server/schema.ts)
 const MARCA = 'Análise da conversa';
 
 interface Fonte {
@@ -121,8 +122,8 @@ Responda só com JSON, sem texto em volta:
     const rotulo = TIPOS[p.tipo] ?? 'Pendência do cliente';
     const para = usuario ? usuario.nome : departamento ? `departamento ${departamento.nome}` : executor ? `${executor.nome} (sem responsável identificado)` : 'qualquer pessoa';
     const [ins] = await pool.query<any>(
-      `INSERT INTO atividades (empresa_id, pessoa_id, negocio_id, chamado_id, assunto, tipo, data_vencimento, lembrete_para, executor_id, departamento_id, observacao)
-       VALUES (?, ?, ?, ?, ?, 'tarefa', CURDATE(), 'nenhum', ?, ?, ?)`,
+      `INSERT INTO atividades (empresa_id, pessoa_id, negocio_id, chamado_id, assunto, tipo, data_vencimento, hora_vencimento, lembrete_para, executor_id, departamento_id, observacao)
+       VALUES (?, ?, ?, ?, ?, 'tarefa', CURDATE(), TIME_FORMAT(CURTIME(), '%H:%i:00'), 'nenhum', ?, ?, ?)`,
       [
         f.empresaId,
         f.pessoaId,
