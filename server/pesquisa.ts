@@ -8,7 +8,8 @@ import { marcarEvento } from './chatbot.js';
  * Pesquisa de satisfação do WhatsApp (Configurações › Chatbot › Pesquisa de satisfação; tabela
  * avaliacoes). Sai ao Encerrar pela equipe e no fim da jornada: nota de 1 a 5 (número ou estrelas);
  * nota de 1 a 3 pede um comentário. A resposta do cliente é tratada aqui, antes do bot/jornada; o que
- * não for uma nota descarta a pesquisa e segue o atendimento normal.
+ * não for uma nota descarta a pesquisa e segue o atendimento normal. Cortesia logo depois do fim ("de nada",
+ * "obrigado", "👍") é ignorada: não abre conversa nova.
  */
 
 export interface ConfigPesquisa {
@@ -89,6 +90,8 @@ export async function enviarPesquisa(
      VALUES (?, ?, ?, ?, ?, ?, 'aguardando_nota', NOW())`,
     [emp, telefone, p[0]?.pessoa_id ?? null, atendente?.id ?? null, departamentoId, origem],
   );
+  // O atendimento que acabou de encerrar fica com esta avaliação (filtro por nota na pesquisa de satisfação)
+  await (await import('./pesquisasSatisfacao.js')).ligarAvaliacao(emp, telefone, a.insertId).catch(() => {});
   const bot: any = await lerConfig(String(emp), 'whatsapp', 'chatbot');
   const quem = atendente?.nome || bot?.nome || 'nossa equipe';
   const texto = `${cfg.pergunta.replace(/\{\{\s*atendente\s*\}\}/g, quem)}\n${OPCOES_NOTA}`;
@@ -101,6 +104,50 @@ export async function enviarPesquisa(
 }
 
 const estrelas = (n: number) => '⭐'.repeat(n);
+
+/** Palavras de uma despedida/cortesia (sem acento e sem letra repetida: "obrigadoo" → "obrigado") */
+const CORTESIA = new Set(
+  (
+    'obrigado obrigada obrigadao obg brigado brigada valeu vlw de nada disponha por ok okay oks blz beleza certo certinho ' +
+    'show top perfeito otimo otima tmj abraco abracos abs igualmente grato grata agradeco muito mto mt eu que voce vc voces ' +
+    'tambem tb tbm nos pra pela pelo avaliacao atencao ajuda ta tah bom legal joia e a o amem sim entendi combinado tchau ' +
+    'ate mais logo fique fica com deus'
+  ).split(' '),
+);
+
+/**
+ * Mensagem que é só cortesia: "de nada", "obrigado!", "valeu 👍", "ok", "🙏". Tem de ser tudo cortesia (até 8
+ * palavras): "obrigado, mas ainda trava" ou "bom dia" (pode ser outro assunto) não são
+ */
+export function ehCortesia(texto: string): boolean {
+  const t = String(texto ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  const palavras = t.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).map((p) => p.replace(/(.)\1+/g, '$1'));
+  if (!palavras.length) return /\p{Extended_Pictographic}/u.test(texto) && texto.trim().length <= 16;
+  return palavras.length <= 8 && palavras.every((p) => CORTESIA.has(p));
+}
+
+/** Minutos depois do agradecimento da pesquisa (ou do encerramento) em que a cortesia é ignorada */
+const MINUTOS_CORTESIA = 30;
+
+/**
+ * Cortesia logo depois do fim ("Obrigado pela sua avaliação!" → "de nada"; "Atendimento encerrado" → "valeu"): não é
+ * conversa nova. Fica na conversa como lida, com origem de pesquisa (fora do histórico da IA e da análise de
+ * pendências), e o bot/automação não responde. Devolve true quando tratou
+ */
+async function tratarCortesia(nova: MensagemNova): Promise<boolean> {
+  const [m] = await pool.query<any[]>('SELECT tipo, texto FROM whatsapp_mensagens WHERE id = ?', [nova.id]);
+  if (m[0]?.tipo !== 'texto' || !ehCortesia(m[0].texto)) return false;
+  const [ant] = await pool.query<any[]>(
+    `SELECT tipo, origem, TIMESTAMPDIFF(MINUTE, data_hora, NOW()) AS minutos FROM whatsapp_mensagens
+      WHERE empresa_id = ? AND telefone = ? AND id < ? AND tipo <> 'evento' ORDER BY id DESC LIMIT 1`,
+    [nova.empresaId, nova.telefone, nova.id],
+  );
+  const a = ant[0];
+  const depoisDoFim = a && (a.tipo === 'encerramento' || String(a.origem ?? '').startsWith('pesquisa-obrigado:'));
+  if (!depoisDoFim || Number(a.minutos) > MINUTOS_CORTESIA) return false;
+  await pool.query('UPDATE whatsapp_mensagens SET origem = ?, vista = 1 WHERE id = ? AND origem IS NULL', [`pesquisa-cortesia:${nova.id}`, nova.id]);
+  return true;
+}
 
 /**
  * Mensagem recebida: se o número tem pesquisa esperando resposta, trata aqui (nota ou comentário) e
@@ -115,7 +162,8 @@ export async function tratarRespostaPesquisa(nova: MensagemNova): Promise<boolea
     [nova.empresaId, nova.telefone, cfg.minutos],
   );
   const av = pend[0];
-  if (!av) return false;
+  // Sem pesquisa esperando: "de nada"/"obrigado" logo depois do fim não abre conversa nova
+  if (!av) return tratarCortesia(nova);
   const [m] = await pool.query<any[]>('SELECT tipo, texto FROM whatsapp_mensagens WHERE id = ?', [nova.id]);
   const texto = m[0]?.tipo === 'texto' ? String(m[0].texto ?? '') : `[${m[0]?.tipo ?? 'mensagem'}]`;
   // A resposta da pesquisa não entra no histórico da IA nem conta como atendimento

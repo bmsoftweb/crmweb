@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { lerNota, pesquisaPublica, prepararPesquisa } from './pesquisa.js';
+import { ehCortesia, lerNota, pesquisaPublica, prepararPesquisa } from './pesquisa.js';
 
 // Nota pelo número ou pelas estrelas
 assert.strictEqual(lerNota('4'), 4);
@@ -25,5 +25,11 @@ assert.strictEqual(prepararPesquisa({ ativo: true, pergunta: '' }).pergunta.incl
 assert.throws(() => prepararPesquisa({ minutos: 0 }), /1 a 43.200/);
 assert.strictEqual(prepararPesquisa({ ativo: true, minutos: 30 }).minutos, 30);
 assert.strictEqual(pesquisaPublica(null).minutos, 1440);
+
+// Cortesia depois do fim: ignorada. Qualquer outra coisa (ou saudação) segue como conversa
+for (const t of ['de nada', 'De nada!', 'obrigado', 'Obrigadoo!!', 'valeu 👍', 'ok', '👍', '🙏🙏', 'muito obrigada pela atenção', 'eu que agradeço', 'tmj', 'abraço, tchau', 'igualmente 😊'])
+  assert.strictEqual(ehCortesia(t), true, t);
+for (const t of ['bom dia', 'obrigado, mas o sistema ainda trava', 'preciso de ajuda com a nota', 'oi', 'quero falar com o Rafael', '5', '', 'ok, e a nota fiscal?'])
+  assert.strictEqual(ehCortesia(t), false, t);
 
 console.log('pesquisa: ok');

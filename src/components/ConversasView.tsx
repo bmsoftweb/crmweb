@@ -219,7 +219,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   /** Só as que eu atendo e as que aguardam (sem departamento ou no meu departamento) */
   const [minhas, setMinhas] = useState(false);
   /** Filtro da lista pelo estado do atendimento ('' = todas; vírgula = mais de um estado) */
-  const [filtroEstado, setFiltroEstado] = useState<'' | 'aguardando' | 'atendimento' | 'aguardando,atendimento' | 'encerrado'>('aguardando');
+  const [filtroEstado, setFiltroEstado] = useState<'' | 'aguardando' | 'atendimento' | 'aguardando,atendimento' | 'encerrado'>('aguardando,atendimento');
   const visiveis = filtroEstado ? conversas?.filter((c) => filtroEstado.split(',').includes(c.estado ?? '')) : conversas;
   /** Transferir: destino escolhido ("u:ID" atendente, "d:ID" departamento); null = janela fechada */
   const [transferir, setTransferir] = useState<string | null>(null);

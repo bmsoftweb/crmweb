@@ -7,7 +7,7 @@ import { RESOURCES } from './schema.js';
  */
 
 /** Opções do menu que não são cadastros (Configurações fica fora: só administrador) */
-const TELAS = ['dashboard', 'kanban', 'conversas', 'chamados_fila', 'chamados_ativos'];
+const TELAS = ['dashboard', 'kanban', 'conversas', 'chamados_fila', 'chamados_ativos', 'pesquisas_satisfacao'];
 
 /** Opções só de administrador: não entram nas permissões */
 const SO_ADMIN = ['usuarios', 'configuracoes'];

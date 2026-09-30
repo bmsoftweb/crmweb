@@ -5,6 +5,7 @@ import { ConversaBotAtividade, fetchConversaBot } from '../services/api';
 import { Id } from '../types';
 import { formatDateTimeBR } from '../utils/formatters';
 import { AvisoErro } from './AvisoErro';
+import { BotaoAcao } from './MenuAcoes';
 
 /** Situação de cada conversa do bot: rótulo e cor */
 const SITUACAO: Record<string, [string, string]> = {
@@ -132,31 +133,34 @@ export const ConversaBot: React.FC<{ atividadeId: Id; onFechar: () => void }> = 
   );
 };
 
-/**
- * Ícone que abre a conversa do Bot. inativo: atividade sem Bot, o ícone fica apagado e não abre nada (na lista de
- * Atividades ele aparece em todas as linhas, para a coluna ficar alinhada)
- */
-export const BotaoConversaBot: React.FC<{ atividadeId: Id; className?: string; inativo?: boolean }> = ({ atividadeId, className, inativo }) => {
+/** "Conversa do Bot" como ação da coluna Ações (ícone solto ou item do menu "...") */
+export const AcaoConversaBot: React.FC<{ atividadeId: Id }> = ({ atividadeId }) => {
+  const [aberta, setAberta] = useState(false);
+  return (
+    <>
+      <BotaoAcao icone={Bot} titulo="Conversa do Bot" descricao="O que o Bot falou com cada pessoa e o resumo" onClick={() => setAberta(true)} />
+      {aberta && createPortal(<ConversaBot atividadeId={atividadeId} onFechar={() => setAberta(false)} />, document.body)}
+    </>
+  );
+};
+
+/** Ícone que abre a conversa do Bot (ficha do negócio, tarefas do chamado, pesquisa de satisfação) */
+export const BotaoConversaBot: React.FC<{ atividadeId: Id; className?: string }> = ({ atividadeId, className }) => {
   const [aberta, setAberta] = useState(false);
   return (
     <>
       <button
         type="button"
-        disabled={inativo}
         onClick={(e) => {
           e.stopPropagation();
           setAberta(true);
         }}
-        title={inativo ? 'Atividade sem Bot' : 'Conversa do Bot: o que ele falou com cada pessoa e o resumo'}
-        className={
-          inativo
-            ? 'p-1.5 rounded-lg text-stone-300 dark:text-stone-700 cursor-default'
-            : (className ?? 'p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer')
-        }
+        title="Conversa do Bot: o que ele falou com cada pessoa e o resumo"
+        className={className ?? 'p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer'}
       >
         <Bot className="w-4 h-4" />
       </button>
-      {/* No corpo da página: dentro da coluna Ações (fixa, com camada própria) o cabeçalho da tabela ficaria por cima */}
+      {/* No corpo da página: dentro de uma coluna fixa (camada própria), o cabeçalho da tabela ficaria por cima */}
       {aberta && createPortal(<ConversaBot atividadeId={atividadeId} onFechar={() => setAberta(false)} />, document.body)}
     </>
   );

@@ -182,7 +182,11 @@ async function encerrar(conv: any, situacao: 'concluida' | 'humano' | 'sem_respo
   await pool.query('UPDATE atividade_conversas SET situacao = ?, resumo = ?, encerrada_em = NOW() WHERE id = ?', [situacao, resumo.slice(0, 2000), conv.id]);
   // Pendências da conversa viram tarefas; passada para a equipe também: o Bot prometeu retorno, e a conversa pode
   // voltar ao bot pelo tempo sem ninguém assumir
-  if (situacao !== 'falhou' && conv.canal === 'whatsapp') (await import('./pendencias.js')).analisarConversaBot(conv.id);
+  // Conversa de uma pesquisa de satisfação: a análise é a da pesquisa (nota, comentário, retorno para o técnico)
+  const [a] = await pool.query<any[]>('SELECT atividade_id FROM atividade_conversas WHERE id = ?', [conv.id]);
+  const pesquisa = await import('./pesquisasSatisfacao.js');
+  if (a[0] && (await pesquisa.itemDaAtividade(a[0].atividade_id))) pesquisa.analisarConversaPesquisa(conv.id);
+  else if (situacao !== 'falhou' && conv.canal === 'whatsapp') (await import('./pendencias.js')).analisarConversaBot(conv.id);
 }
 
 const SITUACAO: Record<string, string> = {
@@ -245,7 +249,8 @@ async function contatar(a: any, cfg: ConfigChatbot, d: Destinatario) {
     const r = await conversarIa(cfg, instrucoes(cfg, a, conv), await falas(conv.id), canal === 'whatsapp' ? FERRAMENTAS : []);
     if (canal === 'email') {
       if (!r.texto) throw new Error('a IA não escreveu o e-mail.');
-      await enviarEmail(String(a.empresa_id), { para: destino, assunto: `${a.empresa_nome}: ${a.assunto}`, texto: r.texto });
+      // Atividade de chamado sai pela conta do suporte; as outras, pela comercial
+      await enviarEmail(String(a.empresa_id), { para: destino, assunto: `${a.empresa_nome}: ${a.assunto}`, texto: r.texto }, a.chamado_id ? 'suporte' : 'comercial');
       await gravarMensagem(conv.id, 'enviada', r.texto);
       await pool.query("UPDATE atividade_conversas SET situacao = 'enviado', encerrada_em = NOW() WHERE id = ?", [conv.id]);
     } else await aplicar(a, conv, r);

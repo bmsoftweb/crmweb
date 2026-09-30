@@ -446,7 +446,7 @@ export function createCrudRouter() {
       );
 
       const newId = String(result.insertId);
-      await aposGravar(resource.name, newId);
+      await aposGravar(resource.name, newId, [], pool, Number(res.locals.usuarioId) || null);
       if (filhos) await filhos(newId);
       res.json({ success: true, id: newId });
     } catch (err: any) {
@@ -489,7 +489,7 @@ export function createCrudRouter() {
         return res.status(404).json({ error: `${resource.labelSingular} não encontrado.` });
       }
 
-      await aposGravar(resource.name, req.params.id, afetados);
+      await aposGravar(resource.name, req.params.id, afetados, pool, Number(res.locals.usuarioId) || null);
       if (filhos) await filhos(req.params.id);
       if (fotosAntes) await apagarFotosRemovidas(fotosAntes, payload.fotos);
       res.json({ success: true });

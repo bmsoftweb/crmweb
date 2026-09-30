@@ -191,3 +191,10 @@ export function hojeIso(): string {
   const h = new Date();
   return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
 }
+
+/** Data de ontem no fuso local (Brasília), em ISO "aaaa-mm-dd" */
+export function ontemIso(): string {
+  const o = new Date();
+  o.setDate(o.getDate() - 1);
+  return `${o.getFullYear()}-${String(o.getMonth() + 1).padStart(2, '0')}-${String(o.getDate()).padStart(2, '0')}`;
+}

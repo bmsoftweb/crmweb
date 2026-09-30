@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote } from 'lucide-react';
 import {
   assumirChamado,
   buscarPessoasChamado,
   ChamadoDetalhe,
+  ChamadoHistorico,
+  fetchHistoricoChamado,
   ChamadoResumo,
   criarChamado,
   encerrarChamado,
@@ -391,7 +393,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
       {/* Chamado aberto */}
       <div className="flex-1 min-w-0 flex flex-col min-h-0 bg-stone-50 dark:bg-stone-950">
         {aberto ? (
-          <ChamadoAberto key={aberto} id={aberto} refreshToken={refreshToken} onMudou={mudou} onConversar={onConversar} onToast={onToast} onVoltarFila={onVoltarFila} />
+          <ChamadoAberto key={aberto} id={aberto} refreshToken={refreshToken} onMudou={mudou} onConversar={onConversar} onToast={onToast} onVoltarFila={onVoltarFila} onAbrir={setAberto} />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-stone-400 gap-2">
             <Inbox className="w-10 h-10" />
@@ -426,13 +428,15 @@ const ChamadoAberto: React.FC<{
   onConversar: (pessoaId: number) => void;
   onToast: (msg: string) => void;
   onVoltarFila: () => void;
-}> = ({ id, refreshToken, onMudou, onConversar, onToast, onVoltarFila }) => {
+  /** Abre outro chamado (do Histórico do cliente) no lugar deste */
+  onAbrir: (id: number) => void;
+}> = ({ id, refreshToken, onMudou, onConversar, onToast, onVoltarFila, onAbrir }) => {
   const [c, setC] = useState<ChamadoDetalhe | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
   const [interna, setInterna] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [dialogo, setDialogo] = useState<'encerrar' | 'transferir' | 'tarefa' | null>(null);
+  const [dialogo, setDialogo] = useState<'encerrar' | 'transferir' | 'tarefa' | 'historico' | null>(null);
   /** Conclusão digitada no diálogo de encerrar */
   const [conclusao, setConclusao] = useState('');
   const fim = useRef<HTMLDivElement>(null);
@@ -550,6 +554,16 @@ const ChamadoAberto: React.FC<{
         </div>
         <div className="flex flex-wrap gap-2">
           {idAnydesk && <Conectar id={idAnydesk} grande onClick={conectar} />}
+          {c.historico_qtd > 0 && (
+            <button
+              type="button"
+              onClick={() => setDialogo('historico')}
+              title="Os outros chamados deste cliente, com a conclusão de cada um"
+              className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}
+            >
+              <History className="w-3.5 h-3.5" /> Histórico ({c.historico_qtd})
+            </button>
+          )}
           {c.pessoa_id && c.pessoa_telefone && (
             <button type="button" onClick={() => onConversar(c.pessoa_id!)} title="Abre a conversa do WhatsApp deste cliente" className={`${botao} border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800`}>
               <MessageCircle className="w-3.5 h-3.5 text-emerald-600" /> Conversa
@@ -795,6 +809,16 @@ const ChamadoAberto: React.FC<{
           </div>
         </ConfirmDialog>
       )}
+      {dialogo === 'historico' && (
+        <HistoricoCliente
+          c={c}
+          onFechar={() => setDialogo(null)}
+          onAbrir={(outro) => {
+            setDialogo(null);
+            onAbrir(outro);
+          }}
+        />
+      )}
       {dialogo === 'tarefa' && (
         <AtividadeModal
           chamadoId={c.id}
@@ -821,6 +845,81 @@ const ChamadoAberto: React.FC<{
         />
       )}
     </>
+  );
+};
+
+/** Histórico do cliente: os outros chamados dele, do mais novo para o mais antigo, com a conclusão; "Abrir" troca de chamado */
+const HistoricoCliente: React.FC<{ c: ChamadoDetalhe; onFechar: () => void; onAbrir: (id: number) => void }> = ({ c, onFechar, onAbrir }) => {
+  const [lista, setLista] = useState<ChamadoHistorico[] | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  useEffect(() => {
+    fetchHistoricoChamado(c.id).then(setLista).catch((e) => setErro(e.message));
+  }, [c.id]);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onFechar();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onFechar]);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-xs" onClick={onFechar} aria-hidden="true" />
+      <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-2xl z-10">
+        <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2">
+              <History className="w-4 h-4 text-blue-600" /> Histórico do cliente
+            </h3>
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.pessoa_nome || c.contato_nome || 'Cliente'} • outros chamados</p>
+          </div>
+          <button type="button" onClick={onFechar} title="Fechar" className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2.5">
+          {erro && <AvisoErro mensagem={erro} onFechar={() => setErro(null)} />}
+          {!lista ? (
+            !erro && <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
+          ) : !lista.length ? (
+            <p className="text-xs text-center text-stone-500 py-6">Nenhum outro chamado deste cliente.</p>
+          ) : (
+            lista.map((h) => (
+              <div key={h.id} className="rounded-xl border border-stone-200 dark:border-stone-800 p-3">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">Nº {h.numero}</span>
+                      <Status s={h.status} />
+                      {h.nota ? <span className="text-[11px]">{'⭐'.repeat(h.nota)}</span> : null}
+                    </div>
+                    <div className="text-xs font-semibold text-stone-800 dark:text-stone-100 mt-0.5">{h.titulo}</div>
+                    <div className="text-[11px] text-stone-500 dark:text-stone-400">
+                      Aberto em {formatDateTimeBR(h.criado_em)}
+                      {h.encerrado_em && ` • encerrado em ${formatDateTimeBR(h.encerrado_em)}`}
+                      {h.atendente_nome && ` • ${h.atendente_nome}`}
+                      {h.categoria_nome && ` • ${h.categoria_nome}`}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onAbrir(h.id)}
+                    title="Abre este chamado (a conversa completa)"
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                  >
+                    Abrir
+                  </button>
+                </div>
+                {h.conclusao && (
+                  <div className="mt-2 rounded-lg px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 text-xs text-stone-700 dark:text-stone-200 whitespace-pre-wrap">
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Conclusão: </span>
+                    {h.conclusao}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 

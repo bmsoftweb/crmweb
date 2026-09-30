@@ -361,6 +361,11 @@ export async function marcarEncerramento(empresaId: string | number, telefone: s
       telefone,
     ],
   );
+  // O atendimento vira um registro (a pesquisa de satisfação sorteia entre eles). Import dinâmico: os módulos usam este
+  const motivo = usuarioId ? 'botao' : texto?.includes('falta de interação') ? 'inatividade' : texto ? 'automacao' : 'tempo';
+  await (await import('./pesquisasSatisfacao.js'))
+    .registrarAtendimentoWhatsApp(Number(empresaId), telefone, motivo)
+    .catch((e) => console.error(`Atendimento do WhatsApp (${telefone}): ${e.message}`));
   // Fim do atendimento: a IA procura pendências (pediu alguém, reclamou, pedido em aberto) e cria tarefas, em segundo plano
   (await import('./pendencias.js')).analisarAtendimentoWhatsApp(empresaId, telefone);
 }

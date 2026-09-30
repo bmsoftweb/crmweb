@@ -5,7 +5,7 @@ import { INPUT_CLASS } from '../utils/formStyles';
 
 /**
  * Botão "Templates" ao lado do campo da mensagem (WhatsApp e Chamados Ativos): abre para cima a lista dos
- * templates ativos do canal (Suporte › Templates), com busca; escolher coloca o texto no campo, com as
+ * templates ativos do canal (Cadastros › Templates), com busca; escolher coloca o texto no campo, com as
  * variáveis {{nome}}, {{primeiro_nome}} e {{atendente}} já trocadas. Fecha ao escolher, clicar fora ou Esc.
  */
 export const BotaoTemplates: React.FC<{
@@ -88,7 +88,7 @@ export const BotaoTemplates: React.FC<{
               <Loader2 className="w-4 h-4 m-3 animate-spin text-stone-400" />
             ) : !filtrados.length ? (
               <p className="px-3 py-2 text-xs text-stone-500 dark:text-stone-400">
-                {lista.length ? 'Nenhum template com esse texto.' : 'Nenhum template ativo. Cadastre em Suporte › Templates.'}
+                {lista.length ? 'Nenhum template com esse texto.' : 'Nenhum template ativo. Cadastre em Cadastros › Templates.'}
               </p>
             ) : (
               filtrados.map((t) => (

@@ -11,6 +11,7 @@ import { createImportArquivoRouter } from './importarquivo.js';
 import { createEnderecosRouter } from './enderecos.js';
 import { createParticipantesRouter } from './participantes.js';
 import { createAtividadeBotRouter, rodarBotAtividades } from './atividadeBot.js';
+import { createPesquisasSatisfacaoRouter, lerRespostasPesquisa } from './pesquisasSatisfacao.js';
 import { createCampanhasRouter } from './campanhas.js';
 import { createConversasRouter } from './conversas.js';
 import { createJornadaRouter, retomarJornadas } from './jornada.js';
@@ -215,9 +216,11 @@ export function createApp() {
     '/api/cron/whatsapp',
     cron(async () => {
       // Bot das atividades também em paralelo: cada contato espera a IA
-      const [inatividade, atividadesBot, resto] = await Promise.all([
+      const [inatividade, atividadesBot, respostasPesquisa, resto] = await Promise.all([
         verificarInatividade(),
         rodarBotAtividades(45_000),
+        // Respostas da pesquisa de satisfação por e-mail (IMAP), também em paralelo
+        lerRespostasPesquisa().catch((e) => `falhou: ${e.message}`),
         (async () => ({
           campanhas: await enviarPendentes(50, 25_000),
           emails: await enviarEmailsCampanha(50, 20_000),
@@ -225,7 +228,7 @@ export function createApp() {
           jornadas: await retomarJornadas(20_000),
         }))(),
       ]);
-      return { ...resto, inatividade, atividadesBot };
+      return { ...resto, inatividade, atividadesBot, respostasPesquisa };
     }),
   );
   app.get('/api/cron/contratos', cron(rotinaContratos));
@@ -337,6 +340,7 @@ export function createApp() {
   app.use('/api', createEnderecosRouter());
   app.use('/api', createParticipantesRouter());
   app.use('/api', createAtividadeBotRouter());
+  app.use('/api', createPesquisasSatisfacaoRouter());
   app.use('/api', createCampanhasRouter());
   app.use('/api', createConversasRouter());
   app.use('/api', createJornadaRouter());

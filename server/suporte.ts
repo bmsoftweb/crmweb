@@ -207,9 +207,9 @@ export function createSuporteRouter(): Router {
     if (!Number.isInteger(nota) || nota < 1 || nota > 5) throw erro(400, 'Escolha uma nota de 1 a 5.');
     const comentario = texto(req.body?.comentario, 2000) || null;
     await pool.query(
-      `INSERT INTO avaliacoes (empresa_id, telefone, pessoa_id, atendente_id, departamento_id, origem, nota, comentario, situacao, pedida_em, respondida_em)
-       VALUES (?, ?, ?, ?, ?, 'atendente', ?, ?, 'respondida', NOW(), NOW())`,
-      [c.empresa_id, c.contato_telefone || '', c.pessoa_id, c.atendente_id, c.departamento_id, nota, comentario],
+      `INSERT INTO avaliacoes (empresa_id, telefone, pessoa_id, atendente_id, departamento_id, chamado_id, origem, nota, comentario, situacao, pedida_em, respondida_em)
+       VALUES (?, ?, ?, ?, ?, ?, 'atendente', ?, ?, 'respondida', NOW(), NOW())`,
+      [c.empresa_id, c.contato_telefone || '', c.pessoa_id, c.atendente_id, c.departamento_id, c.id, nota, comentario],
     );
     await gravarMensagem({
       chamado_id: c.id,

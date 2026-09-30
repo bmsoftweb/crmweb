@@ -14,33 +14,45 @@ interface Smtp {
   from: string;
   /** Digitada agora; em branco mantém a gravada */
   senha: string;
+  /** Leitura das respostas (pesquisa de satisfação por e-mail), com o mesmo usuário e senha */
+  imap_host: string;
+  imap_port: string;
 }
 
-const VAZIO: Smtp = { host: '', port: '587', secure: false, user: '', from: '', senha: '' };
+const VAZIO: Smtp = { host: '', port: '587', secure: false, user: '', from: '', senha: '', imap_host: '', imap_port: '993' };
 
 interface Props {
+  /** smtp = conta comercial; smtp_suporte = conta do suporte (em branco: usa a comercial) */
+  chave?: 'smtp' | 'smtp_suporte';
   somenteLeitura: boolean;
   onToast: (msg: string) => void;
 }
 
 /**
- * Configurações › E-mail: servidor SMTP da empresa, usado no envio de propostas.
+ * Configurações › E-mail: servidor SMTP da empresa, usado no envio de propostas; IMAP para ler as respostas da pesquisa de satisfação.
  * A senha é gravada cifrada no servidor e nunca volta para a tela: só se sabe se existe.
  */
-export const ConfigEmail: React.FC<Props> = ({ somenteLeitura, onToast }) => {
+export const ConfigEmail: React.FC<Props> = ({ chave = 'smtp', somenteLeitura, onToast }) => {
+  const suporte = chave === 'smtp_suporte';
+  /** Prefixo dos ids: as duas contas ficam na mesma tela */
+  const id = (campo: string) => `${chave}-${campo}`;
   const [v, setV] = useState<Smtp | null>(null);
   const [senhaDefinida, setSenhaDefinida] = useState(false);
   const [ocupado, setOcupado] = useState<'salvar' | 'testar' | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchConfig<any>('email', 'smtp')
+    fetchConfig<any>('email', chave)
       .then(({ valor }) => {
-        setV(valor ? { host: valor.host, port: String(valor.port), secure: Boolean(valor.secure), user: valor.user || '', from: valor.from || '', senha: '' } : VAZIO);
+        setV(
+          valor
+            ? { host: valor.host, port: String(valor.port), secure: Boolean(valor.secure), user: valor.user || '', from: valor.from || '', senha: '', imap_host: valor.imap_host || '', imap_port: String(valor.imap_port || 993) }
+            : VAZIO,
+        );
         setSenhaDefinida(Boolean(valor?.senha_definida));
       })
       .catch((e) => setErro(e.message));
-  }, []);
+  }, [chave]);
 
   if (!v) return erro ? <AvisoErro mensagem={erro} onFechar={() => setErro(null)} /> : <Loader2 className="w-4 h-4 animate-spin text-stone-400" />;
 
@@ -53,10 +65,10 @@ export const ConfigEmail: React.FC<Props> = ({ somenteLeitura, onToast }) => {
     e.preventDefault();
     setOcupado('salvar');
     try {
-      await salvarConfig('email', 'smtp', { ...v, port: Number(v.port) });
+      await salvarConfig('email', chave, { ...v, port: Number(v.port), imap_port: Number(v.imap_port) || 993 });
       if (v.senha) setSenhaDefinida(true);
       setV({ ...v, senha: '' });
-      onToast(v.host ? 'Configuração de e-mail gravada.' : 'Configuração de e-mail removida: vale a do servidor (.env).');
+      onToast(v.host ? `E-mail ${suporte ? 'do suporte' : 'comercial'} gravado.` : suporte ? 'E-mail do suporte removido: vale o comercial.' : 'Configuração de e-mail removida: vale a do servidor (.env).');
     } catch (err: any) {
       setErro(err.message);
     } finally {
@@ -67,7 +79,7 @@ export const ConfigEmail: React.FC<Props> = ({ somenteLeitura, onToast }) => {
   const testar = async () => {
     setOcupado('testar');
     try {
-      await testarSmtp();
+      await testarSmtp(suporte ? 'smtp_suporte' : 'smtp');
       onToast('Conexão com o servidor de e-mail OK: usuário e senha aceitos.');
     } catch (err: any) {
       setErro(err.message);
@@ -84,29 +96,29 @@ export const ConfigEmail: React.FC<Props> = ({ somenteLeitura, onToast }) => {
 
       <fieldset disabled={somenteLeitura} className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className={`${FIELD_CLASS} sm:col-span-2`}>
-          <label htmlFor="smtp-host" className={LABEL_CLASS}>Servidor SMTP</label>
-          <input id="smtp-host" value={v.host} onChange={(e) => alterar({ host: e.target.value })} maxLength={255} placeholder="email-ssl.com.br" className={campo} />
-          <span className={HINT_CLASS}>Em branco: usa a configuração do servidor (.env)</span>
+          <label htmlFor={id('smtp-host')} className={LABEL_CLASS}>Servidor SMTP</label>
+          <input id={id('smtp-host')} value={v.host} onChange={(e) => alterar({ host: e.target.value })} maxLength={255} placeholder="email-ssl.com.br" className={campo} />
+          <span className={HINT_CLASS}>{suporte ? 'Em branco: o suporte usa o e-mail comercial' : 'Em branco: usa a configuração do servidor (.env)'}</span>
         </div>
         <div className={FIELD_CLASS}>
-          <label htmlFor="smtp-port" className={LABEL_CLASS}>Porta</label>
-          <NumberField id="smtp-port" value={v.port} onChange={(p) => alterar({ port: p })} scale={0} required={Boolean(v.host)} className={campo} />
+          <label htmlFor={id('smtp-port')} className={LABEL_CLASS}>Porta</label>
+          <NumberField id={id('smtp-port')} value={v.port} onChange={(p) => alterar({ port: p })} scale={0} required={Boolean(v.host)} className={campo} />
         </div>
         <div className={FIELD_CLASS}>
-          <label htmlFor="smtp-secure" className={LABEL_CLASS}>SSL/TLS direto</label>
+          <label htmlFor={id('smtp-secure')} className={LABEL_CLASS}>SSL/TLS direto</label>
           <div className="h-full flex items-center">
-            <Toggle id="smtp-secure" checked={v.secure} onChange={(s) => alterar({ secure: s })} title="Ligado na porta 465; desligado na 587 (STARTTLS)" />
+            <Toggle id={id('smtp-secure')} checked={v.secure} onChange={(s) => alterar({ secure: s })} title="Ligado na porta 465; desligado na 587 (STARTTLS)" />
           </div>
         </div>
 
         <div className={`${FIELD_CLASS} sm:col-span-2`}>
-          <label htmlFor="smtp-user" className={LABEL_CLASS}>Usuário (conta de e-mail)</label>
-          <input id="smtp-user" value={v.user} onChange={(e) => alterar({ user: e.target.value })} maxLength={255} required={Boolean(v.host)} autoComplete="off" placeholder="vendas@suaempresa.com.br" className={campo} />
+          <label htmlFor={id('smtp-user')} className={LABEL_CLASS}>Usuário (conta de e-mail)</label>
+          <input id={id('smtp-user')} value={v.user} onChange={(e) => alterar({ user: e.target.value })} maxLength={255} required={Boolean(v.host)} autoComplete="off" placeholder="vendas@suaempresa.com.br" className={campo} />
         </div>
         <div className={`${FIELD_CLASS} sm:col-span-2`}>
-          <label htmlFor="smtp-senha" className={LABEL_CLASS}>Senha</label>
+          <label htmlFor={id('smtp-senha')} className={LABEL_CLASS}>Senha</label>
           <input
-            id="smtp-senha"
+            id={id('smtp-senha')}
             type="password"
             value={v.senha}
             onChange={(e) => alterar({ senha: e.target.value })}
@@ -120,9 +132,20 @@ export const ConfigEmail: React.FC<Props> = ({ somenteLeitura, onToast }) => {
         </div>
 
         <div className={`${FIELD_CLASS} sm:col-span-4`}>
-          <label htmlFor="smtp-from" className={LABEL_CLASS}>Remetente</label>
-          <input id="smtp-from" value={v.from} onChange={(e) => alterar({ from: e.target.value })} maxLength={255} placeholder="BMsoft Sistemas <vendas@suaempresa.com.br>" className={campo} />
+          <label htmlFor={id('smtp-from')} className={LABEL_CLASS}>Remetente</label>
+          <input id={id('smtp-from')} value={v.from} onChange={(e) => alterar({ from: e.target.value })} maxLength={255} placeholder="BMsoft Sistemas <vendas@suaempresa.com.br>" className={campo} />
           <span className={HINT_CLASS}>Em branco: o próprio usuário. Muitos provedores (ex.: Locaweb) exigem o mesmo e-mail do usuário.</span>
+        </div>
+
+        <div className={`${FIELD_CLASS} sm:col-span-3`}>
+          <label htmlFor={id('imap-host')} className={LABEL_CLASS}>Servidor IMAP (leitura das respostas)</label>
+          <input id={id('imap-host')} value={v.imap_host} onChange={(e) => alterar({ imap_host: e.target.value })} onFocus={(e) => e.target.select()} maxLength={255} placeholder="imap.suaempresa.com.br" className={campo} />
+          <span className={HINT_CLASS}>Para ler as respostas da pesquisa de satisfação por e-mail, com o mesmo usuário e senha. Em branco: o e-mail só envia.</span>
+        </div>
+        <div className={FIELD_CLASS}>
+          <label htmlFor={id('imap-port')} className={LABEL_CLASS}>Porta IMAP</label>
+          <NumberField id={id('imap-port')} value={v.imap_port} onChange={(p) => alterar({ imap_port: p })} scale={0} className={campo} />
+          <span className={HINT_CLASS}>993 (SSL)</span>
         </div>
       </fieldset>
 

@@ -28,7 +28,11 @@ import { AcaoCampanha, BotaoEnviarDisparo } from './components/AcoesCampanha';
 import { BotaoEnviar } from './components/BotaoEnviar';
 import { BotaoLinkAceite } from './components/BotaoLinkAceite';
 import { BotaoNovaVersao } from './components/BotaoNovaVersao';
-import { BotaoConversaBot } from './components/ConversaBot';
+import { AcaoConversaBot } from './components/ConversaBot';
+import { AcaoConcluir } from './components/ConcluirAtividade';
+import { BotaoAcao } from './components/MenuAcoes';
+import { Headset } from 'lucide-react';
+import { AcaoRetornoLigacao, PesquisasSatisfacao } from './components/PesquisasSatisfacao';
 import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
@@ -348,6 +352,7 @@ export default function App() {
     conversas: ['Whatsapp', 'Mensagens do WhatsApp da empresa'],
     chamados_fila: ['Fila de Chamados', 'Chamados aguardando atendimento, em ordem de chegada'],
     chamados_ativos: ['Chamados Ativos', 'Atendimento dos chamados de suporte'],
+    pesquisas_satisfacao: ['Pesquisa de Satisfação', 'Sorteie atendimentos e pergunte aos clientes como foi'],
   };
   const [headerTitle, headerSubtitle] = activeResource
     ? [activeResource.label, activeResource.description]
@@ -432,6 +437,10 @@ export default function App() {
               }}
             />
           </main>
+        ) : activeTab === 'pesquisas_satisfacao' ? (
+          <main className="flex-1 flex flex-col min-h-0 w-full">
+            <PesquisasSatisfacao refreshToken={refreshToken} onToast={showToast} />
+          </main>
         ) : activeTab === 'configuracoes' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
             <ConfiguracoesView usuario={usuario} onToast={showToast} />
@@ -460,7 +469,7 @@ export default function App() {
                     ? (recarregar) => <BotaoImportarBM tipo="produtos" onImportado={recarregar} />
                     : undefined
               }
-              acoesEmMenu={['propostas', 'pedidos', 'campanhas'].includes(activeResource.name)}
+              acoesEmMenu={['propostas', 'pedidos', 'campanhas', 'atividades'].includes(activeResource.name)}
               acoesLinha={
                 activeResource.name === 'propostas' || activeResource.name === 'pedidos'
                   ? (row, { abrir, recarregar }) => (
@@ -500,8 +509,33 @@ export default function App() {
                       ? (row) => <BotaoWhatsApp temNumero={Boolean(row.whatsapp || row.telefone)} onAbrir={() => pedirConversa({ pessoaId: row.id as string })} />
                       : activeResource.name === 'usuarios'
                         ? (row, { recarregar }) => <BotaoPermissoes usuario={row} resources={resources} onRecarregar={recarregar} onToast={showToast} />
+                        : activeResource.name === 'chamados'
+                          ? (row) => (
+                              // Consulta de Chamados: abre o chamado em Chamados Ativos (onde ele é atendido)
+                              <BotaoAcao
+                                icone={Headset}
+                                titulo="Abrir"
+                                descricao="Abre o chamado em Chamados Ativos"
+                                onClick={() => {
+                                  setChamadoAbrir(Number(row.id));
+                                  navegar('chamados_ativos');
+                                }}
+                              />
+                            )
                         : activeResource.name === 'atividades'
-                          ? (row) => <BotaoConversaBot atividadeId={row.id as string} inativo={Number(row.executor_bot) !== 1} />
+                          ? (row, { recarregar }) => {
+                              const pendente = !Number(row.concluida);
+                              // Menu "...": Concluir (pendente), Conversa do Bot, Registrar retorno (ligação da pesquisa); Editar e Excluir vêm depois
+                              return (
+                                <>
+                                  {pendente && <AcaoConcluir registro={row} onFeito={() => (showToast('Atividade concluída.'), recarregar())} />}
+                                  {Number(row.executor_bot) === 1 && <AcaoConversaBot atividadeId={row.id as string} />}
+                                  {pendente && row.origem === 'pesquisa' && row.tipo === 'ligacao' && (
+                                    <AcaoRetornoLigacao atividadeId={row.id as string} onGravado={() => (showToast('Retorno registrado.'), recarregar())} />
+                                  )}
+                                </>
+                              );
+                            }
                           : undefined
               }
               acoesDetalhe={(recurso, row, { recarregar }) =>

@@ -26,6 +26,7 @@ import {
   Inbox,
   Headset,
   Database,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { ResourceDef, ResourceGroup, Usuario } from '../types';
@@ -57,6 +58,9 @@ const ICONS: Record<string, LucideIcon> = {
 
 const GROUP_ORDER: ResourceGroup[] = ['vendas', 'marketing', 'cadastros', 'acesso'];
 
+/** Cadastros que aparecem na Visão Geral em vez do grupo deles */
+const NA_VISAO_GERAL = ['atividades'];
+
 export interface ItemMenu {
   id: string;
   label: string;
@@ -81,15 +85,20 @@ export function gruposDoMenu(resources: ResourceDef[]): { titulo: string; itens:
       itens: [
         { id: 'dashboard', label: 'Painel de Vendas', descricao: 'Indicadores do funil', icone: LayoutDashboard },
         { id: 'kanban', label: 'Funil de Vendas', descricao: 'Kanban dos negócios', icone: KanbanSquare },
-        { id: 'conversas', label: 'Whatsapp', descricao: 'Mensagens do WhatsApp', icone: MessageCircle },
+        // Atividades/Tarefas: cadastro do grupo vendas, mas é o dia a dia de todos (vendas, suporte, pendências, Bot)
+        ...resources
+          .filter((r) => NA_VISAO_GERAL.includes(r.name) && !r.oculto)
+          .map((r) => ({ id: r.name, label: r.label, descricao: r.description, icone: ICONS[r.icon] || Database })),
       ],
     },
     {
       titulo: 'Suporte',
       itens: [
+        { id: 'conversas', label: 'Whatsapp', descricao: 'Mensagens do WhatsApp', icone: MessageCircle },
         { id: 'chamados_fila', label: 'Fila de Chamados', descricao: 'Chamados aguardando atendimento', icone: Inbox },
         { id: 'chamados_ativos', label: 'Chamados Ativos', descricao: 'Atendimento dos chamados', icone: Headset },
-        // Cadastros do grupo suporte (Templates) entram aqui, depois das telas
+        { id: 'pesquisas_satisfacao', label: 'Pesquisa de Satisfação', descricao: 'Pesquisas de avaliação dos atendimentos', icone: ClipboardCheck },
+        // Cadastros do grupo suporte entram aqui, depois das telas (Templates foi para Cadastros)
         ...resources
           .filter((r) => r.group === 'suporte' && !r.oculto)
           .map((r) => ({ id: r.name, label: r.label, descricao: r.description, icone: ICONS[r.icon] || Database })),
@@ -98,7 +107,7 @@ export function gruposDoMenu(resources: ResourceDef[]): { titulo: string; itens:
     ...GROUP_ORDER.map((group) => ({
       titulo: GROUP_LABELS[group] || group,
       itens: resources
-        .filter((r) => r.group === group && !r.oculto && r.name !== 'usuarios')
+        .filter((r) => r.group === group && !r.oculto && r.name !== 'usuarios' && !NA_VISAO_GERAL.includes(r.name))
         .map((r) => ({ id: r.name, label: r.label, descricao: r.description, icone: ICONS[r.icon] || Database })),
     })),
     { titulo: 'Sistema', itens: [{ id: 'configuracoes', label: 'Configurações', descricao: 'Preferências da empresa', icone: Settings, somenteAdmin: true }] },

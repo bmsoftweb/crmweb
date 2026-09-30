@@ -449,6 +449,9 @@ export const CrudView: React.FC<CrudViewProps> = ({
   const [filtros, setFiltros] = useState<FiltroAvancado[]>(filtroPadrao);
   /** Só as do usuário logado (recursos com o filtro "minhas", ex.: atividades) */
   const [minhas, setMinhas] = useState(false);
+  /** Filtro rápido Sim/Não do recurso ('' = todas, '1' = sim, '0' = não) */
+  const [rapido, setRapido] = useState<string>(resource.filtroRapidoPadrao ?? '');
+  const campoRapido = resource.filtroRapido ? resource.fields.find((f) => f.name === resource.filtroRapido) : undefined;
 
   const [refOptions, setRefOptions] = useState<Record<string, OpcaoRef[]>>({});
 
@@ -491,8 +494,9 @@ export const CrudView: React.FC<CrudViewProps> = ({
     setAbaAtiva(LIST_TAB);
     setSelecionado(null);
     setFiltros(filtroPadrao);
+    setRapido(resource.filtroRapidoPadrao ?? '');
     setBuscaAvancadaAberta(false);
-  }, [resource.name, resource.defaultSort.field, resource.defaultSort.dir, filtroPadrao]);
+  }, [resource.name, resource.defaultSort.field, resource.defaultSort.dir, resource.filtroRapidoPadrao, filtroPadrao]);
 
   // A seleção do mestre-detalhe não sobrevive a uma troca de página ou de busca
   useEffect(() => {
@@ -585,7 +589,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
         search,
         sort,
         dir,
-        filters: filtros,
+        filters: campoRapido && rapido ? [...filtros, { field: campoRapido.name, op: 'eq', value: rapido }] : filtros,
         arvore: modoArvore ? 'raizes' : undefined,
         minhas,
       });
@@ -606,7 +610,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [resource.name, page, limit, search, sort, dir, filtros, minhas, onCountChange, modoArvore, lerFilhos, resource.pk]);
+  }, [resource.name, page, limit, search, sort, dir, filtros, minhas, rapido, campoRapido, onCountChange, modoArvore, lerFilhos, resource.pk]);
 
   useEffect(() => {
     load();
@@ -968,6 +972,24 @@ export const CrudView: React.FC<CrudViewProps> = ({
                 </span>
               )}
             </button>
+          )}
+
+          {campoRapido && (
+            <label className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-stone-600 dark:text-stone-300">
+              {campoRapido.label}
+              <select
+                value={rapido}
+                onChange={(e) => {
+                  setRapido(e.target.value);
+                  setPage(1);
+                }}
+                className={`${INPUT_CLASS} py-1 cursor-pointer`}
+              >
+                <option value="">Todas</option>
+                <option value="1">Sim</option>
+                <option value="0">Não</option>
+              </select>
+            </label>
           )}
 
           {resource.minhas && (

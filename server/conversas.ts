@@ -282,7 +282,7 @@ export function createConversasRouter(): Router {
     }
   });
 
-  /** Templates ativos do canal (Suporte › Templates) para o botão dos chats: quem atende usa, mesmo sem acesso ao cadastro */
+  /** Templates ativos do canal (Cadastros › Templates) para o botão dos chats: quem atende usa, mesmo sem acesso ao cadastro */
   router.get('/templates/ativos', async (req: Request, res: Response) => {
     try {
       const canal = req.query.canal === 'suporte' ? 'suporte' : 'whatsapp';
@@ -595,8 +595,8 @@ export function createConversasRouter(): Router {
       const atividadeId = Number(req.body?.atividade_id) || null;
       if (atividadeId) {
         const [r] = await pool.query<any>(
-          'UPDATE atividades SET concluida = 1, concluida_em = COALESCE(concluida_em, NOW()) WHERE id = ? AND empresa_id = ? AND concluida = 0',
-          [atividadeId, emp],
+          'UPDATE atividades SET concluida = 1, concluida_por = ?, concluida_em = COALESCE(concluida_em, NOW()) WHERE id = ? AND empresa_id = ? AND concluida = 0',
+          [Number(res.locals.usuarioId) || null, atividadeId, emp],
         );
         concluida = r.affectedRows > 0;
         if (concluida) {

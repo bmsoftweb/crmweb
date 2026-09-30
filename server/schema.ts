@@ -122,6 +122,10 @@ export interface ResourceDef {
    * Não vai para o navegador (a tela só sabe que o filtro existe).
    */
   minhasSql?: string;
+  /** Campo Sim/Não com filtro rápido Todas/Sim/Não na barra da lista (ex.: concluida em atividades) */
+  filtroRapido?: string;
+  /** Valor com que o filtro rápido abre: '1' = Sim, '0' = Não (sem ele: Todas) */
+  filtroRapidoPadrao?: '1' | '0';
   /** Excluir só preenche esta coluna com NOW() (o scopeSql deve esconder os excluídos) */
   exclusaoLogica?: string;
   details?: DetailDef[];
@@ -391,6 +395,9 @@ export const RESOURCES: ResourceDef[] = [
     autoIncrement: true,
     labelField: 'assunto',
     defaultSort: { field: 'data_vencimento', dir: 'desc' },
+    filtroRapido: 'concluida',
+    // Abre nas pendentes
+    filtroRapidoPadrao: '0',
     // Minhas: as do usuário, as do departamento dele e as de qualquer pessoa
     minhasSql: `(t.executor_id = ? OR (t.executor_id IS NULL AND (t.departamento_id IS NULL
                    OR t.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)))
@@ -455,12 +462,14 @@ export const RESOURCES: ResourceDef[] = [
         listed: true,
         filterable: true,
         options: [
+          { value: 'pesquisa', label: 'Pesquisa de satisfação' },
           { value: 'bot', label: 'Bot' },
           { value: 'pendencia', label: 'Pendência da conversa' },
           { value: 'chamado', label: 'Chamado' },
           { value: 'manual', label: 'Manual' },
         ],
-        sql: `(CASE WHEN t.executor_bot = 1 THEN 'bot' WHEN t.observacao LIKE 'Identificada pela análise automática%' THEN 'pendencia'
+        sql: `(CASE WHEN EXISTS (SELECT 1 FROM pesquisas_satisfacao_itens i WHERE i.atividade_id = t.id) OR t.observacao LIKE 'Retorno da pesquisa de satisfação%' THEN 'pesquisa'
+                    WHEN t.executor_bot = 1 THEN 'bot' WHEN t.observacao LIKE 'Identificada pela análise automática%' THEN 'pendencia'
                     WHEN t.chamado_id IS NOT NULL THEN 'chamado' ELSE 'manual' END)`,
       },
       {
@@ -475,7 +484,20 @@ export const RESOURCES: ResourceDef[] = [
       },
       { name: 'concluida', label: 'Concluída', type: 'boolean', listed: true, filterable: true },
       { name: 'concluida_em', label: 'Concluída em', type: 'datetime', readOnly: true },
+      {
+        // Quem concluiu (atividades.concluida_por); o que o Bot conclui sozinho fica sem usuário e aparece como "Bot"
+        name: 'concluida_por_nome',
+        label: 'Concluída por',
+        type: 'text',
+        readOnly: true,
+        listed: true,
+        sql: `(CASE WHEN t.concluida = 0 THEN NULL
+                    WHEN t.concluida_por IS NOT NULL THEN (SELECT u.nome FROM usuarios u WHERE u.id = t.concluida_por)
+                    WHEN t.executor_bot = 1 THEN 'Bot' END)`,
+      },
       { name: 'observacao', label: 'Observação', type: 'textarea' },
+      // O que foi feito: preenchido no "Concluir" da lista (ou aqui)
+      { name: 'resultado', label: 'Resultado', type: 'textarea', listed: true, searchable: true },
       { name: 'bot_resumo', label: 'Resumo do bot', type: 'textarea', readOnly: true },
       ...CRIADO_ATUALIZADO,
     ],
@@ -1000,7 +1022,7 @@ export const RESOURCES: ResourceDef[] = [
     ],
   },
   {
-    // Suporte › Templates: textos prontos para responder no WhatsApp e nos Chamados (botão ao lado do campo da mensagem)
+    // Cadastros › Templates: textos prontos para responder no WhatsApp e nos Chamados (botão ao lado do campo da mensagem)
     name: 'templates',
     table: 'templates_mensagens',
     tenantColumn: 'empresa_id',
@@ -1009,7 +1031,7 @@ export const RESOURCES: ResourceDef[] = [
     labelSingular: 'Template',
     description: 'Mensagens prontas para o WhatsApp e os chamados',
     icon: 'MessageSquareText',
-    group: 'suporte',
+    group: 'cadastros',
     pk: ['id'],
     autoIncrement: true,
     labelField: 'descricao',
@@ -1032,6 +1054,96 @@ export const RESOURCES: ResourceDef[] = [
       },
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true, default: true, width: 'xs' },
       ...CRIADO_ATUALIZADO,
+    ],
+  },
+  {
+    // Suporte › Consulta de Chamados: todos os chamados em lista, para filtrar por cliente, período, status, técnico...
+    // Só leitura: o atendimento continua em Chamados Ativos (a ação "Abrir" da linha leva para lá)
+    name: 'chamados',
+    table: 'chamados',
+    tenantColumn: 'empresa_id',
+    scopeSql: 't.empresa_id = ?',
+    label: 'Consulta de Chamados',
+    labelSingular: 'Chamado',
+    description: 'Todos os chamados, com filtro por cliente, data, status, técnico, categoria e nota',
+    icon: 'ListOrdered',
+    group: 'suporte',
+    pk: ['id'],
+    autoIncrement: true,
+    labelField: 'titulo',
+    defaultSort: { field: 'criado_em', dir: 'desc' },
+    canCreate: false,
+    canUpdate: false,
+    canDelete: false,
+    fields: [
+      ID,
+      { name: 'numero', label: 'Nº', type: 'number', listed: true, searchable: true, filterable: true, width: 'xs', readOnly: true },
+      { name: 'titulo', label: 'Título', type: 'text', listed: true, searchable: true, readOnly: true },
+      { name: 'pessoa_id', label: 'Cliente', type: 'text', listed: true, filterable: true, readOnly: true, ref: { resource: 'pessoas', labelField: 'nome' } },
+      // Chamado aberto pelo site sem cliente cadastrado: quem abriu
+      { name: 'contato_nome', label: 'Contato (site)', type: 'text', searchable: true, readOnly: true },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'enum',
+        listed: true,
+        filterable: true,
+        readOnly: true,
+        options: [
+          { value: 'aguardando', label: 'Aguardando' },
+          { value: 'em_andamento', label: 'Em andamento' },
+          { value: 'pendente_cliente', label: 'Pendente do cliente' },
+          { value: 'pausado', label: 'Pausado' },
+          { value: 'encerrado', label: 'Encerrado' },
+          { value: 'cancelado', label: 'Cancelado' },
+        ],
+      },
+      {
+        name: 'prioridade',
+        label: 'Prioridade',
+        type: 'enum',
+        filterable: true,
+        readOnly: true,
+        options: [
+          { value: 'baixa', label: 'Baixa' },
+          { value: 'normal', label: 'Normal' },
+          { value: 'alta', label: 'Alta' },
+          { value: 'urgente', label: 'Urgente' },
+        ],
+      },
+      { name: 'categoria_id', label: 'Categoria', type: 'text', listed: true, filterable: true, readOnly: true, ref: { resource: 'chamado_categorias', labelField: 'nome' } },
+      { name: 'atendente_id', label: 'Técnico', type: 'text', listed: true, filterable: true, readOnly: true, ref: { resource: 'usuarios', labelField: 'nome' } },
+      { name: 'departamento_id', label: 'Departamento', type: 'text', filterable: true, readOnly: true, ref: { resource: 'departamentos', labelField: 'nome' } },
+      {
+        name: 'canal',
+        label: 'Canal',
+        type: 'enum',
+        filterable: true,
+        readOnly: true,
+        options: [
+          { value: 'interno', label: 'Interno' },
+          { value: 'whatsapp', label: 'WhatsApp' },
+          { value: 'telefone', label: 'Telefone' },
+          { value: 'email', label: 'E-mail' },
+          { value: 'web', label: 'Site' },
+        ],
+      },
+      { name: 'criado_em', label: 'Aberto em', type: 'datetime', listed: true, filterable: true, readOnly: true },
+      { name: 'encerrado_em', label: 'Encerrado em', type: 'datetime', listed: true, filterable: true, readOnly: true },
+      { name: 'sla_prazo', label: 'SLA até', type: 'datetime', filterable: true, readOnly: true },
+      {
+        // Nota que o cliente deu no fim (chat do site); sem avaliação, vazio
+        name: 'nota',
+        label: 'Nota',
+        type: 'number',
+        listed: true,
+        filterable: true,
+        readOnly: true,
+        width: 'xs',
+        sql: `(SELECT av.nota FROM avaliacoes av WHERE av.chamado_id = t.id AND av.nota IS NOT NULL ORDER BY av.id DESC LIMIT 1)`,
+      },
+      { name: 'descricao', label: 'Descrição', type: 'textarea', searchable: true, readOnly: true },
+      { name: 'conclusao', label: 'Conclusão', type: 'textarea', searchable: true, readOnly: true },
     ],
   },
   {

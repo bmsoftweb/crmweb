@@ -2,6 +2,18 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.61 — 2026-09-29
+
+- Banco: tabelas `pesquisas_satisfacao`, `pesquisas_satisfacao_itens` e `whatsapp_atendimentos`; `avaliacoes.chamado_id`; `atividades.resultado` e `atividades.concluida_por` (SQL em extras/crmweb_schema.sql). Bibliotecas novas: imapflow e mailparser (leitura de e-mail).
+- Suporte › Pesquisa de Satisfação: abas Pesquisas, Filtro (período — abre em ontem —, chamados/WhatsApp, notas, segmentos, clientes, técnicos, departamentos, categorias, não repetir cliente, quantos sortear) e Atendimentos Selecionados (sorteio, marcar/desmarcar, Executar, Sortear +x, contato de cada cliente, retorno). WhatsApp: conversa do Bot com análise (nota, comentário, resumo); e-mail: texto da IA com código no assunto e leitura das respostas por IMAP; ligação: atividade para quem liga e modal de retorno. Precisa retornar: tarefa para o técnico que atendeu.
+- Atendimentos do WhatsApp encerrados passam a ser registrados (whatsapp_atendimentos), com a avaliação ligada; a avaliação do chat do site aponta para o chamado.
+- Configurações › E-mail: duas contas — comercial (propostas, pedidos, contratos, campanhas) e do suporte (pesquisa de satisfação, Bot de chamados; em branco usa a comercial) — com servidor IMAP.
+- Suporte › Consulta de Chamados: todos os chamados com busca avançada (cliente, datas, status, técnico, categoria, nota...) e "Abrir" em Chamados Ativos.
+- Chamados Ativos: botão "Histórico (n)" com os outros chamados do cliente (mesma pessoa ou mesmo CNPJ/CPF do site), com a conclusão, e "Abrir".
+- Atividades/Tarefas: menu "..." com Concluir (janela do resultado), Conversa do Bot e Registrar retorno; coluna Resultado; grava quem concluiu (coluna "Concluída por"; "Bot" quando o Bot conclui; linha no chamado com o nome); filtro rápido Concluída (abre em Não).
+- WhatsApp: cortesia logo depois do agradecimento da pesquisa ou do encerramento ("de nada", "obrigado", "👍") não abre conversa nova; filtro abre em "Aguardando + Em atendimento".
+- Menu: WhatsApp em Suporte; Atividades/Tarefas na Visão Geral; Templates em Cadastros.
+
 ## 0.0.60 — 2026-09-29
 
 - WhatsApp: atendimento encerrado por falta de interação não manda mais a pesquisa de satisfação (o cliente estava ausente; a resposta atrasada abria um atendimento novo).

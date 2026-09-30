@@ -83,6 +83,10 @@ export interface ResourceDef {
   arvore?: { grupo: string; ordem: string };
   /** A lista tem o filtro "Só as minhas" (as do usuário logado) */
   minhas?: boolean;
+  /** Campo Sim/Não com filtro rápido Todas/Sim/Não na barra da lista */
+  filtroRapido?: string;
+  /** Valor com que o filtro rápido abre: '1' = Sim, '0' = Não (sem ele: Todas) */
+  filtroRapidoPadrao?: '1' | '0';
   fields: FieldDef[];
 }
 

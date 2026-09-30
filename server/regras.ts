@@ -90,7 +90,8 @@ export async function antesDeExcluir(recurso: string, id: string): Promise<strin
   return rows.map((r) => r.negocio_id).filter(Boolean);
 }
 
-export async function aposGravar(recurso: string, id: string | null, negociosAnteriores: string[] = [], db: Executor = pool) {
+/** usuarioId: quem fez a alteração (atividade concluída agora grava quem concluiu; null = o sistema, ex.: o Bot) */
+export async function aposGravar(recurso: string, id: string | null, negociosAnteriores: string[] = [], db: Executor = pool, usuarioId: number | null = null) {
   const negocios = new Set(negociosAnteriores);
 
   // Cadastro feito aqui no CRM ganha o código "CRMWEB-<id>"; quem veio de fora
@@ -134,11 +135,17 @@ export async function aposGravar(recurso: string, id: string | null, negociosAnt
     const [antes] = await db.query<any[]>('SELECT chamado_id, assunto, concluida, concluida_em FROM atividades WHERE id = ?', [id]);
     const t = antes[0];
     if (t?.chamado_id && Boolean(Number(t.concluida)) !== Boolean(t.concluida_em)) {
-      await gravarMensagem({ chamado_id: t.chamado_id, autor: 'sistema', texto: `Tarefa ${Number(t.concluida) ? 'concluída' : 'reaberta'}: ${t.assunto}.` });
+      const [u] = usuarioId ? await db.query<any[]>('SELECT nome FROM usuarios WHERE id = ?', [usuarioId]) : [[]];
+      const por = Number(t.concluida) && u[0]?.nome ? ` por ${u[0].nome}` : '';
+      await gravarMensagem({ chamado_id: t.chamado_id, usuario_id: usuarioId, autor: 'sistema', texto: `Tarefa ${Number(t.concluida) ? 'concluída' : 'reaberta'}${por}: ${t.assunto}.` });
     }
+    // Quem concluiu: gravado só na passagem para concluída (concluida_em ainda vazia); reaberta, apaga.
+    // concluida_por vem antes no SET: o MySQL aplica em ordem, e ele precisa ver a concluida_em de antes
     await db.query(
-      `UPDATE atividades SET concluida_em = IF(concluida = 1, COALESCE(concluida_em, NOW()), NULL) WHERE id = ?`,
-      [id],
+      `UPDATE atividades SET concluida_por = IF(concluida = 1, IF(concluida_em IS NULL, ?, concluida_por), NULL),
+                             concluida_em = IF(concluida = 1, COALESCE(concluida_em, NOW()), NULL)
+        WHERE id = ?`,
+      [usuarioId, id],
     );
   }
 

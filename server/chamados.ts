@@ -120,6 +120,17 @@ function conferirDono(c: any, res: Response) {
   if (['encerrado', 'cancelado'].includes(c.status)) throw erro(400, 'Chamado encerrado: não pode mais ser alterado.');
 }
 
+/**
+ * Outros chamados do mesmo cliente (sobre o alias "c"): mesma pessoa cadastrada ou, no chamado do site sem cadastro,
+ * o mesmo CNPJ/CPF informado. Parâmetros em doMesmoCliente
+ */
+const DO_MESMO_CLIENTE = `c.empresa_id = ? AND c.id <> ?
+  AND ((? IS NOT NULL AND c.pessoa_id = ?) OR (? <> '' AND c.contato_documento = ?))`;
+const doMesmoCliente = (empresaId: string | number, c: { id: number; pessoa_id: number | null; contato_documento?: string | null }) => {
+  const doc = String(c.contato_documento ?? '');
+  return [empresaId, c.id, c.pessoa_id ?? null, c.pessoa_id ?? null, doc, doc];
+};
+
 export function createChamadosRouter(): Router {
   const router = Router();
   const emp = (res: Response) => String(res.locals.empresaId);
@@ -270,15 +281,33 @@ export function createChamadosRouter(): Router {
         ORDER BY a.concluida, a.data_vencimento, COALESCE(a.hora_vencimento, '00:00:00'), a.id`,
       [req.params.id, emp(res)],
     );
+    const [[{ qtd }]] = await pool.query<any>(`SELECT COUNT(*) AS qtd FROM chamados c WHERE ${DO_MESMO_CLIENTE}`, doMesmoCliente(emp(res), { ...r[0], contato_documento: extra[0]?.contato_documento }));
     const u = res.locals.usuario;
     res.json({
       ...numeros(r[0]),
       ...extra[0],
+      historico_qtd: Number(qtd),
       tarefas: tarefas.map((t) => ({ ...t, concluida: Boolean(t.concluida) })),
       eu_atendo: Number(r[0].atendente_id) === Number(res.locals.usuarioId),
       sou_admin: u.tipo === 'admin',
       mensagens: mensagens.map((m) => ({ ...m, interna: Boolean(m.interna) })),
     });
+  }));
+
+  /** Histórico do cliente: os outros chamados dele (qualquer status), do mais novo para o mais antigo, com a conclusão */
+  router.get('/chamados/:id/historico', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    const [r] = await pool.query<any[]>(
+      `SELECT c.id, c.numero, c.titulo, c.status, c.canal, c.criado_em, c.encerrado_em, c.conclusao, u.nome AS atendente_nome, cat.nome AS categoria_nome,
+              (SELECT av.nota FROM avaliacoes av WHERE av.chamado_id = c.id AND av.nota IS NOT NULL ORDER BY av.id DESC LIMIT 1) AS nota
+         FROM chamados c
+         LEFT JOIN usuarios u ON u.id = c.atendente_id
+         LEFT JOIN chamado_categorias cat ON cat.id = c.categoria_id
+        WHERE ${DO_MESMO_CLIENTE}
+        ORDER BY c.criado_em DESC, c.id DESC LIMIT 50`,
+      doMesmoCliente(emp(res), c),
+    );
+    res.json(r);
   }));
 
   /** Novo chamado (equipe): entra na fila, ou já fica com quem abriu */
@@ -491,10 +520,10 @@ export function createChamadosRouter(): Router {
     const concluida = Boolean(b.concluida);
     const [ins] = await pool.query<any>(
       `INSERT INTO atividades (empresa_id, pessoa_id, chamado_id, assunto, tipo, data_vencimento, hora_vencimento, duracao, lembrete_para,
-                               executor_id, departamento_id, executor_bot, observacao, concluida, concluida_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(?, NOW(), NULL))`,
+                               executor_id, departamento_id, executor_bot, observacao, concluida, concluida_em, concluida_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(?, NOW(), NULL), IF(?, ?, NULL))`,
       [emp(res), c.pessoa_id, c.id, assunto, tipo, b.data_vencimento, hora, duracao, lembrete, executorId, departamentoId, bot,
-        String(b.observacao ?? '').trim() || null, concluida ? 1 : 0, concluida],
+        String(b.observacao ?? '').trim() || null, concluida ? 1 : 0, concluida, concluida, eu(res)],
     );
     await gravarEnvolvidosAtividade(ins.insertId, envolvidos);
     const prazo = String(b.data_vencimento).split('-').reverse().join('/');

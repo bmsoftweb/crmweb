@@ -21,7 +21,8 @@ import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarCont
 /** Grupos e chaves aceitos: o que não está aqui não entra no banco */
 const CHAVES: Record<string, string[]> = {
   pessoas: ['campos_personalizados'],
-  email: ['smtp'],
+  // smtp = conta comercial (propostas, pedidos, contratos, campanhas); smtp_suporte = conta do suporte (pesquisa de satisfação, chamados)
+  email: ['smtp', 'smtp_suporte'],
   // campanhas: outro número só para as campanhas (mesma estrutura da provedor)
   // jornada_campanhas: a Automação de quem responde no WhatsApp das campanhas (mesma estrutura da jornada)
   whatsapp: ['provedor', 'campanhas', 'automaticas', 'chatbot', 'jornada', 'jornada_campanhas', 'pesquisa'],
@@ -36,6 +37,7 @@ const CHAVES: Record<string, string[]> = {
  */
 const COM_SEGREDO: Record<string, { preparar: (valor: any, anterior: any) => any; publica: (valor: any) => any }> = {
   'email.smtp': { preparar: prepararConfigSmtp, publica: configSmtpPublica },
+  'email.smtp_suporte': { preparar: prepararConfigSmtp, publica: configSmtpPublica },
   'whatsapp.provedor': { preparar: prepararConfigWhats, publica: configWhatsPublica },
   'whatsapp.campanhas': { preparar: prepararConfigWhats, publica: configWhatsPublica },
   'whatsapp.automaticas': { preparar: prepararAutomaticas, publica: automaticasPublica },
@@ -134,11 +136,11 @@ export function createConfigRouter(): Router {
     }
   });
 
-  /** Conecta e autentica no SMTP gravado, sem enviar e-mail */
-  router.post('/config/email/smtp/testar', async (_req: Request, res: Response) => {
+  /** Conecta e autentica no SMTP gravado (conta comercial ou do suporte), sem enviar e-mail */
+  router.post('/config/email/:chave/testar', async (req: Request, res: Response) => {
     try {
       somenteAdmin(res);
-      await testarSmtp(String(res.locals.empresaId));
+      await testarSmtp(String(res.locals.empresaId), req.params.chave === 'smtp_suporte' ? 'suporte' : 'comercial');
       res.json({ success: true });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: err.message });

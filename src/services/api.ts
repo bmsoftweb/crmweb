@@ -377,7 +377,8 @@ export const enviarDocumento = (
   enviar('POST', `/api/crm/${tipo}/${encodeURIComponent(String(id))}/enviar`, dados);
 
 /** Conecta e autentica no SMTP gravado em Configurações › E-mail, sem enviar nada */
-export const testarSmtp = (): Promise<{ success: boolean }> => enviar('POST', '/api/config/email/smtp/testar');
+/** Testa a conta de e-mail gravada: smtp = comercial, smtp_suporte = suporte */
+export const testarSmtp = (chave: 'smtp' | 'smtp_suporte' = 'smtp'): Promise<{ success: boolean }> => enviar('POST', `/api/config/email/${chave}/testar`);
 
 /** Consulta no provedor se o número do WhatsApp gravado em Configurações está conectado */
 /** Conta do WhatsApp: a padrão ou a das campanhas (Configurações › WhatsApp) */
@@ -608,7 +609,7 @@ export const fetchNaoVistas = (): Promise<{
 /** Encerrar a sessão da conversa: como se o tempo de devolver ao bot tivesse passado */
 export const encerrarConversa = (telefone: string): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/encerrar`);
-/** Template de mensagem (Suporte › Templates) */
+/** Template de mensagem (Cadastros › Templates) */
 export interface TemplateMensagem {
   id: number;
   descricao: string;
@@ -704,7 +705,25 @@ export interface ChamadoDetalhe extends ChamadoResumo {
   mensagens: ChamadoMensagem[];
   /** Tarefas do chamado (atividades com chamado_id), as pendentes primeiro */
   tarefas: TarefaChamado[];
+  /** Quantos outros chamados o mesmo cliente tem (botão Histórico) */
+  historico_qtd: number;
 }
+
+/** Outro chamado do mesmo cliente (Histórico do chamado aberto) */
+export interface ChamadoHistorico {
+  id: number;
+  numero: number;
+  titulo: string;
+  status: ChamadoResumo['status'];
+  canal: string;
+  criado_em: string;
+  encerrado_em: string | null;
+  conclusao: string | null;
+  atendente_nome: string | null;
+  categoria_nome: string | null;
+  nota: number | null;
+}
+export const fetchHistoricoChamado = (id: number): Promise<ChamadoHistorico[]> => get(`/api/chamados/${id}/historico`);
 
 export interface TarefaChamado {
   id: number;
@@ -789,3 +808,101 @@ export const cutucarCliente = (id: number) => enviar('POST', `/api/chamados/${id
 export const pedirTelaRemota = (id: number) => enviar('POST', `/api/chamados/${id}/tela-remota`);
 export const enviarMensagemChamado = (id: number, texto: string, interna: boolean): Promise<{ success: boolean; aviso: string | null }> =>
   enviar('POST', `/api/chamados/${id}/mensagens`, { texto, interna });
+
+// ------------------------------------------------------------
+// Pesquisa de satisfação (Suporte › Pesquisa de Satisfação; server/pesquisasSatisfacao.ts)
+// ------------------------------------------------------------
+
+export type CanalPesquisa = 'whatsapp' | 'email' | 'ligacao';
+
+export interface FiltroPesquisa {
+  data_de?: string | null;
+  data_ate?: string | null;
+  origens?: string[];
+  notas?: number[];
+  sem_nota?: boolean;
+  segmentos?: number[];
+  pessoas?: number[];
+  atendentes?: number[];
+  departamentos?: number[];
+  categorias?: number[];
+  excluir_dias?: number;
+}
+
+export interface PesquisaResumo {
+  id: number;
+  descricao: string;
+  canal: CanalPesquisa;
+  situacao: 'rascunho' | 'em_andamento' | 'concluida' | 'cancelada';
+  quantidade: number;
+  total_filtrados: number | null;
+  criado_em: string;
+  executada_em: string | null;
+  concluida_em: string | null;
+  criado_por_nome: string | null;
+  selecionados: number;
+  respondidos: number;
+  media: number | null;
+}
+
+export interface ItemPesquisa {
+  id: number;
+  lote: number;
+  origem: 'chamado' | 'whatsapp';
+  chamado_numero: number | null;
+  pessoa_nome: string | null;
+  /** WhatsApp do cadastro (sem ele, o telefone) e e-mail: para onde o contato vai */
+  pessoa_telefone: string | null;
+  pessoa_email: string | null;
+  atendente_nome: string | null;
+  data_atendimento: string | null;
+  assunto: string | null;
+  selecionado: boolean;
+  situacao: 'sorteado' | 'enviado' | 'em_conversa' | 'respondido' | 'sem_resposta' | 'falhou';
+  atividade_id: number | null;
+  executor_bot: number | null;
+  destino: string | null;
+  nota: number | null;
+  comentario: string | null;
+  resumo: string | null;
+  precisa_retorno: boolean | null;
+  tarefa_id: number | null;
+  registrado_por_nome: string | null;
+  enviado_em: string | null;
+  respondido_em: string | null;
+}
+
+export interface Pesquisa {
+  id: number;
+  descricao: string;
+  objetivo: string | null;
+  canal: CanalPesquisa;
+  filtro: FiltroPesquisa;
+  quantidade: number;
+  total_filtrados: number | null;
+  responsavel_id: number | null;
+  situacao: PesquisaResumo['situacao'];
+  itens: ItemPesquisa[];
+}
+
+export type DadosPesquisa = Pick<Pesquisa, 'descricao' | 'objetivo' | 'canal' | 'filtro' | 'quantidade' | 'responsavel_id'>;
+
+export const fetchPesquisas = (): Promise<PesquisaResumo[]> => get('/api/pesquisas-satisfacao');
+export const fetchPesquisa = (id: number): Promise<Pesquisa> => get(`/api/pesquisas-satisfacao/${id}`);
+export const criarPesquisa = (d: DadosPesquisa): Promise<{ id: number }> => enviar('POST', '/api/pesquisas-satisfacao', d);
+export const salvarPesquisa = (id: number, d: DadosPesquisa) => enviar('PUT', `/api/pesquisas-satisfacao/${id}`, d);
+export const excluirPesquisa = (id: number) => enviar('DELETE', `/api/pesquisas-satisfacao/${id}`);
+export const previaPesquisa = (filtro: FiltroPesquisa, id?: number): Promise<{ filtrados: number }> => enviar('POST', '/api/pesquisas-satisfacao/previa', { filtro, id });
+export const sortearPesquisa = (id: number, quantidade?: number): Promise<{ sorteados: number; filtrados: number }> =>
+  enviar('POST', `/api/pesquisas-satisfacao/${id}/sortear`, quantidade ? { quantidade } : {});
+export const marcarItemPesquisa = (itemId: number, selecionado: boolean) => enviar('PUT', `/api/pesquisas-satisfacao/itens/${itemId}`, { selecionado });
+export const executarPesquisa = (id: number): Promise<{ executados: number; falhas: number; erro: string | null }> => enviar('POST', `/api/pesquisas-satisfacao/${id}/executar`);
+export const registrarRetornoPesquisa = (
+  itemId: number,
+  d: { nao_atendeu?: boolean; nota?: number; comentario?: string; resumo?: string; precisa_retorno?: boolean; motivo_retorno?: string },
+) => enviar('POST', `/api/pesquisas-satisfacao/itens/${itemId}/retorno`, d);
+export const fetchItemDaAtividade = (
+  atividadeId: Id,
+): Promise<{ id: number; pessoa_nome: string | null; pessoa_telefone: string | null; assunto: string | null; data_br: string | null; atendente_nome: string | null; objetivo: string | null; situacao: string; pesquisa_descricao: string }> =>
+  get(`/api/pesquisas-satisfacao/da-atividade/${encodeURIComponent(String(atividadeId))}`);
+export const buscarPessoasPesquisa = (q: string): Promise<{ id: number; nome: string }[]> => get(`/api/pesquisas-satisfacao-pessoas?q=${encodeURIComponent(q)}`);
