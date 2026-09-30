@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus } from 'lucide-react';
 import { FiltroAvancado, RegistroCrud, ResourceDef } from '../types';
 import { listRecords, updateRecord } from '../services/api';
+import { comPrefixo } from '../utils/crm';
 import { AvisoErro } from './AvisoErro';
 
 export type VisaoCalendario = 'semana' | 'mes';
@@ -291,6 +292,10 @@ export const AgendaCalendario: React.FC<Props> = ({
       ? 'bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950/50 dark:text-purple-200 dark:border-purple-800'
       : 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-800';
 
+  /** Assunto como a lista mostra (com quem executa na frente: "Luis : Implementar...") */
+  const campoAssunto = resource.fields.find((f) => f.name === 'assunto');
+  const assuntoDe = (r: RegistroCrud) => String((campoAssunto ? comPrefixo(campoAssunto, r, r.assunto) : r.assunto) ?? '');
+
   const item = (r: RegistroCrud, extra = '', estilo?: React.CSSProperties) => (
     <button
       key={String(r[pk])}
@@ -308,13 +313,13 @@ export const AgendaCalendario: React.FC<Props> = ({
         e.stopPropagation();
         onAbrir(r);
       }}
-      title={`${r.hora_vencimento ? `${String(r.hora_vencimento).slice(0, 5)} ` : ''}${r.assunto ?? ''}${r.quem_executa ? ` • ${r.quem_executa}` : ''}`}
+      title={`${r.hora_vencimento ? `${String(r.hora_vencimento).slice(0, 5)} ` : ''}${assuntoDe(r)}`}
       className={`text-left text-[11px] leading-tight rounded border px-1.5 py-0.5 truncate cursor-pointer ${cor(r)} ${
         selecionadoId === String(r[pk]) ? 'ring-2 ring-blue-500 dark:ring-blue-400 z-10' : ''
       } ${alvo && arraste.current?.row[pk] === r[pk] ? 'opacity-40' : ''} ${extra}`}
     >
       {r.hora_vencimento && <span className="font-semibold mr-1">{String(r.hora_vencimento).slice(0, 5)}</span>}
-      {String(r.assunto ?? '')}
+      {assuntoDe(r)}
     </button>
   );
 

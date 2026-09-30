@@ -23,6 +23,10 @@ export interface FieldDef {
   name: string;
   label: string;
   type: FieldType;
+  /** Não aparece na ficha embaixo da lista (ex.: campos já resumidos em outro, como os de executor) */
+  foraDaFicha?: boolean;
+  /** Na exibição, o valor de outro campo vai antes deste ("Luis : Implementar..."); não é gravado */
+  prefixo?: { campo: string; exceto?: string };
   hint?: string;
   placeholder?: string;
   required?: boolean;

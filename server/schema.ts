@@ -38,6 +38,10 @@ export interface FieldDef {
   /** Rótulo exibido na interface */
   label: string;
   type: FieldType;
+  /** Não aparece na ficha embaixo da lista (ex.: campos já resumidos em outro, como os de executor) */
+  foraDaFicha?: boolean;
+  /** Na exibição, o valor de outro campo vai antes deste ("Luis : Implementar..."); não é gravado */
+  prefixo?: { campo: string; exceto?: string };
   /** Texto auxiliar exibido abaixo do campo no formulário */
   hint?: string;
   placeholder?: string;
@@ -440,7 +444,17 @@ export const RESOURCES: ResourceDef[] = [
     canDelete: true,
     fields: [
       ID,
-      { name: 'assunto', label: 'Assunto', type: 'text', required: true, listed: true, searchable: true, maxLength: 255 },
+      {
+        name: 'assunto',
+        label: 'Assunto',
+        type: 'text',
+        required: true,
+        listed: true,
+        searchable: true,
+        maxLength: 255,
+        // Lista, calendário e ficha mostram "Luis : Implementar..." (quem executa antes do assunto)
+        prefixo: { campo: 'quem_executa', exceto: 'Qualquer pessoa' },
+      },
       { name: 'tipo', label: 'Tipo', type: 'enum', required: true, listed: true, filterable: true, options: TIPOS_ATIVIDADE, default: 'tarefa' },
       { name: 'data_vencimento', label: 'Vencimento', type: 'date', required: true, listed: true, filterable: true },
       { name: 'hora_vencimento', label: 'Hora', type: 'time', listed: true },
@@ -467,11 +481,12 @@ export const RESOURCES: ResourceDef[] = [
         name: 'executor_bot',
         label: 'Executor: Bot',
         type: 'boolean',
+        foraDaFicha: true,
         filterable: true,
         hint: 'No dia e hora, a IA conversa pelo WhatsApp com quem está em "Lembrete para" seguindo o assunto e a observação (sem WhatsApp, manda um e-mail). Sem hora: começa às 8h',
       },
-      { name: 'executor_id', label: 'Executor (usuário)', type: 'text', filterable: true, ref: { resource: 'usuarios', labelField: 'nome' }, hint: 'Ou um usuário ou um departamento; os dois vazios = qualquer pessoa' },
-      { name: 'departamento_id', label: 'Executor (departamento)', type: 'text', filterable: true, ref: { resource: 'departamentos', labelField: 'nome' } },
+      { name: 'executor_id', label: 'Executor (usuário)', type: 'text', foraDaFicha: true, filterable: true, ref: { resource: 'usuarios', labelField: 'nome' }, hint: 'Ou um usuário ou um departamento; os dois vazios = qualquer pessoa' },
+      { name: 'departamento_id', label: 'Executor (departamento)', type: 'text', foraDaFicha: true, filterable: true, ref: { resource: 'departamentos', labelField: 'nome' } },
       {
         // Gravados pela janela da atividade (server/participantes.ts); aqui só a coluna da lista
         name: 'envolvidos',

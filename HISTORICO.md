@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.67 — 2026-09-30
+
+- Atividades/Tarefas: lista, calendário e ficha mostram quem executa antes do assunto ("Luis : Implementar..."; o ícone da reunião continua na frente). Só na exibição: o assunto gravado e o título no Google não mudam.
+- Atividade incluída para outro usuário: quem incluiu entra automaticamente como envolvido.
+- Ficha da atividade sem os campos Executor: Bot / usuário / departamento (o "Quem executa" já resume).
+
 ## 0.0.66 — 2026-09-30
 
 - Atividades/Tarefas, visão Semana: arrastar a atividade muda o horário (de 15 em 15 min) e o dia; soltar na faixa do dia inteiro tira a hora; sombra mostra onde vai cair.

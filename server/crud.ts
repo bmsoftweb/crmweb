@@ -426,7 +426,13 @@ export function createCrudRouter() {
       await validarVinculos(resource, payload, empresaId);
       await antesDeGravar(resource.name, payload, empresaId);
       await conferirTrava(resource.name, 'incluir', null, payload);
-      const filhos = await filhosDoCorpo(resource, req.body, empresaId);
+      // Atividade incluída para outro usuário: quem incluiu fica como envolvido (acompanha o que pediu)
+      const eu = Number(res.locals.usuarioId);
+      const corpo =
+        resource.name === 'atividades' && payload.executor_id && Number(payload.executor_id) !== eu
+          ? { ...req.body, envolvidos: [...(Array.isArray(req.body?.envolvidos) ? req.body.envolvidos : []), eu] }
+          : req.body;
+      const filhos = await filhosDoCorpo(resource, corpo, empresaId);
 
       if (resource.tenantColumn) payload[resource.tenantColumn] = empresaId;
       // Negócio novo sem proprietário escolhido fica com quem o criou

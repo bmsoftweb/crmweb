@@ -12,6 +12,7 @@ import {
   Laptop,
   type LucideIcon,
 } from 'lucide-react';
+import type { FieldDef, RegistroCrud } from '../types';
 import { hojeIso } from './formatters';
 
 export const TIPOS_ATIVIDADE: { value: string; label: string; icon: LucideIcon }[] = [
@@ -26,6 +27,22 @@ export const TIPOS_ATIVIDADE: { value: string; label: string; icon: LucideIcon }
   { value: 'almoco', label: 'Almoço', icon: Utensils },
   { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
 ];
+
+/** Ícones que abrem o assunto das reuniões (server/schema.ts, ICONE_DO_TIPO): continuam como primeiro caractere */
+const ICONES_REUNIAO = ['🚗', '🏠', '💻'];
+
+/**
+ * Texto exibido de um campo com `prefixo` (ex.: "Luis : Implementar..."), sem mexer no que está gravado.
+ * O ícone da reunião fica na frente do nome: "🚗 Luis : Visita".
+ */
+export function comPrefixo(field: FieldDef, row: RegistroCrud, valor: unknown): unknown {
+  const p = field.prefixo;
+  const nome = p ? String(row[p.campo] ?? '').trim() : '';
+  if (!p || !nome || nome === p.exceto || valor == null || valor === '') return valor;
+  const texto = String(valor);
+  const icone = ICONES_REUNIAO.find((i) => texto.startsWith(i));
+  return icone ? `${icone} ${nome} : ${texto.slice(icone.length).trimStart()}` : `${nome} : ${texto}`;
+}
 
 /** Para quem vai o lembrete automático da atividade (o mesmo de server/schema.ts) */
 export const LEMBRETE_PARA = [

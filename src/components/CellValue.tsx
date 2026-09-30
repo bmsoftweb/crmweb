@@ -1,6 +1,7 @@
 import React from 'react';
 import { FieldDef, OpcaoRef, RegistroCrud } from '../types';
 import { formatCellValue, STATUS_COLORS } from '../utils/formatters';
+import { comPrefixo } from '../utils/crm';
 
 interface CellValueProps {
   field: FieldDef;
@@ -28,7 +29,7 @@ function valorDoCampo(field: FieldDef, row: RegistroCrud) {
 }
 
 export const CellValue: React.FC<CellValueProps> = ({ field, row, refOptions }) => {
-  const value = valorDoCampo(field, row);
+  const value = comPrefixo(field, row, valorDoCampo(field, row));
 
   if (field.ref) {
     if (value === null || value === undefined || value === '') {

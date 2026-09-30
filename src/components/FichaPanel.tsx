@@ -18,7 +18,7 @@ interface FichaPanelProps {
  */
 export const FichaPanel: React.FC<FichaPanelProps> = ({ resource, row, label, refOptions, onClose }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const campos = resource.fields.filter((f) => f.type !== 'password');
+  const campos = resource.fields.filter((f) => f.type !== 'password' && !f.foraDaFicha);
   const curtos = campos.filter((f) => f.type !== 'textarea');
   // Texto longo vazio só ocupa espaço
   const longos = campos.filter((f) => f.type === 'textarea' && row[f.name] != null && String(row[f.name]).trim() !== '');
