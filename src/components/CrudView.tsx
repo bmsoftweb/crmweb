@@ -77,6 +77,8 @@ interface AbaRegistro {
   /** `null` quando é uma inclusão */
   record: RegistroCrud | null;
   titulo: string;
+  /** Inclusão: valores iniciais além dos padrões do metadado (ex.: o dia clicado no calendário) */
+  padrao?: Record<string, unknown>;
 }
 
 const LIST_TAB = 'lista';
@@ -660,14 +662,20 @@ export const CrudView: React.FC<CrudViewProps> = ({
   // ----------------------------------------------------------
   // Gestão das abas
   // ----------------------------------------------------------
-  const abrirAbaNovo = useCallback(() => {
-    setAbas((prev) =>
-      prev.some((a) => a.key === 'novo')
-        ? prev
-        : [...prev, { key: 'novo', record: null, titulo: `Novo ${resource.labelSingular}` }],
-    );
-    setAbaAtiva('novo');
-  }, [resource.labelSingular]);
+  /** Sem `padrao`, reaproveita a inclusão já aberta; com ele (ex.: outro dia no calendário), recomeça com os valores novos */
+  const abrirAbaNovo = useCallback(
+    (padrao?: Record<string, unknown>) => {
+      setAbas((prev) =>
+        prev.some((a) => a.key === 'novo')
+          ? padrao
+            ? prev.map((a) => (a.key === 'novo' ? { ...a, padrao } : a))
+            : prev
+          : [...prev, { key: 'novo', record: null, titulo: `Novo ${resource.labelSingular}`, padrao }],
+      );
+      setAbaAtiva('novo');
+    },
+    [resource.labelSingular],
+  );
 
   const abrirAbaEdicao = useCallback(
     (row: RegistroCrud) => {
@@ -1093,7 +1101,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
 
           {resource.canCreate && (
             <button
-              onClick={abrirAbaNovo}
+              onClick={() => abrirAbaNovo()}
               className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -1162,6 +1170,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
             setSelecionado(row);
           }}
           onAbrir={(row) => resource.canUpdate && abrirAbaEdicao(row)}
+          onNovo={resource.canCreate ? (data, hora) => abrirAbaNovo({ data_vencimento: data, ...(hora ? { hora_vencimento: hora } : {}) }) : undefined}
           onVisao={trocarVisao}
         />
       ) : (
@@ -1374,7 +1383,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
                     )}
                     {resource.canCreate && !search && filtros.length === 0 && (
                       <button
-                        onClick={abrirAbaNovo}
+                        onClick={() => abrirAbaNovo()}
                         className="mt-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                       >
                         Incluir o primeiro {resource.labelSingular.toLowerCase()}
@@ -1475,8 +1484,12 @@ export const CrudView: React.FC<CrudViewProps> = ({
         </div>
       ) : abaAtual ? (
         <RecordForm
-          key={abaAtual.key}
-          resource={resource}
+          key={`${abaAtual.key}:${JSON.stringify(abaAtual.padrao ?? {})}`}
+          resource={
+            abaAtual.padrao
+              ? { ...resource, fields: resource.fields.map((f) => (f.name in abaAtual.padrao! ? { ...f, default: abaAtual.padrao![f.name] as any } : f)) }
+              : resource
+          }
           record={abaAtual.record}
           refOptions={refOptions}
           onCancel={() => fecharAba(abaAtual.key)}

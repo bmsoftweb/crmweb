@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus } from 'lucide-react';
 import { FiltroAvancado, RegistroCrud, ResourceDef } from '../types';
 import { listRecords } from '../services/api';
 import { AvisoErro } from './AvisoErro';
@@ -18,8 +19,22 @@ interface Props {
   selecionadoId: string | null;
   onSelecionar: (row: RegistroCrud) => void;
   onAbrir: (row: RegistroCrud) => void;
+  /** Inclusão já com o dia (AAAA-MM-DD) e, na semana, a hora clicada (HH:MM); sem ela (sem permissão de incluir), o menu não oferece "Novo" */
+  onNovo?: (data: string, hora: string | null) => void;
   onVisao: (v: VisaoCalendario) => void;
 }
+
+/** Menu do botão direito: onde abriu, o dia, a hora (grade da semana) e a atividade sob o mouse (null = espaço vazio) */
+interface MenuDia {
+  x: number;
+  y: number;
+  dia: string;
+  hora: string | null;
+  row: RegistroCrud | null;
+}
+/** Na grade da semana, o clique vale pela meia hora em que caiu */
+const PASSO_MINUTOS = 30;
+const ALTURA_MENU = 100;
 
 const ALTURA_HORA = 44;
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -78,7 +93,37 @@ export function distribuir(itens: RegistroCrud[]) {
  * Visões Semana e Mês das atividades (Atividades/Tarefas), no estilo do Google Agenda: domingo primeiro,
  * clique seleciona (a ficha abre embaixo), duplo clique abre para edição.
  */
-export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, search, minhas, gatilho, selecionadoId, onSelecionar, onAbrir, onVisao }) => {
+export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, search, minhas, gatilho, selecionadoId, onSelecionar, onAbrir, onNovo, onVisao }) => {
+  const [menu, setMenu] = useState<MenuDia | null>(null);
+
+  // Fecha ao clicar fora, rolar ou Esc (como o menu "..." das listas)
+  useEffect(() => {
+    if (!menu) return;
+    const fechar = () => setMenu(null);
+    const tecla = (e: KeyboardEvent) => e.key === 'Escape' && fechar();
+    document.addEventListener('mousedown', fechar);
+    document.addEventListener('scroll', fechar, true);
+    document.addEventListener('keydown', tecla);
+    return () => {
+      document.removeEventListener('mousedown', fechar);
+      document.removeEventListener('scroll', fechar, true);
+      document.removeEventListener('keydown', tecla);
+    };
+  }, [menu]);
+
+  const abrirMenu = (e: React.MouseEvent, dia: string, row: RegistroCrud | null, hora: string | null = null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, dia, hora, row });
+  };
+
+  /** Hora do ponto clicado na coluna do dia (a coluna tem as 24 h de altura) */
+  const horaDoClique = (e: React.MouseEvent<HTMLElement>) => {
+    const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+    const min = Math.floor((y / ALTURA_HORA) * 60 / PASSO_MINUTOS) * PASSO_MINUTOS;
+    const m = Math.min(Math.max(min, 0), 24 * 60 - PASSO_MINUTOS);
+    return `${doisDigitos(Math.floor(m / 60))}:${doisDigitos(m % 60)}`;
+  };
   const [ref, setRef] = useState(() => new Date());
   const [itens, setItens] = useState<RegistroCrud[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -159,6 +204,7 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
       key={String(r[pk])}
       type="button"
       style={estilo}
+      onContextMenu={(e) => abrirMenu(e, String(r.data_vencimento).slice(0, 10), r)}
       onClick={(e) => {
         e.stopPropagation();
         onSelecionar(r);
@@ -213,7 +259,13 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
             {semana.map((d) => {
               const k = chave(d);
               return (
-                <div key={k} className="px-1 pt-1.5 pb-1 text-center border-l border-stone-200 dark:border-stone-800 min-w-0">
+                <div
+                  key={k}
+                  onContextMenu={(e) => abrirMenu(e, k, null)}
+                  className={`px-1 pt-1.5 pb-1 text-center border-l border-stone-200 dark:border-stone-800 min-w-0 ${
+                    menu?.dia === k && !menu.hora ? 'bg-blue-50/70 dark:bg-blue-950/30' : ''
+                  }`}
+                >
                   <div className={`text-[10px] font-semibold uppercase ${k === hoje ? 'text-blue-600 dark:text-blue-400' : 'text-stone-500 dark:text-stone-400'}`}>{DIAS[d.getDay()]}</div>
                   <div
                     className={`mx-auto w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold ${
@@ -241,10 +293,17 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
               {semana.map((d) => {
                 const k = chave(d);
                 return (
-                  <div key={k} className="relative border-l border-stone-200 dark:border-stone-800">
+                  <div key={k} onContextMenu={(e) => abrirMenu(e, k, null, horaDoClique(e))} className="relative border-l border-stone-200 dark:border-stone-800">
                     {Array.from({ length: 24 }, (_, h) => (
                       <div key={h} className="border-b border-stone-100 dark:border-stone-800/60" style={{ height: ALTURA_HORA }} />
                     ))}
+                    {/* Meia hora do botão direito, enquanto o menu está aberto */}
+                    {menu?.dia === k && menu.hora && (
+                      <div
+                        className="absolute left-0 right-0 bg-blue-100/80 dark:bg-blue-900/40 pointer-events-none"
+                        style={{ top: (minutos(menu.hora) / 60) * ALTURA_HORA, height: (PASSO_MINUTOS / 60) * ALTURA_HORA }}
+                      />
+                    )}
                     {distribuir((porDia[k] || []).filter((r) => r.hora_vencimento)).map((e) =>
                       // Caixa curta: hora e assunto numa linha; alta: o assunto quebra linhas
                       item(e.r, `absolute ${e.fim - e.ini >= 45 ? '!whitespace-normal' : ''}`, {
@@ -283,7 +342,13 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
               const cabem = 3;
               const foraDoMes = d.getMonth() !== ref.getMonth();
               return (
-                <div key={k} className={`min-h-[96px] p-1 border-b border-r border-stone-200 dark:border-stone-800 flex flex-col gap-0.5 min-w-0 ${foraDoMes ? 'bg-stone-50/70 dark:bg-stone-950/40' : ''}`}>
+                <div
+                  key={k}
+                  onContextMenu={(e) => abrirMenu(e, k, null)}
+                  className={`min-h-[96px] p-1 border-b border-r border-stone-200 dark:border-stone-800 flex flex-col gap-0.5 min-w-0 ${
+                    menu?.dia === k ? 'bg-blue-50/70 dark:bg-blue-950/30' : foraDoMes ? 'bg-stone-50/70 dark:bg-stone-950/40' : ''
+                  }`}
+                >
                   <button
                     type="button"
                     onClick={() => {
@@ -316,6 +381,53 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
           </div>
         </div>
       )}
+
+      {menu &&
+        createPortal(
+          <div
+            role="menu"
+            onMouseDown={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+            // Perto do pé ou da borda direita da tela, abre para cima / para a esquerda
+            style={{
+              ...(menu.y + ALTURA_MENU > window.innerHeight ? { bottom: window.innerHeight - menu.y } : { top: menu.y }),
+              ...(menu.x + 200 > window.innerWidth ? { right: window.innerWidth - menu.x } : { left: menu.x }),
+            }}
+            className="fixed z-[60] min-w-48 py-1 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-xl"
+          >
+            {onNovo && (
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  setMenu(null);
+                  onNovo(menu.dia, menu.hora);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+              >
+                <Plus className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-medium whitespace-nowrap text-stone-800 dark:text-stone-100">Novo</span>
+              </button>
+            )}
+            {onNovo && <div className="my-1 border-t border-stone-100 dark:border-stone-800" />}
+            <button
+              role="menuitem"
+              type="button"
+              disabled={!menu.row}
+              title={menu.row ? String(menu.row.assunto ?? '') : 'Clique com o botão direito em cima de uma atividade para editá-la'}
+              onClick={() => {
+                const row = menu.row;
+                setMenu(null);
+                if (row) onAbrir(row);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
+            >
+              <Pencil className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400" />
+              <span className="text-xs font-medium whitespace-nowrap text-stone-800 dark:text-stone-100">Editar</span>
+            </button>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

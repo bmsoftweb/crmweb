@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.65 — 2026-09-30
+
+- Atividades/Tarefas, visões Mês e Semana: botão direito abre um menu com "Novo" (inclusão já com o dia clicado; na grade de horas da semana, também a hora, de meia em meia hora) e "Editar" (a atividade sob o mouse; desabilitado em espaço vazio).
+
 ## 0.0.64 — 2026-09-30
 
 - Banco: `atividades.google_event_id` e `atividades.google_importada`; tipos de atividade `visita`, `reuniao_externa` e `reuniao_virtual` (SQL em extras/crmweb_schema.sql). Variáveis novas: `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` (cadastrar também na Vercel).
