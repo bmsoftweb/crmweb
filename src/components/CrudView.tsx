@@ -35,6 +35,8 @@ import { RecordForm } from './RecordForm';
 import { Toggle } from './Toggle';
 import { CellValue } from './CellValue';
 import { DetailPanel } from './DetailPanel';
+import { FichaPanel } from './FichaPanel';
+import { AgendaCalendario, VisaoCalendario } from './AgendaCalendario';
 import { AdvancedSearch } from './AdvancedSearch';
 import { BotaoAcao, MenuAcoes, SeparadorAcoes } from './MenuAcoes';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -453,6 +455,27 @@ export const CrudView: React.FC<CrudViewProps> = ({
   const [rapido, setRapido] = useState<string>(resource.filtroRapidoPadrao ?? '');
   const campoRapido = resource.filtroRapido ? resource.fields.find((f) => f.name === resource.filtroRapido) : undefined;
 
+  /** Lista ou calendário (resource.calendario); a escolha fica lembrada neste navegador */
+  const chaveVisao = `crmweb.visao.${resource.name}`;
+  const lerVisao = (): 'lista' | VisaoCalendario => {
+    if (!resource.calendario) return 'lista';
+    try {
+      const v = localStorage.getItem(chaveVisao);
+      return v === 'semana' || v === 'mes' ? v : 'lista';
+    } catch {
+      return 'lista';
+    }
+  };
+  const [visao, setVisao] = useState<'lista' | VisaoCalendario>(lerVisao);
+  const trocarVisao = (v: 'lista' | VisaoCalendario) => {
+    setVisao(v);
+    try {
+      localStorage.setItem(chaveVisao, v);
+    } catch {
+      // sem armazenamento: vale só até recarregar
+    }
+  };
+
   const [refOptions, setRefOptions] = useState<Record<string, OpcaoRef[]>>({});
 
   // Abas abertas e aba ativa
@@ -465,7 +488,9 @@ export const CrudView: React.FC<CrudViewProps> = ({
   const [selecionado, setSelecionado] = useState<RegistroCrud | null>(null);
 
   /** O mestre-detalhe exige detalhes declarados e chave primária simples */
-  const temDetalhe = Boolean(resource.details?.length) && resource.pk.length === 1;
+  const temGrades = Boolean(resource.details?.length) && resource.pk.length === 1;
+  /** Painel embaixo da lista: grades filhas ou a ficha do registro (resource.ficha) */
+  const temDetalhe = temGrades || Boolean(resource.ficha);
 
   const recordId = useCallback(
     (row: RegistroCrud) => resource.pk.map((c) => row[c]).join('~'),
@@ -496,6 +521,8 @@ export const CrudView: React.FC<CrudViewProps> = ({
     setFiltros(filtroPadrao);
     setRapido(resource.filtroRapidoPadrao ?? '');
     setBuscaAvancadaAberta(false);
+    setVisao(lerVisao());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource.name, resource.defaultSort.field, resource.defaultSort.dir, resource.filtroRapidoPadrao, filtroPadrao]);
 
   // A seleção do mestre-detalhe não sobrevive a uma troca de página ou de busca
@@ -507,9 +534,10 @@ export const CrudView: React.FC<CrudViewProps> = ({
   // Fechado no X, o painel só volta quando o usuário escolhe uma linha.
   const painelFechado = useRef(false);
   useEffect(() => {
-    if (temDetalhe && !selecionado && !painelFechado.current && rows.length) setSelecionado(rows[0]);
+    // No calendário, a ficha só abre quando o usuário escolhe uma atividade
+    if (temDetalhe && visao === 'lista' && !selecionado && !painelFechado.current && rows.length) setSelecionado(rows[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, temDetalhe]);
+  }, [rows, temDetalhe, visao]);
 
   /** Muda quando uma ação da lista (ex.: importação) pode ter criado registros referenciados */
   const [versaoCombos, setVersaoCombos] = useState(0);
@@ -579,6 +607,12 @@ export const CrudView: React.FC<CrudViewProps> = ({
     }
   };
 
+  /** Filtros da busca avançada + filtro rápido: a lista e o calendário usam os mesmos */
+  const filtrosEfetivos = useMemo<FiltroAvancado[]>(
+    () => (campoRapido && rapido ? [...filtros, { field: campoRapido.name, op: 'eq', value: rapido }] : filtros),
+    [filtros, campoRapido, rapido],
+  );
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -589,7 +623,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
         search,
         sort,
         dir,
-        filters: campoRapido && rapido ? [...filtros, { field: campoRapido.name, op: 'eq', value: rapido }] : filtros,
+        filters: filtrosEfetivos,
         arvore: modoArvore ? 'raizes' : undefined,
         minhas,
       });
@@ -610,7 +644,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [resource.name, page, limit, search, sort, dir, filtros, minhas, rapido, campoRapido, onCountChange, modoArvore, lerFilhos, resource.pk]);
+  }, [resource.name, page, limit, search, sort, dir, filtrosEfetivos, minhas, onCountChange, modoArvore, lerFilhos, resource.pk]);
 
   useEffect(() => {
     load();
@@ -1006,21 +1040,48 @@ export const CrudView: React.FC<CrudViewProps> = ({
             </span>
           )}
 
-          <select
-            value={limit}
-            onChange={(e) => {
-              setLimit(Number(e.target.value));
-              setPage(1);
-            }}
-            title="Registros por página"
-            className={`${INPUT_CLASS} shrink-0 cursor-pointer`}
-          >
-            {[10, 25, 50, 100].map((n) => (
-              <option key={n} value={n}>
-                {n} por página
-              </option>
-            ))}
-          </select>
+          {resource.calendario && (
+            <div className="inline-flex gap-0.5 p-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 shrink-0">
+              {(
+                [
+                  ['lista', 'Lista'],
+                  ['semana', 'Semana'],
+                  ['mes', 'Mês'],
+                ] as const
+              ).map(([v, rotulo]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => trocarVisao(v)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                    visao === v
+                      ? 'bg-white dark:bg-stone-700 text-blue-700 dark:text-blue-300 shadow-xs'
+                      : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {visao === 'lista' && (
+            <select
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value));
+                setPage(1);
+              }}
+              title="Registros por página"
+              className={`${INPUT_CLASS} shrink-0 cursor-pointer`}
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n} por página
+                </option>
+              ))}
+            </select>
+          )}
 
           {acoesLista?.(() => {
             // A ação pode ter criado registros referenciados (a importação cria segmentos):
@@ -1087,6 +1148,24 @@ export const CrudView: React.FC<CrudViewProps> = ({
         <AvisoErro mensagem={error} onFechar={() => setError(null)} className="mx-4 mt-3 shrink-0" />
       )}
 
+      {visao !== 'lista' ? (
+        <AgendaCalendario
+          resource={resource}
+          visao={visao}
+          filtros={filtrosEfetivos}
+          search={search}
+          minhas={minhas}
+          gatilho={rows}
+          selecionadoId={selecionado ? recordId(selecionado) : null}
+          onSelecionar={(row) => {
+            painelFechado.current = false;
+            setSelecionado(row);
+          }}
+          onAbrir={(row) => resource.canUpdate && abrirAbaEdicao(row)}
+          onVisao={trocarVisao}
+        />
+      ) : (
+      <>
       {/* Grade ocupando toda a altura restante */}
       <div className="flex-1 overflow-auto min-h-0">
         <table ref={tabelaRef} className="w-full text-xs border-separate border-spacing-0">
@@ -1338,9 +1417,25 @@ export const CrudView: React.FC<CrudViewProps> = ({
           </div>
         </div>
       )}
+      </>
+      )}
 
       {/* Mestre-detalhe: grades filhas do registro selecionado */}
-      {temDetalhe && selecionado && (
+      {/* Ficha: a linha recarregada (após editar/concluir), não a cópia do clique */}
+      {!temGrades && resource.ficha && selecionado && (
+        <FichaPanel
+          resource={resource}
+          row={rows.find((r) => recordId(r) === recordId(selecionado)) ?? selecionado}
+          label={recordLabel(selecionado)}
+          refOptions={refOptions}
+          onClose={() => {
+            painelFechado.current = true;
+            setSelecionado(null);
+          }}
+        />
+      )}
+
+      {temGrades && selecionado && (
         <DetailPanel
           key={recordId(selecionado)}
           parent={resource}
@@ -1362,7 +1457,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
       {temDetalhe && !selecionado && rows.length > 0 && (
         <div className="px-4 py-2 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950/40 text-[11px] text-stone-500 dark:text-stone-400 shrink-0">
           Clique em um {resource.labelSingular.toLowerCase()} para ver{' '}
-          {resource.details!.map((d) => d.label.toLowerCase()).join(' e ')} aqui embaixo. Duplo clique
+          {temGrades ? resource.details!.map((d) => d.label.toLowerCase()).join(' e ') : 'os detalhes'} aqui embaixo. Duplo clique
           abre o registro para edição.
         </div>
       )}

@@ -2,6 +2,16 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.64 — 2026-09-30
+
+- Banco: `atividades.google_event_id` e `atividades.google_importada`; tipos de atividade `visita`, `reuniao_externa` e `reuniao_virtual` (SQL em extras/crmweb_schema.sql). Variáveis novas: `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` (cadastrar também na Vercel).
+- Google Agenda (Configurações › Google Agenda): conecta a conta Google da empresa. Do Google para o CRM vêm todos os eventos (de hoje em diante) de todas as agendas da conta; evento alterado ou excluído no Google altera ou exclui a atividade. Do CRM para o Google vão só Visita e Reunião Interna/Externa/Virtual, na agenda escolhida (botão Salvar). Tipo do evento importado pelo ícone do título ou pelo texto (reunião na BM = Interna, online/Meet = Virtual, outra reunião = Externa, o resto = Tarefa). Sincroniza a cada minuto (cron da Vercel) e pelo botão "Sincronizar agora".
+- Reuniões levam ícone no começo do assunto: 🚗 Externa, 🏠 Interna, 💻 Virtual.
+- Tipos de atividade: "Reunião" passa a se chamar Reunião Interna; novos Visita, Reunião Externa e Reunião Virtual.
+- Atividades/Tarefas: visões Semana (domingo primeiro, grade de horas) e Mês, além da Lista; atividades vindas do Google em roxo (Origem "Google Agenda"); clicar numa atividade abre embaixo a ficha com todos os campos e os textos completos (observação, resultado, resumo do bot).
+- Páginas públicas de Política de Privacidade (/privacidade.html) e Termos de Serviço (/termos.html), exigidas pelo Google.
+- WhatsApp: o aviso "Atendimento liberado pelo tempo" diz quem não respondeu (o atendente ou o cliente).
+
 ## 0.0.63 — 2026-09-30
 
 - Aviso de atividade nova: quando outra pessoa marca uma atividade para o usuário (Quem executa) ou para o departamento dele (sem usuário), toca a campainha e mostra o aviso em qualquer tela; com o navegador em outra janela ou aba, notificação do sistema que abre Atividades. As que o próprio usuário grava não avisam.

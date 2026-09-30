@@ -7,13 +7,19 @@ import {
   Utensils,
   StickyNote,
   MessageCircle,
+  MapPin,
+  Handshake,
+  Laptop,
   type LucideIcon,
 } from 'lucide-react';
 import { hojeIso } from './formatters';
 
 export const TIPOS_ATIVIDADE: { value: string; label: string; icon: LucideIcon }[] = [
   { value: 'ligacao', label: 'Ligação', icon: Phone },
-  { value: 'reuniao', label: 'Reunião', icon: Users },
+  { value: 'reuniao', label: 'Reunião Interna', icon: Users },
+  { value: 'reuniao_externa', label: 'Reunião Externa', icon: Handshake },
+  { value: 'reuniao_virtual', label: 'Reunião Virtual', icon: Laptop },
+  { value: 'visita', label: 'Visita', icon: MapPin },
   { value: 'tarefa', label: 'Tarefa', icon: CheckSquare },
   { value: 'prazo', label: 'Prazo', icon: Flag },
   { value: 'email', label: 'E-mail', icon: Mail },

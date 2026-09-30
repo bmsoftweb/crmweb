@@ -31,7 +31,7 @@ export const PADRAO: ConfigAutomaticas = {
   atividade: {
     ativo: false,
     horas: 24,
-    tipos: ['reuniao', 'ligacao', 'almoco'],
+    tipos: ['reuniao', 'reuniao_externa', 'reuniao_virtual', 'visita', 'ligacao', 'almoco'],
     texto: 'Olá, {{primeiro_nome}}! Passando para lembrar: {{tipo}} "{{assunto}}" em {{data}} às {{hora}}. Até lá! — {{empresa}}',
     texto_vendedor: 'Lembrete: {{tipo}} "{{assunto}}" com {{nome}} ({{telefone_cliente}}) em {{data}} às {{hora}}.',
   },

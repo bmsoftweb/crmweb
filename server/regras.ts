@@ -3,6 +3,7 @@ import { tirarProprietarioDosEnvolvidos } from './participantes.js';
 import { contarPublico, normalizarCriterios, variaveisDoTexto } from './campanhas.js';
 import { recalcularContrato } from './contratos.js';
 import { gravarMensagem } from './chamados.js';
+import { assuntoComIcone } from './schema.js';
 
 /**
  * Regras aplicadas depois de qualquer gravação, venha ela das telas genéricas de CRUD,
@@ -50,6 +51,11 @@ export async function antesDeGravar(recurso: string, payload: Record<string, any
   }
   if (recurso === 'atividades' && Number(payload.executor_bot) && payload.lembrete_para === 'nenhum') {
     throw new Error('Com o Bot executando, escolha em "Lembrete para" com quem ele conversa.');
+  }
+  // Reunião externa/interna/virtual: ícone no começo do assunto (a tela manda assunto e tipo juntos)
+  // ponytail: gravação parcial com só um dos dois não ajusta o ícone; ler o registro aqui se isso passar a existir
+  if (recurso === 'atividades' && 'assunto' in payload && 'tipo' in payload) {
+    payload.assunto = assuntoComIcone(payload.assunto, payload.tipo);
   }
   if (recurso === 'negocios' && payload.etapa_id) {
     const [rows] = await pool.query<any[]>('SELECT funil_id FROM etapas WHERE id = ?', [payload.etapa_id]);

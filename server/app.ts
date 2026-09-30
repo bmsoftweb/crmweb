@@ -26,6 +26,7 @@ import { createAceiteRouter } from './aceite.js';
 import { createSuporteRouter } from './suporte.js';
 import { createFotosRouter } from './fotos.js';
 import { createChamadosRouter } from './chamados.js';
+import { createAgendaGoogleRouter, createRetornoAgendaGoogleRouter, sincronizarAgendas } from './agendaGoogle.js';
 import { waitUntil } from '@vercel/functions';
 import { lerPermissoes, prepararPermissoes } from './permissoes.js';
 import { PERFIS } from './schema.js';
@@ -166,6 +167,9 @@ export function createApp() {
   // Aceite da proposta pelo link enviado ao cliente (público: o token do link identifica a proposta)
   app.use(createAceiteRouter());
 
+  // Volta da autorização do Google Agenda (pública: o state cifrado identifica a empresa)
+  app.use(createRetornoAgendaGoogleRouter());
+
   // Suporte pelo site (widget público: o token do chamado dá acesso só a ele)
   app.use(createSuporteRouter());
 
@@ -216,11 +220,13 @@ export function createApp() {
     '/api/cron/whatsapp',
     cron(async () => {
       // Bot das atividades também em paralelo: cada contato espera a IA
-      const [inatividade, atividadesBot, respostasPesquisa, resto] = await Promise.all([
+      const [inatividade, atividadesBot, respostasPesquisa, agendaGoogle, resto] = await Promise.all([
         verificarInatividade(),
         rodarBotAtividades(45_000),
         // Respostas da pesquisa de satisfação por e-mail (IMAP), também em paralelo
         lerRespostasPesquisa().catch((e) => `falhou: ${e.message}`),
+        // Google Agenda da empresa, nos dois sentidos (server/agendaGoogle.ts)
+        sincronizarAgendas(25_000).catch((e) => `falhou: ${e.message}`),
         (async () => ({
           campanhas: await enviarPendentes(50, 25_000),
           emails: await enviarEmailsCampanha(50, 20_000),
@@ -228,7 +234,7 @@ export function createApp() {
           jornadas: await retomarJornadas(20_000),
         }))(),
       ]);
-      return { ...resto, inatividade, atividadesBot, respostasPesquisa };
+      return { ...resto, inatividade, atividadesBot, respostasPesquisa, agendaGoogle };
     }),
   );
   app.get('/api/cron/contratos', cron(rotinaContratos));
@@ -333,6 +339,7 @@ export function createApp() {
   });
 
   app.use('/api', createConfigRouter());
+  app.use('/api', createAgendaGoogleRouter());
   app.use('/api', createImportBmRouter());
   app.use('/api', createFotosRouter());
   app.use('/api', createChamadosRouter());

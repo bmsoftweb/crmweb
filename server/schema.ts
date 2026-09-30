@@ -129,6 +129,10 @@ export interface ResourceDef {
   /** Excluir só preenche esta coluna com NOW() (o scopeSql deve esconder os excluídos) */
   exclusaoLogica?: string;
   details?: DetailDef[];
+  /** Ao clicar numa linha, mostra embaixo a ficha com todos os campos (textos longos por inteiro) */
+  ficha?: boolean;
+  /** Atividades: além da lista, visões Semana e Mês (data_vencimento, hora_vencimento, duracao, assunto) */
+  calendario?: boolean;
   /**
    * Lista em árvore: registros com o mesmo `grupo` formam uma família; o de menor `ordem`
    * é a raiz e os demais aparecem como filhos (ex.: versões de uma proposta).
@@ -146,13 +150,36 @@ const STATUS_NEGOCIO = [
 
 export const TIPOS_ATIVIDADE = [
   { value: 'ligacao', label: 'Ligação' },
-  { value: 'reuniao', label: 'Reunião' },
+  { value: 'reuniao', label: 'Reunião Interna' },
+  { value: 'reuniao_externa', label: 'Reunião Externa' },
+  { value: 'reuniao_virtual', label: 'Reunião Virtual' },
+  { value: 'visita', label: 'Visita' },
   { value: 'tarefa', label: 'Tarefa' },
   { value: 'prazo', label: 'Prazo' },
   { value: 'email', label: 'E-mail' },
   { value: 'almoco', label: 'Almoço' },
   { value: 'whatsapp', label: 'WhatsApp' },
 ];
+
+/** Ícone no começo do assunto das reuniões (vai junto para o título do evento no Google Agenda) */
+export const ICONE_DO_TIPO: Record<string, string> = { reuniao_externa: '🚗', reuniao: '🏠', reuniao_virtual: '💻' };
+const ICONES = Object.values(ICONE_DO_TIPO);
+
+/** Assunto com o ícone do tipo: troca o de outro tipo de reunião e tira o ícone quando o tipo não tem */
+export function assuntoComIcone(assunto: string, tipo: string | null | undefined): string {
+  let texto = String(assunto ?? '').trimStart();
+  for (let achou = true; achou; ) {
+    achou = false;
+    for (const i of ICONES) {
+      if (texto.startsWith(i)) {
+        texto = texto.slice(i.length).trimStart();
+        achou = true;
+      }
+    }
+  }
+  const icone = tipo ? ICONE_DO_TIPO[tipo] : undefined;
+  return icone ? `${icone} ${texto}` : texto;
+}
 
 /** Papel do contato na venda */
 export const PAPEIS_CONTATO = [
@@ -398,6 +425,8 @@ export const RESOURCES: ResourceDef[] = [
     filtroRapido: 'concluida',
     // Abre nas pendentes
     filtroRapidoPadrao: '0',
+    ficha: true,
+    calendario: true,
     // Minhas: as do usuário, as do departamento dele e as de qualquer pessoa
     minhasSql: `(t.executor_id = ? OR (t.executor_id IS NULL AND (t.departamento_id IS NULL
                    OR t.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)))
@@ -462,13 +491,16 @@ export const RESOURCES: ResourceDef[] = [
         listed: true,
         filterable: true,
         options: [
+          { value: 'google', label: 'Google Agenda' },
           { value: 'pesquisa', label: 'Pesquisa de satisfação' },
           { value: 'bot', label: 'Bot' },
           { value: 'pendencia', label: 'Pendência da conversa' },
           { value: 'chamado', label: 'Chamado' },
           { value: 'manual', label: 'Manual' },
         ],
-        sql: `(CASE WHEN EXISTS (SELECT 1 FROM pesquisas_satisfacao_itens i WHERE i.atividade_id = t.id) OR t.observacao LIKE 'Retorno da pesquisa de satisfação%' THEN 'pesquisa'
+        // Google Agenda: atividade criada a partir de um evento do Google (server/agendaGoogle.ts)
+        sql: `(CASE WHEN t.google_importada = 1 THEN 'google'
+                    WHEN EXISTS (SELECT 1 FROM pesquisas_satisfacao_itens i WHERE i.atividade_id = t.id) OR t.observacao LIKE 'Retorno da pesquisa de satisfação%' THEN 'pesquisa'
                     WHEN t.executor_bot = 1 THEN 'bot' WHEN t.observacao LIKE 'Identificada pela análise automática%' THEN 'pendencia'
                     WHEN t.chamado_id IS NOT NULL THEN 'chamado' ELSE 'manual' END)`,
       },

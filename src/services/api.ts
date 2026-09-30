@@ -451,6 +451,30 @@ export const cadastrarWebhookCofreD4Sign = (): Promise<{ url: string; conferido:
 /** Testa as chaves da D4Sign gravadas e devolve os cofres da conta */
 export const testarD4Sign = (): Promise<{ cofres: { uuid: string; nome: string }[]; cofre: string; cofre_ok: boolean }> => enviar('POST', '/api/config/assinatura/d4sign/testar');
 
+export interface SituacaoAgendaGoogle {
+  /** O servidor tem GOOGLE_CLIENT_ID/SECRET */
+  disponivel: boolean;
+  conectado: boolean;
+  conta: string | null;
+  conectado_em: string | null;
+  ultima_sinc: string | null;
+  erro: string | null;
+  /** Agendas lidas (as da conta em que ela pode gravar) */
+  agendas: { id: string; nome: string; principal?: boolean }[];
+  /** Agenda que recebe as visitas e reuniões do CRM */
+  destino: string | null;
+  /** Conexão antiga, sem permissão de listar as agendas: só a principal é lida */
+  reconectar: boolean;
+}
+export const salvarDestinoAgendaGoogle = (id: string): Promise<void> => enviar('PUT', '/api/agenda/google/destino', { id });
+/** Roda a sincronização na hora (a mesma do cron de cada minuto) */
+export const sincronizarAgendaGoogle = (): Promise<{ recebidos: number; enviados: number; limpos: number }> =>
+  enviar('POST', '/api/agenda/google/sincronizar');
+export const situacaoAgendaGoogle = (): Promise<SituacaoAgendaGoogle> => get('/api/agenda/google');
+/** Endereço de autorização do Google (abre numa janela; a volta grava a conexão) */
+export const conectarAgendaGoogle = (origem: string): Promise<{ url: string }> => enviar('POST', '/api/agenda/google/conectar', { origem });
+export const desconectarAgendaGoogle = (): Promise<void> => enviar('POST', '/api/agenda/google/desconectar');
+
 /** Gera o contrato (rascunho) da proposta aceita, com cliente, negócio e itens copiados */
 export const gerarContratoDaProposta = (id: Id): Promise<{ id: number; numero: number }> =>
   enviar('POST', `/api/crm/propostas/${encodeURIComponent(String(id))}/contrato`);

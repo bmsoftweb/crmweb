@@ -76,6 +76,10 @@ export interface ResourceDef {
   canUpdate: boolean;
   canDelete: boolean;
   details?: DetailDef[];
+  /** Ao clicar numa linha, mostra embaixo a ficha com todos os campos (textos longos por inteiro) */
+  ficha?: boolean;
+  /** Atividades: além da lista, visões Semana e Mês (data_vencimento, hora_vencimento, duracao, assunto) */
+  calendario?: boolean;
   /**
    * Lista em árvore: registros com o mesmo `grupo` formam uma família; o de menor `ordem`
    * é a raiz e os demais aparecem como filhos (ex.: versões de uma proposta).

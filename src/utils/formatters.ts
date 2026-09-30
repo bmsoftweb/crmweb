@@ -150,6 +150,8 @@ export const STATUS_COLORS: Record<string, string> = {
   enviado: AZUL,
   entregue: VERDE,
   lido: ROXO,
+  // Origem das atividades
+  google: ROXO,
 };
 
 export const STATUS_LABELS: Record<string, string> = {

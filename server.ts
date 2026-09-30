@@ -11,6 +11,7 @@ import { iniciarInatividade } from './server/inatividade.js';
 import { iniciarEmailsCampanha } from './server/campanhas.js';
 import { iniciarBotAtividades } from './server/atividadeBot.js';
 import { iniciarRespostasPesquisa } from './server/pesquisasSatisfacao.js';
+import { iniciarAgendaGoogle } from './server/agendaGoogle.js';
 
 /** Entrada para execução local (npm run dev / start). Na Vercel quem serve as rotas é api/index.ts */
 const PORT = Number(process.env.PORT) || 3000;
@@ -43,6 +44,7 @@ async function startServer() {
     iniciarBotAtividades();
     iniciarRespostasPesquisa();
     iniciarRotinaContratos();
+    iniciarAgendaGoogle();
   });
 }
 

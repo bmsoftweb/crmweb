@@ -283,7 +283,13 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
         'UPDATE whatsapp_conversas SET atendente_id = NULL, atendido_em = NULL, humano_desde = NOW(), atualizado_em = NOW() WHERE empresa_id = ? AND telefone = ?',
         [empresaId, telefone],
       );
-      await marcarEvento(empresaId, telefone, `Atendimento liberado pelo tempo: ${c.atendente_nome ?? 'o atendente'} não respondeu`, null, c.esgotou_em);
+      // Quem ficou devendo a resposta: a última mensagem antes de esgotar foi do cliente (atendente não respondeu) ou do atendente (cliente não respondeu)
+      const [ult] = await pool.query<any[]>(
+        "SELECT direcao FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ? AND tipo <> 'evento' AND data_hora <= ? ORDER BY data_hora DESC, id DESC LIMIT 1",
+        [empresaId, telefone, c.esgotou_em],
+      );
+      const quem = ult[0]?.direcao === 'recebida' ? (c.atendente_nome ?? 'o atendente') : 'Cliente';
+      await marcarEvento(empresaId, telefone, `Atendimento liberado pelo tempo: ${quem} não respondeu`, null, c.esgotou_em);
       return 'humano';
     }
     if (!comBot) return 'humano';

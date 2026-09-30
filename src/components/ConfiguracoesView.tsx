@@ -10,6 +10,7 @@ import { ConfigJornada } from './ConfigJornada';
 import { ConfigVendas } from './ConfigVendas';
 import { ConfigAssinatura } from './ConfigAssinatura';
 import { ModelosContrato } from './ModelosContrato';
+import { ConfigAgendaGoogle } from './ConfigAgendaGoogle';
 
 /**
  * Configurações da empresa, no mesmo formato do meuConsultorioWeb: uma aba por
@@ -55,6 +56,11 @@ const ABAS = [
     id: 'assinatura',
     titulo: 'Assinatura (D4Sign)',
     descricao: 'Conta da D4Sign usada para enviar os contratos para assinatura eletrônica.',
+  },
+  {
+    id: 'agenda',
+    titulo: 'Google Agenda',
+    descricao: 'Agenda do Google da empresa: os eventos viram atividades, e visitas e reuniões do CRM vão para a agenda.',
   },
   {
     id: 'modelos_contrato',
@@ -147,6 +153,7 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
           {aba === 'automaticas' && <ConfigAutomaticas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'vendas' && <ConfigVendas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'assinatura' && <ConfigAssinatura somenteLeitura={somenteLeitura} onToast={onToast} />}
+          {aba === 'agenda' && <ConfigAgendaGoogle somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'modelos_contrato' && <ModelosContrato somenteLeitura={somenteLeitura} onToast={onToast} />}
         </div>
       </div>

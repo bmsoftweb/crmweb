@@ -8,7 +8,7 @@ import { gravarEnderecos, normalizarEnderecos } from './enderecos.js';
 import { gravarEnvolvidosAtividade, gravarParticipantes, normalizarParticipantes } from './participantes.js';
 import { conferirTrava, contratoDoItem, recalcularContrato } from './contratos.js';
 import { apagarFotosRemovidas, fotosDoProduto, prepararFotos } from './fotos.js';
-
+import { apagarEventoGoogle, TIPOS_NA_AGENDA } from './agendaGoogle.js';
 /** Metadados enviados ao navegador: a consulta própria dos combos fica só no servidor */
 // O SQL próprio (combos, colunas calculadas) não sai do servidor
 const RESOURCES_PUBLICOS = RESOURCES.map(({ optionsSql, minhasSql, ...r }) => ({ ...r, minhas: Boolean(minhasSql), fields: r.fields.map(({ sql, ...f }) => f) }));
@@ -514,6 +514,13 @@ export function createCrudRouter() {
       // Item de contrato: o contrato precisa ser recalculado depois que o item sair
       const contratoAfetado = resource.name === 'contrato_itens' ? await contratoDoItem(req.params.id) : null;
       const fotosAntes = resource.name === 'produtos' ? await fotosDoProduto(req.params.id, empresaDa(res)) : null;
+      // Visita/reunião levada ao Google Agenda: o evento sai junto (os outros tipos não são do CRM na agenda)
+      const eventoGoogle =
+        resource.name === 'atividades'
+          ? await pool
+              .query<any[]>('SELECT google_event_id FROM atividades WHERE id = ? AND tipo IN (?)', [req.params.id, TIPOS_NA_AGENDA])
+              .then(([r]) => r[0]?.google_event_id ?? null)
+          : null;
       const [result] = await pool.query<any>(
         resource.exclusaoLogica
           ? `UPDATE ${resource.table} t SET t.${resource.exclusaoLogica} = NOW() WHERE ${resource.scopeSql} AND t.${pkCol(resource)} = ?`
@@ -528,6 +535,7 @@ export function createCrudRouter() {
       await aposGravar(resource.name, resource.exclusaoLogica ? req.params.id : null, afetados);
       if (contratoAfetado) await recalcularContrato(contratoAfetado);
       if (fotosAntes) await apagarFotosRemovidas(fotosAntes, []);
+      if (eventoGoogle) await apagarEventoGoogle(String(empresaDa(res)), eventoGoogle).catch((e) => console.error(`Google Agenda: ${e.message}`));
       res.json({ success: true });
     } catch (err: any) {
       res.status(400).json({ error: friendlyDbError(err, resource?.labelSingular) });
