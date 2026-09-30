@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus } from 'lucide-react';
 import { FiltroAvancado, RegistroCrud, ResourceDef } from '../types';
-import { listRecords } from '../services/api';
+import { listRecords, updateRecord } from '../services/api';
 import { AvisoErro } from './AvisoErro';
 
 export type VisaoCalendario = 'semana' | 'mes';
@@ -22,7 +22,24 @@ interface Props {
   /** Inclusão já com o dia (AAAA-MM-DD) e, na semana, a hora clicada (HH:MM); sem ela (sem permissão de incluir), o menu não oferece "Novo" */
   onNovo?: (data: string, hora: string | null) => void;
   onVisao: (v: VisaoCalendario) => void;
+  /** Arrastar muda dia/hora (sem permissão de alterar, as atividades não arrastam) */
+  podeMover: boolean;
+  /** Uma atividade foi movida e gravada: a lista e a ficha releem */
+  onAlterado: () => void;
 }
+
+/** Arraste em andamento: a atividade e, na grade da semana, quantos minutos abaixo do início ela foi pega */
+interface Arraste {
+  row: RegistroCrud;
+  pegaMin: number;
+}
+/** Onde a atividade vai cair: dia e hora (null = dia inteiro; undefined = mantém a hora, no mês) */
+interface Alvo {
+  dia: string;
+  hora?: string | null;
+}
+/** Na grade da semana, o arraste anda de 15 em 15 minutos */
+const PASSO_ARRASTE = 15;
 
 /** Menu do botão direito: onde abriu, o dia, a hora (grade da semana) e a atividade sob o mouse (null = espaço vazio) */
 interface MenuDia {
@@ -93,7 +110,21 @@ export function distribuir(itens: RegistroCrud[]) {
  * Visões Semana e Mês das atividades (Atividades/Tarefas), no estilo do Google Agenda: domingo primeiro,
  * clique seleciona (a ficha abre embaixo), duplo clique abre para edição.
  */
-export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, search, minhas, gatilho, selecionadoId, onSelecionar, onAbrir, onNovo, onVisao }) => {
+export const AgendaCalendario: React.FC<Props> = ({
+  resource,
+  visao,
+  filtros,
+  search,
+  minhas,
+  gatilho,
+  selecionadoId,
+  onSelecionar,
+  onAbrir,
+  onNovo,
+  onVisao,
+  podeMover,
+  onAlterado,
+}) => {
   const [menu, setMenu] = useState<MenuDia | null>(null);
 
   // Fecha ao clicar fora, rolar ou Esc (como o menu "..." das listas)
@@ -137,6 +168,67 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
   const hoje = chave(agora);
   const pk = resource.pk[0];
 
+  // ---------------------------------------------------------------- Arrastar para mudar dia/hora
+  const arraste = useRef<Arraste | null>(null);
+  const [alvo, setAlvo] = useState<Alvo | null>(null);
+  /** Muda quando é preciso reler o período (ex.: o servidor recusou a mudança) */
+  const [recarga, setRecarga] = useState(0);
+
+  const pegar = (e: React.DragEvent<HTMLElement>, r: RegistroCrud) => {
+    if (!podeMover) return e.preventDefault();
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(r[pk])); // sem dado o Firefox não arrasta
+    // Na grade da semana, a atividade acompanha o ponto em que foi pega (não pula o início para o mouse)
+    const pegaMin = r.hora_vencimento ? ((e.clientY - e.currentTarget.getBoundingClientRect().top) / ALTURA_HORA) * 60 : 0;
+    arraste.current = { row: r, pegaMin };
+    setMenu(null);
+  };
+  const soltarFim = () => {
+    arraste.current = null;
+    setAlvo(null);
+  };
+
+  /** Sobre um dia (mês ou faixa "dia inteiro" da semana): hora undefined mantém / null tira a hora */
+  const sobreDia = (e: React.DragEvent, dia: string, hora: undefined | null) => {
+    if (!arraste.current) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (alvo?.dia !== dia || alvo.hora !== hora) setAlvo({ dia, hora });
+  };
+  /** Sobre a coluna de horas da semana: a hora sai da posição do mouse, de 15 em 15 min */
+  const sobreHora = (e: React.DragEvent<HTMLElement>, dia: string) => {
+    const a = arraste.current;
+    if (!a) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+    const bruto = (y / ALTURA_HORA) * 60 - a.pegaMin;
+    const min = Math.min(Math.max(Math.round(bruto / PASSO_ARRASTE) * PASSO_ARRASTE, 0), 24 * 60 - PASSO_ARRASTE);
+    const hora = `${doisDigitos(Math.floor(min / 60))}:${doisDigitos(min % 60)}`;
+    if (alvo?.dia !== dia || alvo.hora !== hora) setAlvo({ dia, hora });
+  };
+
+  const soltar = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const a = arraste.current;
+    const destino = alvo;
+    soltarFim();
+    if (!a || !destino) return;
+    const r = a.row;
+    const horaAtual = r.hora_vencimento ? String(r.hora_vencimento).slice(0, 5) : null;
+    const hora = destino.hora === undefined ? horaAtual : destino.hora;
+    if (destino.dia === String(r.data_vencimento).slice(0, 10) && hora === horaAtual) return;
+    // Já aparece no lugar novo; se o servidor recusar, relê o período
+    setItens((lista) => lista.map((x) => (x[pk] === r[pk] ? { ...x, data_vencimento: destino.dia, hora_vencimento: hora ? `${hora}:00` : null } : x)));
+    try {
+      await updateRecord(resource.name, r[pk] as string | number, { data_vencimento: destino.dia, ...(destino.hora === undefined ? {} : { hora_vencimento: hora }) });
+      onAlterado();
+    } catch (err: any) {
+      setErro(err.message || 'Não foi possível mover a atividade.');
+      setRecarga((n) => n + 1);
+    }
+  };
+
   // Todas as atividades do período, página a página (o servidor devolve até 200 por vez)
   useEffect(() => {
     let vivo = true;
@@ -157,7 +249,7 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
     return () => {
       vivo = false;
     };
-  }, [resource.name, de, ate, filtros, search, minhas, gatilho]);
+  }, [resource.name, de, ate, filtros, search, minhas, gatilho, recarga]);
 
   // Linha da hora atual
   useEffect(() => {
@@ -204,6 +296,9 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
       key={String(r[pk])}
       type="button"
       style={estilo}
+      draggable={podeMover}
+      onDragStart={(e) => pegar(e, r)}
+      onDragEnd={soltarFim}
       onContextMenu={(e) => abrirMenu(e, String(r.data_vencimento).slice(0, 10), r)}
       onClick={(e) => {
         e.stopPropagation();
@@ -216,7 +311,7 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
       title={`${r.hora_vencimento ? `${String(r.hora_vencimento).slice(0, 5)} ` : ''}${r.assunto ?? ''}${r.quem_executa ? ` • ${r.quem_executa}` : ''}`}
       className={`text-left text-[11px] leading-tight rounded border px-1.5 py-0.5 truncate cursor-pointer ${cor(r)} ${
         selecionadoId === String(r[pk]) ? 'ring-2 ring-blue-500 dark:ring-blue-400 z-10' : ''
-      } ${extra}`}
+      } ${alvo && arraste.current?.row[pk] === r[pk] ? 'opacity-40' : ''} ${extra}`}
     >
       {r.hora_vencimento && <span className="font-semibold mr-1">{String(r.hora_vencimento).slice(0, 5)}</span>}
       {String(r.assunto ?? '')}
@@ -262,8 +357,11 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
                 <div
                   key={k}
                   onContextMenu={(e) => abrirMenu(e, k, null)}
+                  // Soltar aqui: dia inteiro (sem hora)
+                  onDragOver={(e) => sobreDia(e, k, null)}
+                  onDrop={soltar}
                   className={`px-1 pt-1.5 pb-1 text-center border-l border-stone-200 dark:border-stone-800 min-w-0 ${
-                    menu?.dia === k && !menu.hora ? 'bg-blue-50/70 dark:bg-blue-950/30' : ''
+                    (menu?.dia === k && !menu.hora) || (alvo?.dia === k && alvo.hora === null) ? 'bg-blue-50/70 dark:bg-blue-950/30' : ''
                   }`}
                 >
                   <div className={`text-[10px] font-semibold uppercase ${k === hoje ? 'text-blue-600 dark:text-blue-400' : 'text-stone-500 dark:text-stone-400'}`}>{DIAS[d.getDay()]}</div>
@@ -293,7 +391,25 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
               {semana.map((d) => {
                 const k = chave(d);
                 return (
-                  <div key={k} onContextMenu={(e) => abrirMenu(e, k, null, horaDoClique(e))} className="relative border-l border-stone-200 dark:border-stone-800">
+                  <div
+                    key={k}
+                    onContextMenu={(e) => abrirMenu(e, k, null, horaDoClique(e))}
+                    onDragOver={(e) => sobreHora(e, k)}
+                    onDrop={soltar}
+                    className="relative border-l border-stone-200 dark:border-stone-800"
+                  >
+                    {/* Onde a atividade arrastada vai cair, com a duração dela */}
+                    {alvo?.dia === k && alvo.hora && arraste.current && (
+                      <div
+                        className="absolute left-0.5 right-0.5 z-30 rounded border-2 border-dashed border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 pointer-events-none text-[11px] font-semibold text-blue-800 dark:text-blue-200 px-1"
+                        style={{
+                          top: (minutos(alvo.hora) / 60) * ALTURA_HORA,
+                          height: (Math.max(minutos(arraste.current.row.duracao), MINUTOS_MINIMOS) / 60) * ALTURA_HORA - 2,
+                        }}
+                      >
+                        {alvo.hora}
+                      </div>
+                    )}
                     {Array.from({ length: 24 }, (_, h) => (
                       <div key={h} className="border-b border-stone-100 dark:border-stone-800/60" style={{ height: ALTURA_HORA }} />
                     ))}
@@ -345,8 +461,15 @@ export const AgendaCalendario: React.FC<Props> = ({ resource, visao, filtros, se
                 <div
                   key={k}
                   onContextMenu={(e) => abrirMenu(e, k, null)}
+                  // Soltar aqui: muda o dia e mantém a hora
+                  onDragOver={(e) => sobreDia(e, k, undefined)}
+                  onDrop={soltar}
                   className={`min-h-[96px] p-1 border-b border-r border-stone-200 dark:border-stone-800 flex flex-col gap-0.5 min-w-0 ${
-                    menu?.dia === k ? 'bg-blue-50/70 dark:bg-blue-950/30' : foraDoMes ? 'bg-stone-50/70 dark:bg-stone-950/40' : ''
+                    menu?.dia === k || alvo?.dia === k
+                      ? 'bg-blue-50/70 dark:bg-blue-950/30'
+                      : foraDoMes
+                      ? 'bg-stone-50/70 dark:bg-stone-950/40'
+                      : ''
                   }`}
                 >
                   <button

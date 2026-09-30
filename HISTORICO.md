@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.66 — 2026-09-30
+
+- Atividades/Tarefas, visão Semana: arrastar a atividade muda o horário (de 15 em 15 min) e o dia; soltar na faixa do dia inteiro tira a hora; sombra mostra onde vai cair.
+- Visão Mês: arrastar a atividade muda o dia (mantém a hora).
+- Visão Lista: não mostra as atividades vindas do Google Agenda (aparecem só em Semana e Mês; o contador avisa).
+
 ## 0.0.65 — 2026-09-30
 
 - Atividades/Tarefas, visões Mês e Semana: botão direito abre um menu com "Novo" (inclusão já com o dia clicado; na grade de horas da semana, também a hora, de meia em meia hora) e "Editar" (a atividade sob o mouse; desabilitado em espaço vazio).

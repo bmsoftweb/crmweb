@@ -80,6 +80,8 @@ export interface ResourceDef {
   ficha?: boolean;
   /** Atividades: além da lista, visões Semana e Mês (data_vencimento, hora_vencimento, duracao, assunto) */
   calendario?: boolean;
+  /** Filtro aplicado só na visão Lista (o calendário mostra tudo), com o aviso que aparece no contador */
+  filtroLista?: FiltroAvancado & { aviso: string };
   /**
    * Lista em árvore: registros com o mesmo `grupo` formam uma família; o de menor `ordem`
    * é a raiz e os demais aparecem como filhos (ex.: versões de uma proposta).

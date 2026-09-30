@@ -133,6 +133,8 @@ export interface ResourceDef {
   ficha?: boolean;
   /** Atividades: além da lista, visões Semana e Mês (data_vencimento, hora_vencimento, duracao, assunto) */
   calendario?: boolean;
+  /** Filtro aplicado só na visão Lista (o calendário mostra tudo), com o aviso que aparece no contador */
+  filtroLista?: { field: string; op: 'eq' | 'ne'; value: string; aviso: string };
   /**
    * Lista em árvore: registros com o mesmo `grupo` formam uma família; o de menor `ordem`
    * é a raiz e os demais aparecem como filhos (ex.: versões de uma proposta).
@@ -427,6 +429,8 @@ export const RESOURCES: ResourceDef[] = [
     filtroRapidoPadrao: '0',
     ficha: true,
     calendario: true,
+    // As vindas do Google Agenda aparecem só no calendário
+    filtroLista: { field: 'origem', op: 'ne', value: 'google', aviso: 'sem as vindas do Google Agenda (veja em Semana ou Mês)' },
     // Minhas: as do usuário, as do departamento dele e as de qualquer pessoa
     minhasSql: `(t.executor_id = ? OR (t.executor_id IS NULL AND (t.departamento_id IS NULL
                    OR t.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)))

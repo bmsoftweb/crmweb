@@ -625,7 +625,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
         search,
         sort,
         dir,
-        filters: filtrosEfetivos,
+        filters: visao === 'lista' && resource.filtroLista ? [...filtrosEfetivos, resource.filtroLista] : filtrosEfetivos,
         arvore: modoArvore ? 'raizes' : undefined,
         minhas,
       });
@@ -646,7 +646,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [resource.name, page, limit, search, sort, dir, filtrosEfetivos, minhas, onCountChange, modoArvore, lerFilhos, resource.pk]);
+  }, [resource.name, page, limit, search, sort, dir, filtrosEfetivos, minhas, onCountChange, modoArvore, lerFilhos, resource.pk, visao, resource.filtroLista]);
 
   useEffect(() => {
     load();
@@ -966,6 +966,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
             : total === 0
             ? 'Nenhum registro encontrado'
             : `${firstRecord}–${lastRecord} de ${total} registro(s) • tabela ${resource.table}`}
+          {visao === 'lista' && resource.filtroLista && ` • ${resource.filtroLista.aviso}`}
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -1170,6 +1171,8 @@ export const CrudView: React.FC<CrudViewProps> = ({
             setSelecionado(row);
           }}
           onAbrir={(row) => resource.canUpdate && abrirAbaEdicao(row)}
+          podeMover={resource.canUpdate}
+          onAlterado={recarregarComDetalhe}
           onNovo={resource.canCreate ? (data, hora) => abrirAbaNovo({ data_vencimento: data, ...(hora ? { hora_vencimento: hora } : {}) }) : undefined}
           onVisao={trocarVisao}
         />
