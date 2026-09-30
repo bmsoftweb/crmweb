@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.62 — 2026-09-30
+
+- Pesquisa de satisfação: depois do primeiro sorteio o filtro (e a quantidade) não muda mais — tela bloqueada com aviso, sem "Salvar e sortear"; o servidor mantém o filtro gravado. Mais atendimentos, só pelo "Sortear +x".
+
 ## 0.0.61 — 2026-09-29
 
 - Banco: tabelas `pesquisas_satisfacao`, `pesquisas_satisfacao_itens` e `whatsapp_atendimentos`; `avaliacoes.chamado_id`; `atividades.resultado` e `atividades.concluida_por` (SQL em extras/crmweb_schema.sql). Bibliotecas novas: imapflow e mailparser (leitura de e-mail).

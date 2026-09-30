@@ -379,6 +379,8 @@ export const PesquisasSatisfacao: React.FC<{ refreshToken: number; onToast: (msg
   const itens = atual?.itens ?? [];
   const aguardando = itens.filter((i) => i.selecionado && i.situacao === 'sorteado').length;
   const podeSortear = !atual || atual.situacao === 'rascunho' || atual.situacao === 'em_andamento';
+  /** Já sorteada: o filtro fica como no primeiro sorteio (mais atendimentos, só pelo "Sortear +x") */
+  const filtroTravado = itens.length > 0;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-stone-900">
@@ -498,7 +500,12 @@ export const PesquisasSatisfacao: React.FC<{ refreshToken: number; onToast: (msg
               )}
             </div>
 
-            <div className="pt-3 border-t border-stone-200 dark:border-stone-800 grid grid-cols-1 sm:grid-cols-4 gap-4">
+            {filtroTravado && (
+              <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-lg px-3 py-2">
+                A pesquisa já foi sorteada: o filtro não muda mais. Para sortear mais atendimentos com ele, use "Sortear +x" em Atendimentos Selecionados; para outro filtro, crie outra pesquisa.
+              </p>
+            )}
+            <fieldset disabled={filtroTravado} className={`min-w-0 border-0 p-0 m-0 pt-3 border-t border-stone-200 dark:border-stone-800 grid grid-cols-1 sm:grid-cols-4 gap-4 ${filtroTravado ? 'opacity-60' : ''}`}>
               <div className={FIELD_CLASS}>
                 <label htmlFor="ps-de" className={LABEL_CLASS}>Atendidos de</label>
                 <DateField id="ps-de" value={f.data_de ?? ''} onChange={(d) => setFiltro({ data_de: d || null })} className={`${INPUT_CLASS} w-full`} />
@@ -558,7 +565,7 @@ export const PesquisasSatisfacao: React.FC<{ refreshToken: number; onToast: (msg
                 <label htmlFor="ps-qtd" className={LABEL_CLASS}>Quantos sortear</label>
                 <NumberField id="ps-qtd" value={String(v.quantidade)} onChange={(t) => setV({ ...v, quantidade: Number(t) || 0 })} scale={0} className={`${INPUT_CLASS} w-full`} />
               </div>
-            </div>
+            </fieldset>
 
             <div className="flex flex-wrap items-center gap-2 pt-2">
               <button type="button" disabled={ocupado !== null} onClick={() => acao('previa', async () => setPrevia((await previaPesquisa(f, atual?.id)).filtrados))} className={botaoSecundario}>
@@ -579,7 +586,7 @@ export const PesquisasSatisfacao: React.FC<{ refreshToken: number; onToast: (msg
               >
                 {ocupado === 'salvar' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
               </button>
-              {podeSortear && (
+              {podeSortear && !filtroTravado && (
                 <button
                   type="button"
                   disabled={ocupado !== null}

@@ -535,6 +535,12 @@ export function createPesquisasSatisfacaoRouter(): Router {
     const d = dadosDaTela(req.body);
     // Já executada: o canal não muda (os contatos saíram por ele)
     if (p.situacao !== 'rascunho' && d.canal !== p.canal) throw erro(400, 'A pesquisa já foi executada: o tipo de contato não pode mudar.');
+    // Já sorteada: o filtro e a quantidade ficam como no primeiro sorteio ("Sortear +x" usa o mesmo filtro)
+    const [[{ sorteada }]] = await pool.query<any>('SELECT EXISTS (SELECT 1 FROM pesquisas_satisfacao_itens WHERE pesquisa_id = ?) AS sorteada', [p.id]);
+    if (Number(sorteada)) {
+      d.filtro = JSON.stringify(p.filtro);
+      d.quantidade = p.quantidade;
+    }
     await pool.query('UPDATE pesquisas_satisfacao SET descricao = ?, objetivo = ?, canal = ?, filtro = ?, quantidade = ?, responsavel_id = ? WHERE id = ?', [
       d.descricao,
       d.objetivo,
