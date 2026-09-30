@@ -9,6 +9,8 @@ import { fetchContagemChamados,
   invalidateOptions,
   validarSessao,
   fetchNaoVistas,
+  fetchMinhasAtividades,
+  atividadesGravadasAqui,
 } from './services/api';
 import { destravarSom, tocarAviso } from './utils/som';
 import { limparConfigListas } from './utils/configListas';
@@ -189,6 +191,45 @@ export default function App() {
     const i = setInterval(atualizarFilaChamados, 5_000);
     return () => clearInterval(i);
   }, [sessao, veChamados, atualizarFilaChamados]);
+
+  /** Atividades pendentes que executo ou do meu departamento, já conhecidas (null = ainda não carregou: sem aviso na abertura) */
+  const minhasAtividades = useRef<Set<number> | null>(null);
+  const atualizarMinhasAtividades = useCallback(() => {
+    fetchMinhasAtividades()
+      .then((lista) => {
+        const conhecidas = minhasAtividades.current;
+        minhasAtividades.current = new Set(lista.map((a) => a.id));
+        // Nova para mim (criada por outra pessoa ou passada para mim); as que eu mesmo gravei não avisam
+        const novas = conhecidas ? lista.filter((a) => !conhecidas.has(a.id) && !atividadesGravadasAqui.has(a.id)) : [];
+        if (!novas.length) return;
+        const a = novas[0];
+        const quando = a.vencimento ? ` para ${a.vencimento}${a.hora ? ` às ${a.hora}` : ''}` : '';
+        const texto = `${a.assunto}${quando}${novas.length > 1 ? ` (e mais ${novas.length - 1})` : ''}`;
+        const titulo = a.departamento ? `Nova atividade para o ${a.departamento}` : 'Nova atividade para você';
+        tocarAviso('campainha');
+        showToast(`${titulo}: ${texto}. Veja em Atividades.`);
+        setRefreshToken((t) => t + 1);
+        // Navegador em outra janela ou aba: notificação do sistema; o clique traz o CRM para a frente em Atividades
+        if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+          const n = new Notification(titulo, { body: texto, tag: `atividade-${a.id}` });
+          n.onclick = () => {
+            window.focus();
+            setCreateToken(0);
+            setActiveTab('atividades');
+            n.close();
+          };
+        }
+      })
+      .catch(() => {}); // sem conexão: tenta na próxima
+  }, [showToast]);
+  useEffect(() => {
+    if (!sessao) return;
+    if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission();
+    atualizarMinhasAtividades();
+    // Também com a aba em segundo plano: é justamente quando a pessoa está em outra tela
+    const i = setInterval(atualizarMinhasAtividades, 15_000);
+    return () => clearInterval(i);
+  }, [sessao, atualizarMinhasAtividades]);
 
   // Tela sem permissão (ex.: o Funil, que abre primeiro): vai para a primeira opção do menu que o usuário acessa
   useEffect(() => {

@@ -254,6 +254,25 @@ export function createCrmRouter() {
     res.json({ success: true, id: funilId });
   }));
 
+  /**
+   * Atividades pendentes que o usuário executa ou que são do departamento dele (sem usuário definido):
+   * a tela avisa quando aparece uma que não estava (criada por outra pessoa ou passada numa alteração)
+   */
+  // ponytail: devolve todas as pendentes do usuário; se alguém acumular milhares, trocar por "desde o último id/alteração"
+  router.get('/crm/minhas-atividades', rota(async (_req, res) => {
+    const [r] = await pool.query<any[]>(
+      `SELECT a.id, a.assunto, DATE_FORMAT(a.data_vencimento, '%d/%m/%Y') AS vencimento, TIME_FORMAT(a.hora_vencimento, '%H:%i') AS hora,
+              IF(a.executor_id IS NULL, d.nome, NULL) AS departamento
+         FROM atividades a
+         LEFT JOIN departamentos d ON d.id = a.departamento_id
+        WHERE a.empresa_id = ? AND COALESCE(a.concluida, 0) = 0
+          AND (a.executor_id = ?
+               OR (a.executor_id IS NULL AND a.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)))`,
+      [empresaDa(res), res.locals.usuarioId, res.locals.usuarioId],
+    );
+    res.json(r);
+  }));
+
   router.get('/crm/kanban/:funilId', rota(async (req, res) => {
     const [negocios] = await pool.query<any[]>(
       `SELECT n.id, n.titulo, n.valor, n.moeda, n.etapa_id, n.pessoa_id,

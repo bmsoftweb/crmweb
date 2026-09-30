@@ -129,9 +129,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
         <div className="flex-1 flex flex-col justify-center">
           <h1 className="text-6xl font-black leading-[0.95] tracking-tight text-stone-900 dark:text-white">
-            GESTÃO
-            <br />
-            COMERCIAL
+            CRM
           </h1>
           <p className="mt-4 text-sm font-medium max-w-xs text-stone-500 dark:text-stone-400">
             Funil de vendas, propostas, pedidos e campanhas em um só lugar.

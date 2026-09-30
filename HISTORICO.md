@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.63 — 2026-09-30
+
+- Aviso de atividade nova: quando outra pessoa marca uma atividade para o usuário (Quem executa) ou para o departamento dele (sem usuário), toca a campainha e mostra o aviso em qualquer tela; com o navegador em outra janela ou aba, notificação do sistema que abre Atividades. As que o próprio usuário grava não avisam.
+- Login: título "CRM" no lugar de "Gestão Comercial".
+
 ## 0.0.62 — 2026-09-30
 
 - Pesquisa de satisfação: depois do primeiro sorteio o filtro (e a quantidade) não muda mais — tela bloqueada com aviso, sem "Salvar e sortear"; o servidor mantém o filtro gravado. Mais atendimentos, só pelo "Sortear +x".

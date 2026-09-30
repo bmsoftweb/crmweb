@@ -155,11 +155,19 @@ export function listRecords(
 export const getRecord = (resource: string, id: Id): Promise<RegistroCrud> =>
   get(`/api/crud/${resource}/${encodeURIComponent(String(id))}`);
 
-export const createRecord = (resource: string, payload: RegistroCrud): Promise<{ success: boolean; id: string }> =>
-  enviar('POST', `/api/crud/${resource}`, payload);
+/** Atividades gravadas por este usuário neste navegador: não geram o aviso de "atividade para você" */
+export const atividadesGravadasAqui = new Set<number>();
 
-export const updateRecord = (resource: string, id: Id, payload: RegistroCrud): Promise<{ success: boolean }> =>
-  enviar('PUT', `/api/crud/${resource}/${encodeURIComponent(String(id))}`, payload);
+export const createRecord = (resource: string, payload: RegistroCrud): Promise<{ success: boolean; id: string }> =>
+  enviar('POST', `/api/crud/${resource}`, payload).then((r: any) => {
+    if (resource === 'atividades') atividadesGravadasAqui.add(Number(r.id));
+    return r;
+  });
+
+export const updateRecord = (resource: string, id: Id, payload: RegistroCrud): Promise<{ success: boolean }> => {
+  if (resource === 'atividades') atividadesGravadasAqui.add(Number(id));
+  return enviar('PUT', `/api/crud/${resource}/${encodeURIComponent(String(id))}`, payload);
+};
 
 export const deleteRecord = (resource: string, id: Id): Promise<{ success: boolean }> =>
   enviar('DELETE', `/api/crud/${resource}/${encodeURIComponent(String(id))}`);
@@ -764,7 +772,21 @@ export const fetchConversaBot = (atividadeId: Id): Promise<ConversaBotAtividade>
 
 /** Nova tarefa no chamado: mesma janela e mesmos campos da atividade (server/chamados.ts) */
 export const criarTarefaChamado = (chamadoId: number, dados: RegistroCrud): Promise<{ id: number }> =>
-  enviar('POST', `/api/chamados/${chamadoId}/tarefas`, dados);
+  enviar('POST', `/api/chamados/${chamadoId}/tarefas`, dados).then((r: any) => {
+    atividadesGravadasAqui.add(Number(r.id));
+    return r;
+  });
+
+/** Atividades pendentes que o usuário executa ou do departamento dele (aviso de atividade nova) */
+export const fetchMinhasAtividades = (): Promise<{
+  id: number;
+  assunto: string;
+  vencimento: string | null;
+  hora: string | null;
+  /** Preenchido quando é do departamento (sem usuário definido) */
+  departamento: string | null;
+}[]> =>
+  get('/api/crm/minhas-atividades');
 
 export type FiltroChamados = 'meus' | 'todos' | 'aguardando' | 'andamento' | 'encerrados';
 
