@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.68 — 2026-09-30
+
+- Banco: `atividades.criado_por` (SQL em extras/crmweb_schema.sql).
+- Atividades/Tarefas: menu do botão direito (Mês e Semana) ganha "Excluir", com confirmação. Só o dono (quem incluiu; sem autor gravado, o executor) ou um administrador exclui — regra também no servidor, vale para a Lista. A ficha mostra "Criado por".
+
 ## 0.0.67 — 2026-09-30
 
 - Atividades/Tarefas: lista, calendário e ficha mostram quem executa antes do assunto ("Luis : Implementar..."; o ícone da reunião continua na frente). Só na exibição: o assunto gravado e o título no Google não mudam.

@@ -550,6 +550,8 @@ export const RESOURCES: ResourceDef[] = [
       // O que foi feito: preenchido no "Concluir" da lista (ou aqui)
       { name: 'resultado', label: 'Resultado', type: 'textarea', listed: true, searchable: true },
       { name: 'bot_resumo', label: 'Resumo do bot', type: 'textarea', readOnly: true },
+      // Dono: quem incluiu pela tela (gravado pelo servidor); só ele ou um administrador exclui
+      { name: 'criado_por', label: 'Criado por', type: 'text', readOnly: true, ref: { resource: 'usuarios', labelField: 'nome' } },
       ...CRIADO_ATUALIZADO,
     ],
   },

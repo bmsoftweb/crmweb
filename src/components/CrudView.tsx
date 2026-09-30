@@ -37,6 +37,7 @@ import { CellValue } from './CellValue';
 import { DetailPanel } from './DetailPanel';
 import { FichaPanel } from './FichaPanel';
 import { AgendaCalendario, VisaoCalendario } from './AgendaCalendario';
+import { podeExcluirAtividade } from '../utils/crm';
 import { AdvancedSearch } from './AdvancedSearch';
 import { BotaoAcao, MenuAcoes, SeparadorAcoes } from './MenuAcoes';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -68,6 +69,8 @@ interface CrudViewProps {
   acoesEmMenu?: boolean;
   /** Botões extras nas linhas do painel de detalhes (ex.: WhatsApp do contato), por recurso filho */
   acoesDetalhe?: (recurso: string, row: RegistroCrud, ctx: { recarregar: () => void }) => React.ReactNode;
+  /** Usuário logado (regras por usuário, ex.: quem pode excluir a atividade) */
+  usuario?: { id: string; tipo: string } | null;
 }
 
 /** Uma aba aberta sobre um registro (inclusão ou edição) */
@@ -114,6 +117,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
   acoesLinha,
   acoesEmMenu,
   acoesDetalhe,
+  usuario,
 }) => {
   /**
    * Campos personalizados marcados como "na lista" viram colunas virtuais: o valor
@@ -750,8 +754,9 @@ export const CrudView: React.FC<CrudViewProps> = ({
     invalidateOptions(resource.name);
     onToast(`${resource.labelSingular} excluído com sucesso.`);
     setDeleting(null);
-    // Fecha a aba do registro excluído, se estiver aberta
+    // Fecha a aba do registro excluído, se estiver aberta, e a ficha dele embaixo da lista
     fecharAba(`edit:${id}`);
+    if (selecionado && recordId(selecionado) === id) setSelecionado(null);
     if (rows.length === 1 && page > 1) setPage((p) => p - 1);
     else await load();
   };
@@ -1172,6 +1177,8 @@ export const CrudView: React.FC<CrudViewProps> = ({
           }}
           onAbrir={(row) => resource.canUpdate && abrirAbaEdicao(row)}
           podeMover={resource.canUpdate}
+          podeExcluir={(row) => resource.canDelete && podeExcluirAtividade(row, usuario)}
+          onExcluir={setDeleting}
           onAlterado={recarregarComDetalhe}
           onNovo={resource.canCreate ? (data, hora) => abrirAbaNovo({ data_vencimento: data, ...(hora ? { hora_vencimento: hora } : {}) }) : undefined}
           onVisao={trocarVisao}

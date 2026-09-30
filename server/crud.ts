@@ -13,6 +13,22 @@ import { apagarEventoGoogle, TIPOS_NA_AGENDA } from './agendaGoogle.js';
 // O SQL próprio (combos, colunas calculadas) não sai do servidor
 const RESOURCES_PUBLICOS = RESOURCES.map(({ optionsSql, minhasSql, ...r }) => ({ ...r, minhas: Boolean(minhasSql), fields: r.fields.map(({ sql, ...f }) => f) }));
 
+/**
+ * Atividade só é excluída pelo dono (quem criou) ou por um administrador. Sem autor gravado (antigas, criadas pelo
+ * Bot, pendências, Google), o dono é o executor. Mesma regra de podeExcluirAtividade (src/utils/crm.ts).
+ */
+async function conferirDonoAtividade(id: string, res: Response) {
+  const u = res.locals.usuario;
+  if (u?.tipo === 'admin') return;
+  const [rows] = await pool.query<any[]>('SELECT criado_por, executor_id FROM atividades WHERE id = ? AND empresa_id = ?', [id, res.locals.empresaId]);
+  const a = rows[0];
+  if (!a) return; // o DELETE devolve "não encontrado"
+  const dono = a.criado_por ?? a.executor_id;
+  if (dono == null || Number(dono) !== Number(u?.id)) {
+    throw Object.assign(new Error('Só quem criou a atividade ou um administrador pode excluí-la.'), { status: 403 });
+  }
+}
+
 /** Converte o valor recebido do formulário para o tipo esperado pela coluna do MySQL */
 function coerceValue(field: FieldDef, raw: any): any {
   if (raw === undefined) return undefined;
@@ -438,6 +454,8 @@ export function createCrudRouter() {
       // Negócio novo sem proprietário escolhido fica com quem o criou
       if (resource.name === 'negocios' && !payload.proprietario_id) payload.proprietario_id = res.locals.usuario.id;
       if (resource.name === 'campanhas') payload.criada_por = res.locals.usuario.id;
+      // Dono da atividade (só ele ou um administrador exclui)
+      if (resource.name === 'atividades') payload.criado_por = eu;
       if (resource.name === 'contratos') {
         // Número visível: sequência por empresa (a chave única empresa+número barra repetição)
         const [[n]] = await pool.query<any>('SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM contratos WHERE empresa_id = ?', [empresaId]);
@@ -516,6 +534,7 @@ export function createCrudRouter() {
       }
 
       await conferirTrava(resource.name, 'excluir', req.params.id, null);
+      if (resource.name === 'atividades') await conferirDonoAtividade(req.params.id, res);
       const afetados = await antesDeExcluir(resource.name, req.params.id);
       // Item de contrato: o contrato precisa ser recalculado depois que o item sair
       const contratoAfetado = resource.name === 'contrato_itens' ? await contratoDoItem(req.params.id) : null;
@@ -544,7 +563,7 @@ export function createCrudRouter() {
       if (eventoGoogle) await apagarEventoGoogle(String(empresaDa(res)), eventoGoogle).catch((e) => console.error(`Google Agenda: ${e.message}`));
       res.json({ success: true });
     } catch (err: any) {
-      res.status(400).json({ error: friendlyDbError(err, resource?.labelSingular) });
+      res.status(err.status || 400).json({ error: friendlyDbError(err, resource?.labelSingular) });
     }
   });
 

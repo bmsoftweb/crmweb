@@ -44,6 +44,17 @@ export function comPrefixo(field: FieldDef, row: RegistroCrud, valor: unknown): 
   return icone ? `${icone} ${nome} : ${texto.slice(icone.length).trimStart()}` : `${nome} : ${texto}`;
 }
 
+/**
+ * Exclui a atividade: administrador, ou o dono (quem criou; sem autor gravado, o executor).
+ * Mesma regra de conferirDonoAtividade (server/crud.ts), que é quem de fato barra.
+ */
+export function podeExcluirAtividade(row: RegistroCrud, usuario: { id: string; tipo: string } | null | undefined): boolean {
+  if (!usuario) return false;
+  if (usuario.tipo === 'admin') return true;
+  const dono = row.criado_por ?? row.executor_id;
+  return dono != null && String(dono) === String(usuario.id);
+}
+
 /** Para quem vai o lembrete automático da atividade (o mesmo de server/schema.ts) */
 export const LEMBRETE_PARA = [
   { value: 'cliente', label: 'Cliente' },

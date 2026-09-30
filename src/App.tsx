@@ -497,6 +497,7 @@ export default function App() {
               onToast={showToast}
               onCountChange={handleCountChange}
               onNavigate={navegar}
+              usuario={usuario}
               renderEditor={renderEditor(activeResource.name)}
               acoesLista={
                 activeResource.name === 'pessoas'

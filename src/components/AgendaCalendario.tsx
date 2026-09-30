@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { FiltroAvancado, RegistroCrud, ResourceDef } from '../types';
 import { listRecords, updateRecord } from '../services/api';
 import { comPrefixo } from '../utils/crm';
@@ -27,6 +27,10 @@ interface Props {
   podeMover: boolean;
   /** Uma atividade foi movida e gravada: a lista e a ficha releem */
   onAlterado: () => void;
+  /** Se o usuário pode excluir a atividade (dono ou administrador) */
+  podeExcluir: (row: RegistroCrud) => boolean;
+  /** Pede a exclusão (a tela confirma antes) */
+  onExcluir: (row: RegistroCrud) => void;
 }
 
 /** Arraste em andamento: a atividade e, na grade da semana, quantos minutos abaixo do início ela foi pega */
@@ -52,7 +56,7 @@ interface MenuDia {
 }
 /** Na grade da semana, o clique vale pela meia hora em que caiu */
 const PASSO_MINUTOS = 30;
-const ALTURA_MENU = 100;
+const ALTURA_MENU = 140;
 
 const ALTURA_HORA = 44;
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -125,6 +129,8 @@ export const AgendaCalendario: React.FC<Props> = ({
   onVisao,
   podeMover,
   onAlterado,
+  podeExcluir,
+  onExcluir,
 }) => {
   const [menu, setMenu] = useState<MenuDia | null>(null);
 
@@ -553,6 +559,32 @@ export const AgendaCalendario: React.FC<Props> = ({
               <Pencil className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400" />
               <span className="text-xs font-medium whitespace-nowrap text-stone-800 dark:text-stone-100">Editar</span>
             </button>
+            {(() => {
+              const pode = Boolean(menu.row && podeExcluir(menu.row));
+              return (
+                <button
+                  role="menuitem"
+                  type="button"
+                  disabled={!pode}
+                  title={
+                    !menu.row
+                      ? 'Clique com o botão direito em cima de uma atividade para excluí-la'
+                      : pode
+                      ? 'Exclui a atividade (pede confirmação)'
+                      : 'Só quem criou a atividade ou um administrador pode excluí-la'
+                  }
+                  onClick={() => {
+                    const row = menu.row;
+                    setMenu(null);
+                    if (row) onExcluir(row);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <Trash2 className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <span className="text-xs font-medium whitespace-nowrap text-rose-700 dark:text-rose-400">Excluir</span>
+                </button>
+              );
+            })()}
           </div>,
           document.body,
         )}
