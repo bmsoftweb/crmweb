@@ -173,12 +173,16 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
                     className={`${INPUT_CLASS} w-full resize-y`}
                   />
                 </div>
-                <Toggle
-                  checked={envio.resumida}
-                  onChange={(resumida) => setEnvio({ ...envio, resumida })}
-                  label="PDF resumido (produtos agrupados pelo grupo)"
-                  title="Os produtos do mesmo grupo saem numa linha só, com o valor somado"
-                />
+                {ehProposta ? (
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400">O PDF da proposta vai resumido: produtos do mesmo grupo numa linha só, com o valor somado.</p>
+                ) : (
+                  <Toggle
+                    checked={envio.resumida}
+                    onChange={(resumida) => setEnvio({ ...envio, resumida })}
+                    label="PDF resumido (produtos agrupados pelo grupo)"
+                    title="Os produtos do mesmo grupo saem numa linha só, com o valor somado"
+                  />
+                )}
               </div>
             </ConfirmDialog>
           </span>,

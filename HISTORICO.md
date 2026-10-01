@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.75 — 2026-10-01
+
+- Propostas: tudo o que vai para o cliente sai sempre resumido (PDF do envio por e-mail/WhatsApp, página de aprovação do link e PDF de lá). No pedido, o envio continua com a opção "PDF resumido".
+- Proposta: "Impressão resumida" agora vale só para o Imprimir / PDF do editor.
+
 ## 0.0.74 — 2026-10-01
 
 - Banco: `produtos.nome_proposta` (SQL em extras/crmweb_schema.sql).

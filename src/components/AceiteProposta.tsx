@@ -273,7 +273,7 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
             rel="noreferrer"
             className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800"
           >
-            <FileDown className="w-4 h-4" /> Ver a proposta completa em PDF
+            <FileDown className="w-4 h-4" /> Ver a proposta em PDF
           </a>
         </section>
 

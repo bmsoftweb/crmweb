@@ -390,8 +390,8 @@ export function createCrmRouter() {
 
 Para aprovar e assinar a proposta, acesse:
 ${link}` : mensagem;
-    // Resumida: produtos agrupados pelo grupo (o cliente não vê o detalhe)
-    const pdf = await gerarPdf(htmlDocumento(p, req.params.tipo as 'propostas' | 'pedidos', req.body?.resumida === true));
+    // Resumida: produtos agrupados pelo grupo (o cliente não vê o detalhe). Proposta vai sempre resumida
+    const pdf = await gerarPdf(htmlDocumento(p, req.params.tipo as 'propostas' | 'pedidos', ehProposta || req.body?.resumida === true));
     const arquivo = ehProposta ? `Proposta ${p.numero_proposta}-v${p.versao}.pdf` : `Pedido ${p.numero_pedido}.pdf`;
     if (canal === 'email') {
       const assunto = ehProposta ? `Proposta nº ${p.numero_proposta}` : `Pedido nº ${p.numero_pedido}`;
@@ -462,7 +462,7 @@ ${link}` : mensagem;
       ];
       let propostaId: number | string | null = idExistente;
       const controle = texto(b.controle)?.slice(0, 30) ?? null;
-      // Impressão resumida: o cliente vê os produtos agrupados (PDF, envio e página de aprovação)
+      // Impressão resumida do editor (envio e link de aprovação saem sempre resumidos)
       const resumida = b.impressao_resumida === true || b.impressao_resumida === 1 || b.impressao_resumida === '1' ? 1 : 0;
       if (propostaId) {
         await conn.query(

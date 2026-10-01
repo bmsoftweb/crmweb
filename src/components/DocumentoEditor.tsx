@@ -440,7 +440,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
                   checked={cab.impressao_resumida === '1'}
                   onChange={(v) => campo('impressao_resumida')(v ? '1' : '0')}
                   disabled={bloqueado}
-                  title="O cliente vê os produtos agrupados pelo grupo (Cadastros › Grupos de Produtos): no PDF, no envio e na página de aprovação"
+                  title="Imprimir / PDF deste editor sai com os produtos agrupados pelo grupo. O que vai para o cliente (envio e link de aprovação) sai sempre resumido"
                 />
               </div>
             )}
