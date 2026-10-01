@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.74 — 2026-10-01
+
+- Banco: `produtos.nome_proposta` (SQL em extras/crmweb_schema.sql).
+- Produtos: campo "Nome na Proposta" — preenchido, sai no lugar do Nome na proposta impressa (detalhada e resumida), no PDF enviado e na página de aprovação do cliente.
+- Propostas: aba "Resumo por Grupo" no detalhe da lista (itens agrupados como na impressão resumida, só leitura).
+- Impressão resumida e Resumo por Grupo: os grupos primeiro, depois os produtos sem grupo.
+
 ## 0.0.73 — 2026-10-01
 
 - Banco: tabela `produtos_grupos`, `produtos.grupo_id` e `propostas.impressao_resumida` (SQL em extras/crmweb_schema.sql).

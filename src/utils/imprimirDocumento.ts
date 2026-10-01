@@ -7,13 +7,17 @@ const esc = (v: unknown) =>
 
 const qtd = (v: unknown) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(Number(v) || 0);
 
+/** Nome do item impresso: na proposta, o "Nome na Proposta" do produto, quando preenchido */
+export const nomeItem = (i: RegistroCrud, ehProposta: boolean) => (ehProposta && i.nome_proposta) || i.produto_nome;
+
 /**
- * Impressão resumida: os itens de produtos com grupo viram uma linha por grupo (na posição do primeiro item
- * do grupo), com o valor bruto somado; produto sem grupo fica ele mesmo. Valor bruto (qtd × preço), para a
- * soma das linhas bater com o Subtotal; os descontos continuam nas linhas dos totais.
+ * Impressão resumida: os itens de produtos com grupo viram uma linha por grupo, com o valor bruto somado; produto
+ * sem grupo fica ele mesmo. Primeiro os grupos (na ordem do 1º item de cada um), depois os sem grupo. Valor bruto
+ * (qtd × preço), para a soma das linhas bater com o Subtotal; os descontos continuam nas linhas dos totais.
  */
-export function agruparItens(itens: RegistroCrud[]): { nome: string; valor: number }[] {
+export function agruparItens(itens: RegistroCrud[], ehProposta = false): { nome: string; valor: number }[] {
   const linhas: { nome: string; valor: number }[] = [];
+  const semGrupo: { nome: string; valor: number }[] = [];
   const porGrupo = new Map<string, { nome: string; valor: number }>();
   for (const i of itens) {
     const valor = Math.round((Number(i.quantidade) || 0) * (Number(i.preco_unitario) || 0) * 100) / 100;
@@ -23,11 +27,13 @@ export function agruparItens(itens: RegistroCrud[]): { nome: string; valor: numb
       existente.valor = Math.round((existente.valor + valor) * 100) / 100;
       continue;
     }
-    const linha = { nome: String((grupo ? i.grupo_nome : i.produto_nome) ?? ''), valor };
-    if (grupo) porGrupo.set(grupo, linha);
-    linhas.push(linha);
+    const linha = { nome: String((grupo ? i.grupo_nome : nomeItem(i, ehProposta)) ?? ''), valor };
+    if (grupo) {
+      porGrupo.set(grupo, linha);
+      linhas.push(linha);
+    } else semGrupo.push(linha);
   }
-  return linhas;
+  return [...linhas, ...semGrupo];
 }
 
 /**
@@ -51,14 +57,14 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos', re
       ${p.proposta_numero ? `<div>Ref. proposta nº ${esc(p.proposta_numero)} v${esc(p.proposta_versao)}</div>` : ''}`;
 
   const linhas = resumida
-    ? agruparItens(itens)
+    ? agruparItens(itens, ehProposta)
         .map((l, n) => `<tr><td class="c">${n + 1}</td><td>${esc(l.nome)}</td><td class="r b">${formatMoeda(l.valor)}</td></tr>`)
         .join('')
     : itens
     .map(
       (i, n) => `<tr>
         <td class="c">${n + 1}</td>
-        <td>${esc(i.produto_nome)}${i.codigo_sku ? `<div class="sku">${esc(i.codigo_sku)}</div>` : ''}</td>
+        <td>${esc(nomeItem(i, ehProposta))}${i.codigo_sku ? `<div class="sku">${esc(i.codigo_sku)}</div>` : ''}</td>
         <td class="r">${qtd(i.quantidade)}</td>
         <td class="c">${esc(i.unidade_medida)}</td>
         <td class="r">${formatMoeda(i.preco_unitario)}</td>

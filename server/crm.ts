@@ -90,7 +90,7 @@ export async function lerDocumento(tipo: TipoDoc, id: string, empresaId: string)
   if (!cab.length) throw erro(404, `${tipo === 'proposta' ? 'Proposta' : 'Pedido'} não encontrado.`);
   const [itens] = await pool.query<any[]>(
     `SELECT i.id, i.produto_id, i.quantidade, i.preco_unitario, i.desconto, i.subtotal,
-            pr.nome AS produto_nome, pr.codigo_sku, pr.unidade_medida, pr.grupo_id, g.nome AS grupo_nome
+            pr.nome AS produto_nome, NULLIF(TRIM(pr.nome_proposta), '') AS nome_proposta, pr.codigo_sku, pr.unidade_medida, pr.grupo_id, g.nome AS grupo_nome
        FROM ${d.itens} i JOIN produtos pr ON pr.id = i.produto_id
        LEFT JOIN produtos_grupos g ON g.id = pr.grupo_id
       WHERE i.${d.fk} = ? ORDER BY i.criado_em, i.id`,

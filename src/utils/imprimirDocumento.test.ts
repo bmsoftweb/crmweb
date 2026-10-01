@@ -14,8 +14,13 @@ const linhas = agruparItens([
   { produto_nome: 'MENSALIDADE TERMINAL', quantidade: 3, preco_unitario: 40, desconto: 10, ...MENS },
 ]);
 assert.deepStrictEqual(linhas, [
+  // grupos primeiro, depois os sem grupo
   { nome: 'LICENÇA BMSOFT', valor: 2046 },
-  { nome: 'HOMOLOGAÇÃO BOLETO', valor: 350 },
   { nome: 'MENSALIDADE BMSOFT', valor: 350 },
+  { nome: 'HOMOLOGAÇÃO BOLETO', valor: 350 },
 ]);
+// Na proposta, o "Nome na Proposta" substitui o nome (no pedido, não)
+const comNome = [{ produto_nome: 'HOMOLOGAÇÃO BOLETO', nome_proposta: 'Serviço de homologação', quantidade: 1, preco_unitario: 350 }];
+assert.deepStrictEqual(agruparItens(comNome, true), [{ nome: 'Serviço de homologação', valor: 350 }]);
+assert.deepStrictEqual(agruparItens(comNome), [{ nome: 'HOMOLOGAÇÃO BOLETO', valor: 350 }]);
 console.log('ok');

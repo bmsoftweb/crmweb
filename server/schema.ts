@@ -656,7 +656,10 @@ export const RESOURCES: ResourceDef[] = [
     canCreate: true,
     canUpdate: true,
     canDelete: true,
-    details: [{ resource: 'proposta_itens', foreignKey: 'proposta_id', label: 'Itens da Proposta', totalField: 'subtotal' }],
+    details: [
+      { resource: 'proposta_itens', foreignKey: 'proposta_id', label: 'Itens da Proposta', totalField: 'subtotal' },
+      { resource: 'proposta_itens_grupos', foreignKey: 'proposta_id', label: 'Resumo por Grupo', totalField: 'valor' },
+    ],
     // Versões da proposta em árvore: a v1 em cima, as demais como filhas
     arvore: { grupo: 'numero_proposta', ordem: 'versao' },
     fields: [
@@ -705,6 +708,39 @@ export const RESOURCES: ResourceDef[] = [
     canUpdate: false,
     canDelete: false,
     fields: [...itensFields('proposta_id', 'Proposta', 'propostas'), { name: 'criado_em', label: 'Criado em', type: 'datetime', readOnly: true }],
+  },
+  {
+    // Itens da proposta agrupados como na impressão resumida (agruparItens): uma linha por grupo de produtos,
+    // os grupos primeiro (na ordem do 1º item), depois os produtos sem grupo. Valor bruto (qtd × preço). Só leitura.
+    name: 'proposta_itens_grupos',
+    table: `(SELECT MIN(i.id) AS id, i.proposta_id, MAX(COALESCE(g.nome, pr.nome)) AS grupo, COUNT(*) AS itens,
+                    ROUND(SUM(i.quantidade * i.preco_unitario), 2) AS valor,
+                    MAX(pr.grupo_id IS NULL) * 1000000000 + MIN(i.id) AS posicao
+               FROM proposta_itens i JOIN produtos pr ON pr.id = i.produto_id
+               LEFT JOIN produtos_grupos g ON g.id = pr.grupo_id
+              GROUP BY i.proposta_id, IF(pr.grupo_id IS NULL, CONCAT('i', i.id), CONCAT('g', pr.grupo_id)))`,
+    scopeSql: 't.proposta_id IN (SELECT id FROM propostas WHERE empresa_id = ?)',
+    label: 'Resumo por Grupo',
+    labelSingular: 'Grupo',
+    description: 'Itens da proposta agrupados pelo grupo do produto',
+    icon: 'Layers',
+    group: 'vendas',
+    oculto: true,
+    pk: ['id'],
+    autoIncrement: true,
+    labelField: 'grupo',
+    defaultSort: { field: 'posicao', dir: 'asc' },
+    canCreate: false,
+    canUpdate: false,
+    canDelete: false,
+    fields: [
+      ID,
+      { name: 'proposta_id', label: 'Proposta', type: 'text', ref: { resource: 'propostas', labelField: 'titulo' } },
+      { name: 'grupo', label: 'Grupo / Produto', type: 'text', listed: true },
+      { name: 'itens', label: 'Itens', type: 'number', listed: true, width: 'xs' },
+      { name: 'valor', label: 'Valor', type: 'decimal', scale: 2, listed: true },
+      { name: 'posicao', label: 'Posição', type: 'number', readOnly: true },
+    ],
   },
   {
     name: 'pedidos',
@@ -1301,6 +1337,7 @@ export const RESOURCES: ResourceDef[] = [
       },
       { name: 'codigo_sku', label: 'SKU', type: 'text', listed: true, searchable: true, maxLength: 50, width: 'sm' },
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 255 },
+      { name: 'nome_proposta', label: 'Nome na Proposta', type: 'text', searchable: true, maxLength: 255, hint: 'Preenchido: sai no lugar do Nome na proposta impressa, no PDF enviado e na página de aprovação do cliente' },
       { name: 'descricao', label: 'Descrição', type: 'textarea', searchable: true },
       { name: 'preco_tabela', label: 'Preço de Tabela', type: 'decimal', scale: 2, required: true, listed: true, filterable: true },
       { name: 'unidade_medida', label: 'Unidade', type: 'text', maxLength: 10, listed: true, default: 'UN', width: 'xs' },

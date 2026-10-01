@@ -5,7 +5,7 @@ import { lerConfig } from './config.js';
 import { aprovarProposta, lerDocumento, registrarHistorico } from './crm.js';
 import { sincronizarNegocio } from './regras.js';
 import { gerarPdf } from './pdf.js';
-import { agruparItens, htmlDocumento } from '../src/utils/imprimirDocumento.js';
+import { agruparItens, htmlDocumento, nomeItem } from '../src/utils/imprimirDocumento.js';
 import { enviarAutomatica, telefoneWhatsApp } from './whatsapp.js';
 
 /**
@@ -138,9 +138,9 @@ export function createAceiteRouter() {
       valor_total: Number(p.valor_total),
       // Resumida: uma linha por grupo de produtos, só com o valor (o cliente não vê o detalhe)
       itens: Number(p.impressao_resumida)
-        ? agruparItens(p.itens).map((l) => ({ produto: l.nome, unidade: null, quantidade: null, preco_unitario: null, desconto: 0, subtotal: l.valor }))
+        ? agruparItens(p.itens, true).map((l) => ({ produto: l.nome, unidade: null, quantidade: null, preco_unitario: null, desconto: 0, subtotal: l.valor }))
         : p.itens.map((i: any) => ({
-            produto: i.produto_nome,
+            produto: nomeItem(i, true),
             unidade: i.unidade_medida,
             quantidade: Number(i.quantidade),
             preco_unitario: Number(i.preco_unitario),
