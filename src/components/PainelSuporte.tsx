@@ -18,6 +18,7 @@ import {
   UserRoundCheck,
 } from 'lucide-react';
 import { painelSuporte, PainelSuporteDados, Contagem } from '../services/api';
+import { FiltroAvancado } from '../types';
 
 /**
  * Painel de Suporte: indicadores do período comparados com o anterior equivalente, a situação de agora e os
@@ -47,6 +48,8 @@ const MOTIVOS: Record<string, string> = {
   outro: 'Outro',
 };
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+/** Título dos gráficos no tempo ("Chamados por semana"): a série agrupa por dia, semana ou mês conforme o período */
+const UNIDADE: Record<string, string> = { dia: 'dia', semana: 'semana (início no domingo)', mes: 'mês' };
 
 const dataBr = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
 const inteiro = (n: number) => n.toLocaleString('pt-BR');
@@ -136,17 +139,18 @@ const DicaFlutuante: React.FC<{ dica: Dica | null }> = ({ dica }) =>
 
 // ---------------------------------------------------------------- Gráficos
 
-/** Colunas por dia/mês: uma ou duas séries lado a lado, eixo único a partir do zero */
+/** Colunas por dia/semana/mês: uma ou duas séries lado a lado, eixo único a partir do zero */
 const Colunas: React.FC<{
   pontos: { k: string; valores: number[] }[];
   series: { nome: string; cor: string }[];
   rotulo: (k: string) => string;
+  /** Título da dica do mouse (ex.: "Semana de 06/09"); sem ele, o rótulo do eixo */
+  rotuloDica?: (k: string) => string;
   onDica: (d: Dica | null) => void;
-}> = ({ pontos, series, rotulo, onDica }) => {
+}> = ({ pontos, series, rotulo, rotuloDica = rotulo, onDica }) => {
   const maximo = Math.max(1, ...pontos.flatMap((p) => p.valores));
   // Marcas do eixo: 0, metade e o máximo arredondado para cima
   const topo = Math.ceil(maximo / 2) * 2;
-  const passo = Math.max(1, Math.ceil(pontos.length / 8)); // rótulos do eixo X sem encavalar
   return (
     <div>
       {series.length > 1 && (
@@ -170,32 +174,35 @@ const Colunas: React.FC<{
             {[0, 0.5].map((f) => (
               <div key={f} className="absolute left-0 right-0 border-t" style={{ top: `${f * 100}%`, borderColor: 'var(--grade)' }} />
             ))}
-            <div className="absolute inset-0 flex items-end gap-px">
+            <div className="absolute inset-0 flex items-end gap-px overflow-hidden">
               {pontos.map((p) => (
                 <div
                   key={p.k}
-                  className="flex-1 h-full flex items-end justify-center gap-[2px] hover:bg-stone-100/70 dark:hover:bg-stone-800/50 rounded-t cursor-default"
-                  onMouseMove={(e) => onDica({ x: e.clientX, y: e.clientY, linhas: [rotulo(p.k), ...series.map((s, i) => `${s.nome}: ${p.valores[i]}`)] })}
+                  className="flex-1 min-w-0 h-full flex items-end justify-center gap-[2px] hover:bg-stone-100/70 dark:hover:bg-stone-800/50 rounded-t cursor-default"
+                  onMouseMove={(e) => onDica({ x: e.clientX, y: e.clientY, linhas: [rotuloDica(p.k), ...series.map((s, i) => `${s.nome}: ${p.valores[i]}`)] })}
                   onMouseLeave={() => onDica(null)}
                 >
                   {p.valores.map((v, i) => (
                     <div
                       key={i}
                       className="rounded-t"
-                      style={{ height: `${(v / topo) * 100}%`, width: `${Math.min(14, 70 / series.length)}%`, minWidth: 2, background: series[i].cor }}
+                      style={{ height: `${(v / topo) * 100}%`, width: `${Math.min(14, 70 / series.length)}%`, minWidth: 1, background: series[i].cor }}
                     />
                   ))}
                 </div>
               ))}
             </div>
           </div>
-          {/* Rótulo centrado na coluna, podendo passar da largura dela (só 1 a cada `passo` aparece) */}
-          <div className="flex gap-px mt-1 h-3.5">
-            {pontos.map((p, i) => (
-              <div key={p.k} className="flex-1 relative">
-                {i % passo === 0 && (
-                  <span className="absolute left-1/2 -translate-x-1/2 text-[10px] text-stone-400 tabular-nums whitespace-nowrap">{rotulo(p.k)}</span>
-                )}
+          {/* Todos os rótulos, a 45°: o fim do texto fica embaixo do centro da coluna e ele desce para a esquerda */}
+          <div className="flex gap-px h-9">
+            {pontos.map((p) => (
+              <div key={p.k} className="flex-1 min-w-0 relative">
+                <span
+                  className="absolute top-1 text-[10px] leading-none text-stone-400 tabular-nums whitespace-nowrap"
+                  style={{ right: '50%', transform: 'rotate(-45deg)', transformOrigin: 'right top' }}
+                >
+                  {rotulo(p.k)}
+                </span>
               </div>
             ))}
           </div>
@@ -291,9 +298,11 @@ const MapaCalor: React.FC<{ celulas: PainelSuporteDados['mapa']; onDica: (d: Dic
 interface Props {
   refreshToken: number;
   onNavigate: (tab: string) => void;
+  /** Abre um cadastro já com busca avançada (ex.: Consulta de Chamados do técnico) */
+  onNavigateFiltrado: (tab: string, filtros: FiltroAvancado[]) => void;
 }
 
-export const PainelSuporte: React.FC<Props> = ({ refreshToken, onNavigate }) => {
+export const PainelSuporte: React.FC<Props> = ({ refreshToken, onNavigate, onNavigateFiltrado }) => {
   const [periodo, setPeriodo] = useState<string>(() => {
     try {
       return localStorage.getItem('crmweb.painelSuporte.periodo') || '30d';
@@ -372,6 +381,7 @@ export const PainelSuporte: React.FC<Props> = ({ refreshToken, onNavigate }) => 
   }
 
   const { atual: a, anterior: b, agora } = dados;
+  // Semana: o rótulo é o domingo que a abre (a dica diz "Semana de 06/09")
   const rotuloSerie = (k: string) => (dados.serie.unidade === 'mes' ? `${k.slice(5, 7)}/${k.slice(2, 4)}` : `${k.slice(8, 10)}/${k.slice(5, 7)}`);
   const totalNotas = dados.notas.reduce((s, n) => s + n.qtd, 0);
 
@@ -444,7 +454,7 @@ export const PainelSuporte: React.FC<Props> = ({ refreshToken, onNavigate }) => 
       {/* Volume no tempo */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <section className={`${CARD} p-5`}>
-          <h3 className={`${TITULO} mb-3`}>Chamados por {dados.serie.unidade === 'mes' ? 'mês' : 'dia'}</h3>
+          <h3 className={`${TITULO} mb-3`}>Chamados por {UNIDADE[dados.serie.unidade]}</h3>
           <Colunas
             pontos={dados.serie.pontos.map((p) => ({ k: p.k, valores: [p.abertos, p.encerrados] }))}
             series={[
@@ -452,15 +462,17 @@ export const PainelSuporte: React.FC<Props> = ({ refreshToken, onNavigate }) => 
               { nome: 'Encerrados', cor: 'var(--serie-2)' },
             ]}
             rotulo={rotuloSerie}
+            rotuloDica={(k) => (dados.serie.unidade === 'semana' ? `Semana de ${rotuloSerie(k)}` : rotuloSerie(k))}
             onDica={setDica}
           />
         </section>
         <section className={`${CARD} p-5`}>
-          <h3 className={`${TITULO} mb-3`}>Atendimentos do WhatsApp por {dados.serie.unidade === 'mes' ? 'mês' : 'dia'}</h3>
+          <h3 className={`${TITULO} mb-3`}>Atendimentos do WhatsApp por {UNIDADE[dados.serie.unidade]}</h3>
           <Colunas
             pontos={dados.serie.pontos.map((p) => ({ k: p.k, valores: [p.whatsapp] }))}
             series={[{ nome: 'Atendimentos', cor: 'var(--serie-1)' }]}
             rotulo={rotuloSerie}
+            rotuloDica={(k) => (dados.serie.unidade === 'semana' ? `Semana de ${rotuloSerie(k)}` : rotuloSerie(k))}
             onDica={setDica}
           />
         </section>
@@ -523,7 +535,8 @@ export const PainelSuporte: React.FC<Props> = ({ refreshToken, onNavigate }) => 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         {/* Desempenho por técnico */}
         <section className={`${CARD} p-5 xl:col-span-2 overflow-x-auto`}>
-          <h3 className={`${TITULO} mb-3`}>Por técnico</h3>
+          <h3 className={`${TITULO} mb-1`}>Por técnico</h3>
+          <p className="text-[11px] text-stone-500 dark:text-stone-400 mb-3">Clique no técnico para ver os chamados dele.</p>
           {dados.tecnicos.length === 0 ? (
             <p className="text-xs text-stone-400 py-6 text-center">Nenhum atendimento com técnico no período.</p>
           ) : (
@@ -539,8 +552,13 @@ export const PainelSuporte: React.FC<Props> = ({ refreshToken, onNavigate }) => 
               </thead>
               <tbody>
                 {dados.tecnicos.map((t) => (
-                  <tr key={t.nome} className="border-t border-stone-100 dark:border-stone-800">
-                    <td className="py-1.5 text-stone-800 dark:text-stone-100">{t.nome}</td>
+                  <tr
+                    key={t.id}
+                    onClick={() => onNavigateFiltrado('chamados', [{ field: 'atendente_id', op: 'eq', value: String(t.id) }])}
+                    title={`Ver os chamados de ${t.nome} na Consulta de Chamados`}
+                    className="border-t border-stone-100 dark:border-stone-800 cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800/50"
+                  >
+                    <td className="py-1.5 text-blue-700 dark:text-blue-400 font-medium">{t.nome}</td>
                     <td className="py-1.5 text-right tabular-nums">{inteiro(t.encerrados)}</td>
                     <td className="py-1.5 text-right tabular-nums">{duracao(t.min_resolver)}</td>
                     <td className="py-1.5 text-right tabular-nums">{inteiro(t.whatsapp)}</td>

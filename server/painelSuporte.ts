@@ -114,27 +114,43 @@ async function resumo(empresa: string, f: Faixa) {
   };
 }
 
-/** Série por dia (ou por mês, em períodos longos), com os dias sem movimento zerados */
+/** Domingo da semana de uma data (as semanas começam no domingo, como no calendário) */
+const domingo = (s: string) => somar(s, -data(s).getUTCDay());
+
+/** Unidade da série: até 45 dias por dia, até 92 por semana, além disso por mês (os rótulos do eixo cabem todos) */
+export function unidadeSerie(f: Faixa): 'dia' | 'semana' | 'mes' {
+  const n = dias(f);
+  return n > 92 ? 'mes' : n > 45 ? 'semana' : 'dia';
+}
+
+/** Série por dia, semana ou mês, com os intervalos sem movimento zerados */
 async function serie(empresa: string, f: Faixa) {
   const [a, b] = intervalo(f);
-  const porMes = dias(f) > 92;
-  const fmt = porMes ? '%Y-%m' : '%Y-%m-%d';
+  const unidade = unidadeSerie(f);
+  // Chave de cada registro: AAAA-MM-DD do dia, AAAA-MM-DD do domingo da semana, ou AAAA-MM
+  const chave = (col: string) =>
+    unidade === 'mes'
+      ? `DATE_FORMAT(${col}, '%Y-%m')`
+      : unidade === 'semana'
+      ? `DATE_FORMAT(DATE_SUB(DATE(${col}), INTERVAL DAYOFWEEK(${col}) - 1 DAY), '%Y-%m-%d')`
+      : `DATE_FORMAT(${col}, '%Y-%m-%d')`;
   const contar = async (sql: string) => {
-    const [r] = await pool.query<any[]>(sql, [fmt, empresa, a, b]);
+    const [r] = await pool.query<any[]>(sql, [empresa, a, b]);
     return new Map(r.map((x) => [x.k, Number(x.n)]));
   };
   const [abertos, encerrados, whats] = await Promise.all([
-    contar(`SELECT DATE_FORMAT(criado_em, ?) AS k, COUNT(*) AS n FROM chamados WHERE empresa_id = ? AND criado_em >= ? AND criado_em < ? GROUP BY k`),
+    contar(`SELECT ${chave('criado_em')} AS k, COUNT(*) AS n FROM chamados WHERE empresa_id = ? AND criado_em >= ? AND criado_em < ? GROUP BY k`),
     contar(
-      `SELECT DATE_FORMAT(encerrado_em, ?) AS k, COUNT(*) AS n FROM chamados WHERE empresa_id = ? AND status = 'encerrado' AND encerrado_em >= ? AND encerrado_em < ? GROUP BY k`,
+      `SELECT ${chave('encerrado_em')} AS k, COUNT(*) AS n FROM chamados WHERE empresa_id = ? AND status = 'encerrado' AND encerrado_em >= ? AND encerrado_em < ? GROUP BY k`,
     ),
-    contar(`SELECT DATE_FORMAT(fim, ?) AS k, COUNT(*) AS n FROM whatsapp_atendimentos WHERE empresa_id = ? AND fim >= ? AND fim < ? GROUP BY k`),
+    contar(`SELECT ${chave('fim')} AS k, COUNT(*) AS n FROM whatsapp_atendimentos WHERE empresa_id = ? AND fim >= ? AND fim < ? GROUP BY k`),
   ]);
   const chaves: string[] = [];
-  if (porMes) for (let m = f.de.slice(0, 7); m <= f.ate.slice(0, 7); m = mudarMes(`${m}-01`, 1).slice(0, 7)) chaves.push(m);
+  if (unidade === 'mes') for (let m = f.de.slice(0, 7); m <= f.ate.slice(0, 7); m = mudarMes(`${m}-01`, 1).slice(0, 7)) chaves.push(m);
+  else if (unidade === 'semana') for (let d = domingo(f.de); d <= f.ate; d = somar(d, 7)) chaves.push(d);
   else for (let d = f.de; d <= f.ate; d = somar(d, 1)) chaves.push(d);
   return {
-    unidade: porMes ? 'mes' : 'dia',
+    unidade,
     pontos: chaves.map((k) => ({ k, abertos: abertos.get(k) ?? 0, encerrados: encerrados.get(k) ?? 0, whatsapp: whats.get(k) ?? 0 })),
   };
 }
@@ -241,6 +257,7 @@ export function createPainelSuporteRouter(): Router {
           const w = wpp.find((x) => Number(x.id) === id);
           const v = avs.find((x) => Number(x.id) === id);
           return {
+            id,
             nome: nomes.find((u: any) => Number(u.id) === id)?.nome ?? `#${id}`,
             encerrados: Number(e?.encerrados ?? 0),
             min_resolver: e?.min_resolver != null ? Number(e.min_resolver) : null,

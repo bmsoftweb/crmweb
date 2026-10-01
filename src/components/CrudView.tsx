@@ -71,6 +71,8 @@ interface CrudViewProps {
   acoesDetalhe?: (recurso: string, row: RegistroCrud, ctx: { recarregar: () => void }) => React.ReactNode;
   /** Usuário logado (regras por usuário, ex.: quem pode excluir a atividade) */
   usuario?: { id: string; tipo: string } | null;
+  /** Busca avançada com que a tela abre quando outra tela leva até ela; `seq` novo = aplicar de novo */
+  filtrosIniciais?: { filtros: FiltroAvancado[]; seq: number } | null;
 }
 
 /** Uma aba aberta sobre um registro (inclusão ou edição) */
@@ -118,6 +120,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
   acoesEmMenu,
   acoesDetalhe,
   usuario,
+  filtrosIniciais,
 }) => {
   /**
    * Campos personalizados marcados como "na lista" viram colunas virtuais: o valor
@@ -531,6 +534,14 @@ export const CrudView: React.FC<CrudViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource.name, resource.defaultSort.field, resource.defaultSort.dir, resource.filtroRapidoPadrao, filtroPadrao]);
 
+  // Chegou de outra tela com filtro (depois do reinício acima, que zera os filtros): aplica e mostra no resumo
+  useEffect(() => {
+    if (!filtrosIniciais) return;
+    setFiltros(filtrosIniciais.filtros);
+    setPage(1);
+    setBuscaAvancadaAberta(false);
+  }, [filtrosIniciais?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // A seleção do mestre-detalhe não sobrevive a uma troca de página ou de busca
   useEffect(() => {
     setSelecionado(null);
@@ -619,7 +630,12 @@ export const CrudView: React.FC<CrudViewProps> = ({
     [filtros, campoRapido, rapido],
   );
 
+  /** Número da carga mais recente: uma resposta atrasada (ex.: a de antes de um filtro mudar) não sobrescreve a nova */
+  const ultimaCarga = useRef(0);
+
   const load = useCallback(async () => {
+    const carga = ++ultimaCarga.current;
+    const valeAinda = () => carga === ultimaCarga.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -633,22 +649,25 @@ export const CrudView: React.FC<CrudViewProps> = ({
         arvore: modoArvore ? 'raizes' : undefined,
         minhas,
       });
+      if (!valeAinda()) return;
       setRows(data.data);
       // Raízes que continuam na página e estavam abertas: relê os filhos (podem ter mudado)
       if (modoArvore) {
         const abertas = data.data.filter((r) => filhosRef.current[String(r[resource.pk[0]])]);
         const novos: Record<string, RegistroCrud[]> = {};
         for (const r of abertas) novos[String(r[resource.pk[0]])] = await lerFilhos(r).catch(() => []);
+        if (!valeAinda()) return;
         setFilhos(novos);
       } else setFilhos({});
       setTotal(data.total);
       setTotalPages(data.totalPages);
       onCountChange(resource.name, data.total);
     } catch (err: any) {
+      if (!valeAinda()) return;
       setError(err.message || 'Falha ao carregar os registros.');
       setRows([]);
     } finally {
-      setIsLoading(false);
+      if (valeAinda()) setIsLoading(false);
     }
   }, [resource.name, page, limit, search, sort, dir, filtrosEfetivos, minhas, onCountChange, modoArvore, lerFilhos, resource.pk, visao, resource.filtroLista]);
 

@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.70 — 2026-09-30
+
+- Painel de Suporte: clicar no técnico abre a Consulta de Chamados filtrada por ele; gráficos no tempo com todos os rótulos a 45° (por dia até 45 dias, por semana até 92, por mês além disso) e sem colunas vazando.
+- Listas (todos os cadastros): uma resposta atrasada não sobrescreve mais a carga mais recente (ex.: filtro aplicado mostrando a lista sem filtro).
+
 ## 0.0.69 — 2026-09-30
 
 - Suporte › Painel de Suporte (permissão nova `painel_suporte`): período (7/30/90 dias, este mês, mês passado, este ano) comparado com o anterior equivalente — chamados abertos/encerrados, tempo até assumir e de resolução, SLA cumprido, atendimentos do WhatsApp, % só pelo bot, satisfação e taxa de resposta; situação de agora (em aberto, fila, SLA estourado, aguardando cliente, pausados); gráficos por dia/mês, por categoria, canal, prioridade, departamento e forma de encerramento; notas; mapa de calor dia × hora; desempenho por técnico; clientes com mais chamados.

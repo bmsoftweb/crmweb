@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Usuario, ResourceDef, DbConnectionStatus, DashboardData, RegistroCrud } from './types';
+import { Usuario, ResourceDef, DbConnectionStatus, DashboardData, RegistroCrud, FiltroAvancado } from './types';
 import { fetchContagemChamados,
   setTokenSessao,
   setAoExpirarSessao,
@@ -250,10 +250,23 @@ export default function App() {
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
 
   /** Troca de tela; o gatilho do botão "Novo" zera para a tela nova não abrir uma inclusão sozinha */
+  /** Filtros com que um cadastro abre quando outra tela leva até ele (ex.: Painel de Suporte › técnico → Consulta de Chamados) */
+  const [filtroInicial, setFiltroInicial] = useState<{ tela: string; filtros: FiltroAvancado[]; seq: number } | null>(null);
+
+  // Navegação normal (menu etc.) abre sem filtro herdado
   const navegar = useCallback((tab: string) => {
     setCreateToken(0);
+    setFiltroInicial(null);
     setActiveTab(tab);
   }, []);
+
+  const navegarFiltrado = useCallback(
+    (tab: string, filtros: FiltroAvancado[]) => {
+      navegar(tab);
+      setFiltroInicial({ tela: tab, filtros, seq: Date.now() });
+    },
+    [navegar],
+  );
 
   /** Abre a tela Conversas no número de uma atividade WhatsApp, de uma pessoa ou de um contato */
   const pedirConversa = useCallback(
@@ -483,7 +496,7 @@ export default function App() {
         ) : activeTab === 'painel_suporte' ? (
           <main className="flex-1 overflow-y-auto min-h-0 w-full">
             <div className="px-4 sm:px-6 lg:px-8 py-6">
-              <PainelSuporte refreshToken={refreshToken} onNavigate={navegar} />
+              <PainelSuporte refreshToken={refreshToken} onNavigate={navegar} onNavigateFiltrado={navegarFiltrado} />
             </div>
           </main>
         ) : activeTab === 'pesquisas_satisfacao' ? (
@@ -506,6 +519,7 @@ export default function App() {
               onCountChange={handleCountChange}
               onNavigate={navegar}
               usuario={usuario}
+              filtrosIniciais={filtroInicial?.tela === activeResource.name ? filtroInicial : null}
               renderEditor={renderEditor(activeResource.name)}
               acoesLista={
                 activeResource.name === 'pessoas'

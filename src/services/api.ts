@@ -467,7 +467,7 @@ export interface PainelSuporteDados {
   atual: ResumoSuporte;
   anterior: ResumoSuporte;
   agora: { em_aberto: number; na_fila: number; sla_estourado: number; pendente_cliente: number; pausados: number };
-  serie: { unidade: 'dia' | 'mes'; pontos: { k: string; abertos: number; encerrados: number; whatsapp: number }[] };
+  serie: { unidade: 'dia' | 'semana' | 'mes'; pontos: { k: string; abertos: number; encerrados: number; whatsapp: number }[] };
   canais: Contagem[];
   categorias: Contagem[];
   prioridades: Contagem[];
@@ -476,7 +476,7 @@ export interface PainelSuporteDados {
   notas: Contagem[];
   mapa: { dia: number; hora: number; n: number }[];
   clientes: Contagem[];
-  tecnicos: { nome: string; encerrados: number; min_resolver: number | null; whatsapp: number; media: number | null; avaliacoes: number }[];
+  tecnicos: { id: number; nome: string; encerrados: number; min_resolver: number | null; whatsapp: number; media: number | null; avaliacoes: number }[];
 }
 export const painelSuporte = (periodo: string): Promise<PainelSuporteDados> => get(`/api/suporte/painel?periodo=${encodeURIComponent(periodo)}`);
 
