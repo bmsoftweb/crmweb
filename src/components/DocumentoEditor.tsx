@@ -24,6 +24,7 @@ import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/form
 import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoeda } from '../utils/formatters';
 import { CONDICOES_PAGAMENTO } from '../utils/crm';
 import { htmlDocumento } from '../utils/imprimirDocumento';
+import { Toggle } from './Toggle';
 import { NumberField } from './NumberField';
 import { SelectBusca } from './SelectBusca';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -98,6 +99,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
     condicao: '',
     observacoes: '',
     controle: '',
+    impressao_resumida: '0',
   });
   const [itens, setItens] = useState<ItemDocumento[]>([]);
   const [descontoAdicional, setDescontoAdicional] = useState('');
@@ -129,6 +131,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
           condicao: (ehProposta ? d.condicoes_pagamento : d.condicao_pagamento) || '',
           observacoes: d.observacoes || '',
           controle: d.controle || '',
+          impressao_resumida: Number(d.impressao_resumida) ? '1' : '0',
         });
         const lidos: ItemDocumento[] = d.itens.map((i: RegistroCrud) => ({
           chave: novaChave(),
@@ -198,7 +201,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
       validade_dias: cab.validade_dias,
       [ehProposta ? 'condicoes_pagamento' : 'condicao_pagamento']: cab.condicao,
       observacoes: cab.observacoes,
-      ...(ehProposta ? { controle: cab.controle } : {}),
+      ...(ehProposta ? { controle: cab.controle, impressao_resumida: cab.impressao_resumida === '1' } : {}),
       desconto_adicional: descontoAdicional || 0,
       itens: itens.map(({ produto_id, quantidade, preco_unitario, desconto }) => ({ produto_id, quantidade, preco_unitario, desconto: desconto || 0 })),
     };
@@ -249,7 +252,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
       const docId = bloqueado ? id! : await gravar();
       const d = await fetchDocumento(tipo, docId);
       janela.document.open();
-      janela.document.write(htmlDocumento(d, tipo));
+      janela.document.write(htmlDocumento(d, tipo, ehProposta && Boolean(Number(d.impressao_resumida))));
       janela.document.close();
       if (!bloqueado) {
         onGravado?.();
@@ -430,6 +433,17 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
                 className={`${INPUT_CLASS} w-full`}
               />
             </div>
+            {ehProposta && (
+              <div className={FIELD_CLASS}>
+                <span className={LABEL_CLASS}>Impressão resumida</span>
+                <Toggle
+                  checked={cab.impressao_resumida === '1'}
+                  onChange={(v) => campo('impressao_resumida')(v ? '1' : '0')}
+                  disabled={bloqueado}
+                  title="O cliente vê os produtos agrupados pelo grupo (Cadastros › Grupos de Produtos): no PDF, no envio e na página de aprovação"
+                />
+              </div>
+            )}
           </fieldset>
 
           {/* Itens */}

@@ -8,10 +8,33 @@ const esc = (v: unknown) =>
 const qtd = (v: unknown) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(Number(v) || 0);
 
 /**
+ * Impressão resumida: os itens de produtos com grupo viram uma linha por grupo (na posição do primeiro item
+ * do grupo), com o valor bruto somado; produto sem grupo fica ele mesmo. Valor bruto (qtd × preço), para a
+ * soma das linhas bater com o Subtotal; os descontos continuam nas linhas dos totais.
+ */
+export function agruparItens(itens: RegistroCrud[]): { nome: string; valor: number }[] {
+  const linhas: { nome: string; valor: number }[] = [];
+  const porGrupo = new Map<string, { nome: string; valor: number }>();
+  for (const i of itens) {
+    const valor = Math.round((Number(i.quantidade) || 0) * (Number(i.preco_unitario) || 0) * 100) / 100;
+    const grupo = i.grupo_id ? String(i.grupo_id) : null;
+    const existente = grupo ? porGrupo.get(grupo) : undefined;
+    if (existente) {
+      existente.valor = Math.round((existente.valor + valor) * 100) / 100;
+      continue;
+    }
+    const linha = { nome: String((grupo ? i.grupo_nome : i.produto_nome) ?? ''), valor };
+    if (grupo) porGrupo.set(grupo, linha);
+    linhas.push(linha);
+  }
+  return linhas;
+}
+
+/**
  * Página A4 da proposta ou do pedido, pronta para o diálogo de impressão do navegador
  * ("Salvar como PDF" gera o arquivo). Recebe o documento como gravado no servidor.
  */
-export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos'): string {
+export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos', resumida = false): string {
   const ehProposta = tipo === 'propostas';
   const itens: RegistroCrud[] = p.itens || [];
   const descItens = itens.reduce((s, i) => s + (Number(i.desconto) || 0), 0);
@@ -27,7 +50,11 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos'): s
       <div>Situação: ${esc(STATUS_LABELS[p.status] || p.status)}</div>
       ${p.proposta_numero ? `<div>Ref. proposta nº ${esc(p.proposta_numero)} v${esc(p.proposta_versao)}</div>` : ''}`;
 
-  const linhas = itens
+  const linhas = resumida
+    ? agruparItens(itens)
+        .map((l, n) => `<tr><td class="c">${n + 1}</td><td>${esc(l.nome)}</td><td class="r b">${formatMoeda(l.valor)}</td></tr>`)
+        .join('')
+    : itens
     .map(
       (i, n) => `<tr>
         <td class="c">${n + 1}</td>
@@ -126,8 +153,11 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos'): s
 
   <table>
     <thead><tr>
-      <th class="c" style="width:28px">#</th><th>Produto / Serviço</th><th class="r">Qtd.</th><th class="c">Un.</th>
-      <th class="r">Preço unit.</th><th class="r">Desconto</th><th class="r">Subtotal</th>
+      <th class="c" style="width:28px">#</th><th>Produto / Serviço</th>${
+        resumida
+          ? '<th class="r">Valor</th>'
+          : '<th class="r">Qtd.</th><th class="c">Un.</th><th class="r">Preço unit.</th><th class="r">Desconto</th><th class="r">Subtotal</th>'
+      }
     </tr></thead>
     <tbody>${linhas}</tbody>
   </table>

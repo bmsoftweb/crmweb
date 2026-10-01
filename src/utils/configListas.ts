@@ -20,6 +20,8 @@ export interface ConfigLista {
   modo?: ModoLargura;
   /** Campos exibidos como coluna na lista, escolhidos no formulário de edição */
   visiveis?: string[];
+  /** Campos que existiam quando a configuração foi salva: coluna nova (listed) aparece mesmo com "visiveis" salvo */
+  conhecidas?: string[];
   /** Campos oferecidos na busca avançada, escolhidos no formulário de edição */
   busca?: string[];
   /** Ordem dos campos no formulário de edição, arrastados pelo usuário */

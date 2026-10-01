@@ -90,8 +90,9 @@ export async function lerDocumento(tipo: TipoDoc, id: string, empresaId: string)
   if (!cab.length) throw erro(404, `${tipo === 'proposta' ? 'Proposta' : 'Pedido'} não encontrado.`);
   const [itens] = await pool.query<any[]>(
     `SELECT i.id, i.produto_id, i.quantidade, i.preco_unitario, i.desconto, i.subtotal,
-            pr.nome AS produto_nome, pr.codigo_sku, pr.unidade_medida
+            pr.nome AS produto_nome, pr.codigo_sku, pr.unidade_medida, pr.grupo_id, g.nome AS grupo_nome
        FROM ${d.itens} i JOIN produtos pr ON pr.id = i.produto_id
+       LEFT JOIN produtos_grupos g ON g.id = pr.grupo_id
       WHERE i.${d.fk} = ? ORDER BY i.criado_em, i.id`,
     [id],
   );
@@ -389,7 +390,8 @@ export function createCrmRouter() {
 
 Para aprovar e assinar a proposta, acesse:
 ${link}` : mensagem;
-    const pdf = await gerarPdf(htmlDocumento(p, req.params.tipo as 'propostas' | 'pedidos'));
+    // Resumida: produtos agrupados pelo grupo (o cliente não vê o detalhe)
+    const pdf = await gerarPdf(htmlDocumento(p, req.params.tipo as 'propostas' | 'pedidos', req.body?.resumida === true));
     const arquivo = ehProposta ? `Proposta ${p.numero_proposta}-v${p.versao}.pdf` : `Pedido ${p.numero_pedido}.pdf`;
     if (canal === 'email') {
       const assunto = ehProposta ? `Proposta nº ${p.numero_proposta}` : `Pedido nº ${p.numero_pedido}`;
@@ -460,13 +462,15 @@ ${link}` : mensagem;
       ];
       let propostaId: number | string | null = idExistente;
       const controle = texto(b.controle)?.slice(0, 30) ?? null;
+      // Impressão resumida: o cliente vê os produtos agrupados (PDF, envio e página de aprovação)
+      const resumida = b.impressao_resumida === true || b.impressao_resumida === 1 || b.impressao_resumida === '1' ? 1 : 0;
       if (propostaId) {
         await conn.query(
           `UPDATE propostas SET titulo = ?, pessoa_id = ?, empresa_id = ?, status = ?, valor_subtotal = ?, valor_desconto = ?,
                   valor_total = ?, validade_dias = ?, condicoes_pagamento = ?, observacoes = ?,
-                  data_validade = DATE_ADD(DATE(criado_em), INTERVAL ? DAY), controle = ?
+                  data_validade = DATE_ADD(DATE(criado_em), INTERVAL ? DAY), controle = ?, impressao_resumida = ?
             WHERE id = ? AND empresa_id = ?`,
-          [...cab, validadeDias, controle, propostaId, emp],
+          [...cab, validadeDias, controle, resumida, propostaId, emp],
         );
       } else {
         // Proposta nova = número novo, começando na versão 1 (as versões são por número)
@@ -476,9 +480,9 @@ ${link}` : mensagem;
         const ctrl = controle ?? controleDaVersao(await controleNovo(conn, emp), 1);
         const [nova] = await conn.query(
           `INSERT INTO propostas (titulo, pessoa_id, empresa_id, status, valor_subtotal, valor_desconto, valor_total,
-                                  validade_dias, condicoes_pagamento, observacoes, data_validade, negocio_id, versao, numero_proposta, controle)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(CURDATE(), INTERVAL ? DAY), ?, ?, ?, ?)`,
-          [...cab, validadeDias, negocioId, v, numero, ctrl],
+                                  validade_dias, condicoes_pagamento, observacoes, data_validade, negocio_id, versao, numero_proposta, controle, impressao_resumida)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(CURDATE(), INTERVAL ? DAY), ?, ?, ?, ?, ?)`,
+          [...cab, validadeDias, negocioId, v, numero, ctrl, resumida],
         );
         propostaId = Number(nova.insertId);
       }
@@ -512,9 +516,9 @@ ${link}` : mensagem;
       const controle = controleDaVersao(origem.controle || (await controleNovo(conn, emp)), v);
       const [nova] = await conn.query(
         `INSERT INTO propostas (versao, numero_proposta, negocio_id, pessoa_id, empresa_id, titulo, status, valor_subtotal, valor_desconto,
-                                valor_total, validade_dias, data_validade, condicoes_pagamento, observacoes, controle)
+                                valor_total, validade_dias, data_validade, condicoes_pagamento, observacoes, controle, impressao_resumida)
          SELECT ?, numero_proposta, negocio_id, pessoa_id, empresa_id, titulo, 'rascunho', valor_subtotal, valor_desconto,
-                valor_total, validade_dias, DATE_ADD(CURDATE(), INTERVAL COALESCE(validade_dias, 0) DAY), condicoes_pagamento, observacoes, ?
+                valor_total, validade_dias, DATE_ADD(CURDATE(), INTERVAL COALESCE(validade_dias, 0) DAY), condicoes_pagamento, observacoes, ?, impressao_resumida
            FROM propostas WHERE id = ?`,
         [v, controle, origem.id],
       );
@@ -546,9 +550,9 @@ ${link}` : mensagem;
       const controle = controleDaVersao(await controleNovo(conn, emp), 1);
       const [nova] = await conn.query(
         `INSERT INTO propostas (controle, versao, numero_proposta, negocio_id, pessoa_id, empresa_id, titulo, status, valor_subtotal, valor_desconto,
-                                valor_total, validade_dias, data_validade, condicoes_pagamento, observacoes)
+                                valor_total, validade_dias, data_validade, condicoes_pagamento, observacoes, impressao_resumida)
          SELECT ?, 1, ?, negocio_id, pessoa_id, empresa_id, LEFT(CONCAT(titulo, ' (cópia)'), 255), 'rascunho', valor_subtotal, valor_desconto,
-                valor_total, validade_dias, DATE_ADD(CURDATE(), INTERVAL COALESCE(validade_dias, 0) DAY), condicoes_pagamento, observacoes
+                valor_total, validade_dias, DATE_ADD(CURDATE(), INTERVAL COALESCE(validade_dias, 0) DAY), condicoes_pagamento, observacoes, impressao_resumida
            FROM propostas WHERE id = ? AND empresa_id = ?`,
         [controle, numero, origem.id, emp],
       );

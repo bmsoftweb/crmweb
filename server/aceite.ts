@@ -5,7 +5,7 @@ import { lerConfig } from './config.js';
 import { aprovarProposta, lerDocumento, registrarHistorico } from './crm.js';
 import { sincronizarNegocio } from './regras.js';
 import { gerarPdf } from './pdf.js';
-import { htmlDocumento } from '../src/utils/imprimirDocumento.js';
+import { agruparItens, htmlDocumento } from '../src/utils/imprimirDocumento.js';
 import { enviarAutomatica, telefoneWhatsApp } from './whatsapp.js';
 
 /**
@@ -136,21 +136,24 @@ export function createAceiteRouter() {
       valor_subtotal: Number(p.valor_subtotal),
       valor_desconto: Number(p.valor_desconto),
       valor_total: Number(p.valor_total),
-      itens: p.itens.map((i: any) => ({
-        produto: i.produto_nome,
-        unidade: i.unidade_medida,
-        quantidade: Number(i.quantidade),
-        preco_unitario: Number(i.preco_unitario),
-        desconto: Number(i.desconto),
-        subtotal: Number(i.subtotal),
-      })),
+      // Resumida: uma linha por grupo de produtos, só com o valor (o cliente não vê o detalhe)
+      itens: Number(p.impressao_resumida)
+        ? agruparItens(p.itens).map((l) => ({ produto: l.nome, unidade: null, quantidade: null, preco_unitario: null, desconto: 0, subtotal: l.valor }))
+        : p.itens.map((i: any) => ({
+            produto: i.produto_nome,
+            unidade: i.unidade_medida,
+            quantidade: Number(i.quantidade),
+            preco_unitario: Number(i.preco_unitario),
+            desconto: Number(i.desconto),
+            subtotal: Number(i.subtotal),
+          })),
       decisao: p.aceite_em ? { nome: p.aceite_nome, em: p.aceite_em } : null,
     });
   }));
 
   router.get('/api/publico/propostas/:token/pdf', rota(async (req, res) => {
     const { p } = await doToken(req.params.token);
-    const pdf = await gerarPdf(htmlDocumento(p, 'propostas'));
+    const pdf = await gerarPdf(htmlDocumento(p, 'propostas', Boolean(Number(p.impressao_resumida))));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="Proposta ${p.numero_proposta}-v${p.versao}.pdf"`);
     res.send(pdf);

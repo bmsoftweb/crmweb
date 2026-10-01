@@ -19,7 +19,8 @@ interface PropostaPublica {
   valor_subtotal: number;
   valor_desconto: number;
   valor_total: number;
-  itens: { produto: string; unidade: string | null; quantidade: number; preco_unitario: number; desconto: number; subtotal: number }[];
+  /** Resumida: quantidade e preço vêm nulos (linha do grupo, só com o valor) */
+  itens: { produto: string; unidade: string | null; quantidade: number | null; preco_unitario: number | null; desconto: number; subtotal: number }[];
   decisao: { nome: string; em: string } | null;
 }
 
@@ -224,10 +225,12 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
               <div key={n} className="py-2 flex justify-between gap-3 text-sm">
                 <div>
                   <div className="font-medium text-stone-900">{i.produto}</div>
-                  <div className="text-xs text-stone-500 tabular-nums">
-                    {i.quantidade.toLocaleString('pt-BR')} {i.unidade || 'un'} × {formatMoeda(i.preco_unitario)}
-                    {i.desconto > 0 && ` • desconto ${formatMoeda(i.desconto)}`}
-                  </div>
+                  {i.quantidade !== null && (
+                    <div className="text-xs text-stone-500 tabular-nums">
+                      {i.quantidade.toLocaleString('pt-BR')} {i.unidade || 'un'} × {formatMoeda(i.preco_unitario)}
+                      {i.desconto > 0 && ` • desconto ${formatMoeda(i.desconto)}`}
+                    </div>
+                  )}
                 </div>
                 <div className="font-semibold tabular-nums text-right whitespace-nowrap">{formatMoeda(i.subtotal)}</div>
               </div>

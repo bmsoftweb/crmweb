@@ -408,7 +408,7 @@ interface AtivosProps {
 }
 
 export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToken, abrir, onMudou, onConversar, onToast, onVoltarFila }) => {
-  const [filtro, setFiltro] = useState<FiltroChamados>('meus');
+  const [filtro, setFiltro] = useState<FiltroChamados>('todos');
   const [busca, setBusca] = useState('');
   const [lista, setLista] = useState<ChamadoResumo[] | null>(null);
   const [aberto, setAberto] = useState<number | null>(abrir);

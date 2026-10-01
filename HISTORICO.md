@@ -2,6 +2,15 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.73 — 2026-10-01
+
+- Banco: tabela `produtos_grupos`, `produtos.grupo_id` e `propostas.impressao_resumida` (SQL em extras/crmweb_schema.sql).
+- Cadastros › Grupos de Produtos; produto ganha o campo Grupo (1ª coluna da lista, que abre por grupo, sem grupo no fim).
+- Propostas e pedidos: impressão resumida — os produtos do mesmo grupo saem numa linha só, com o nome do grupo e o valor somado; sem grupo, o próprio produto. Menu da lista com "Imprimir detalhada" e "Imprimir resumida"; envio por e-mail/WhatsApp com "PDF resumido".
+- Proposta: campo "Impressão resumida" (guardado; Nova versão e Clonar mantêm). Com ele ligado, a impressão do editor, o envio, a página de aprovação do link e o PDF do link saem agrupados.
+- Listas: coluna nova (listada por padrão) aparece mesmo com configuração salva; ordenar por campo ligado (ex.: Grupo) ordena pelo nome do registro ligado, os vazios no fim.
+- Chamados Ativos: abre no filtro "Todos abertos".
+
 ## 0.0.72 — 2026-10-01
 
 - Banco: `pessoas.ativo` (SQL em extras/crmweb_schema.sql).

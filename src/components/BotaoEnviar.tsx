@@ -6,6 +6,7 @@ import { enviarDocumento, fetchDocumento, TipoDocumento } from '../services/api'
 import { formatDateBR, formatMoeda } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Toggle } from './Toggle';
 import { BotaoAcao, useEmMenu } from './MenuAcoes';
 
 type Canal = 'email' | 'whatsapp';
@@ -46,7 +47,7 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
   const botaoRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<{ top: number; right: number } | null>(null);
   const [carregando, setCarregando] = useState(false);
-  const [envio, setEnvio] = useState<{ canal: Canal; destino: string; mensagem: string } | null>(null);
+  const [envio, setEnvio] = useState<{ canal: Canal; destino: string; mensagem: string; resumida: boolean } | null>(null);
   const emMenu = useEmMenu();
 
   // Menu fecha ao clicar fora, rolar a lista ou apertar Esc
@@ -71,7 +72,7 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
       const d = await fetchDocumento(tipo, registro.id as number);
       if (ehProposta && d.status === 'fechada') return onToast('Proposta fechada: outra versão desta proposta foi aceita.');
       if (!ehProposta && d.status === 'cancelado') return onToast('Pedido cancelado não pode ser enviado.');
-      setEnvio({ canal, destino: String((canal === 'email' ? d.pessoa_email : d.pessoa_whatsapp || d.pessoa_telefone) || ''), mensagem: mensagemPadrao(d, tipo) });
+      setEnvio({ canal, destino: String((canal === 'email' ? d.pessoa_email : d.pessoa_whatsapp || d.pessoa_telefone) || ''), mensagem: mensagemPadrao(d, tipo), resumida: Boolean(Number(d.impressao_resumida)) });
     } catch (err: any) {
       onToast(err.message || `Não foi possível carregar ${ehProposta ? 'a proposta' : 'o pedido'}.`);
     } finally {
@@ -172,6 +173,12 @@ export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onT
                     className={`${INPUT_CLASS} w-full resize-y`}
                   />
                 </div>
+                <Toggle
+                  checked={envio.resumida}
+                  onChange={(resumida) => setEnvio({ ...envio, resumida })}
+                  label="PDF resumido (produtos agrupados pelo grupo)"
+                  title="Os produtos do mesmo grupo saem numa linha só, com o valor somado"
+                />
               </div>
             </ConfirmDialog>
           </span>,

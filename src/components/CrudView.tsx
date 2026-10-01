@@ -312,7 +312,14 @@ export const CrudView: React.FC<CrudViewProps> = ({
       if (!vivo) return;
       setLarguras(cfg.larguras || {});
       setOrdem(cfg.ordem || []);
-      setVisiveis(cfg.visiveis || null);
+      // Coluna criada depois da configuração salva: entra se for das listadas por padrão. Configuração antiga,
+      // sem "conhecidas": vale o que estava visível (uma coluna padrão escondida volta até salvar de novo)
+      const conhecidas = new Set(cfg.conhecidas ?? cfg.visiveis ?? []);
+      setVisiveis(
+        cfg.visiveis
+          ? [...cfg.visiveis, ...camposProprios.filter((f) => f.listed && !conhecidas.has(f.name)).map((f) => f.name)]
+          : null,
+      );
       setCamposBusca(cfg.busca || null);
       setOrdemForm(cfg.ordemForm || []);
       setTamanhosForm(cfg.tamanhosForm || {});
@@ -332,6 +339,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
     // a mesma lista pode abrir em outro monitor, com outra largura de tela.
     salvarConfigLista(resource.name, {
       visiveis: listedFields.filter((f) => !f.json).map((f) => f.name),
+      conhecidas: camposProprios.map((f) => f.name),
       busca: camposBuscaAtuais,
       ordemForm: ordemForm.length ? ordemForm : undefined,
       tamanhosForm: Object.keys(tamanhosForm).length ? tamanhosForm : undefined,

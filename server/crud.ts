@@ -389,10 +389,16 @@ export function createCrudRouter() {
       });
       // A senha nunca sai do servidor, nem em hash
       const senhas = resource.fields.filter((f) => f.type === 'password').map((f) => f.name);
+      // Campo ligado (ex.: Grupo do produto): ordena pelo nome do registro ligado, os vazios no fim e, no empate,
+      // pelo nome do próprio registro
+      const ordenaRotulo = rotulos.some((r) => r.endsWith(` AS ${sortField}__rotulo`));
+      const ordem = ordenaRotulo
+        ? `(t.${sortField} IS NULL), ${sortField}__rotulo ${sortDir}, t.${resource.labelField} ASC`
+        : `${calculadas.some((f) => f.name === sortField) ? sortField : `t.${sortField}`} ${sortDir}`;
       const [rows] = await pool.query<any[]>(
         `SELECT t.*${calculadas.map((f) => `, ${f.sql} AS ${f.name}`).join('')}${rotulos.join('')} FROM ${resource.table} t
           WHERE ${whereSql}
-          ORDER BY ${calculadas.some((f) => f.name === sortField) ? sortField : `t.${sortField}`} ${sortDir}${
+          ORDER BY ${ordem}${
             // Mesmo dia: pela hora; empate: pelo id (a paginação não repete nem pula linhas)
             sortField === 'data_vencimento' && columnNames(resource).includes('hora_vencimento') ? `, t.hora_vencimento ${sortDir}` : ''
           }, t.${pkCol(resource)} ${sortDir}

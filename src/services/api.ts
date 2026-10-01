@@ -382,7 +382,7 @@ export const gerarDisparos = (
 export const enviarDocumento = (
   tipo: TipoDocumento,
   id: Id,
-  dados: { canal: 'email' | 'whatsapp'; destino: string; mensagem: string },
+  dados: { canal: 'email' | 'whatsapp'; destino: string; mensagem: string; resumida?: boolean },
 ): Promise<{ status: string; statusAlterado: boolean; tarefaRetorno: boolean }> =>
   enviar('POST', `/api/crm/${tipo}/${encodeURIComponent(String(id))}/enviar`, dados);
 
