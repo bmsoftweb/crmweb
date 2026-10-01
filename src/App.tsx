@@ -40,7 +40,7 @@ import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
 import { ConversasView, PedidoConversa } from './components/ConversasView';
-import { ChamadosAtivos, ChamadosFila } from './components/Chamados';
+import { ChamadosAtivos, ChamadosFila, tempoEspera } from './components/Chamados';
 import { BotaoWhatsApp } from './components/BotaoWhatsApp';
 import { BotaoPermissoes } from './components/PermissoesUsuario';
 import { gruposDoMenu, podeAcessar } from './utils/menu';
@@ -140,6 +140,8 @@ export default function App() {
   const ultimaTransferencia = useRef<number | null>(null);
   /** Idem, para chamado transferido para o meu departamento */
   const ultimaTransferenciaDep = useRef<number | null>(null);
+  /** Quando tocou a buzina do chamado atrasado na fila (repete a cada minuto enquanto houver) */
+  const ultimaBuzina = useRef(0);
   /** Acabou de entrar (login ou sessão guardada): quem é do Suporte começa na Fila de Chamados */
   const recemEntrou = useRef(true);
   const atualizarFilaChamados = useCallback(() => {
@@ -166,6 +168,13 @@ export default function App() {
           showToast(`Novo chamado nº ${n.numero} na fila${n.nome ? ` (${n.nome})` : ''}.`);
         }
         ultimoChamadoFila.current = Math.max(ultimoChamadoFila.current ?? 0, n?.id ?? 0);
+        // Chamado esperando há mais de 10 minutos na fila: buzina alta, a cada minuto até alguém assumir
+        const at = r.atrasado;
+        if (r.suporte && at && Date.now() - ultimaBuzina.current >= 60_000) {
+          ultimaBuzina.current = Date.now();
+          tocarAviso('buzina');
+          showToast(`Chamado nº ${at.numero}${at.nome ? ` (${at.nome})` : ''} esperando há ${tempoEspera(at.espera_min)} na fila.`);
+        }
         // Chamado transferido para mim: campainha, aviso na tela e as listas se atualizam
         const tr = r.transferido;
         if (tr && ultimaTransferencia.current !== null && tr.id > ultimaTransferencia.current) {

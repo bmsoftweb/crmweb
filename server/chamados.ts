@@ -220,8 +220,19 @@ export function createChamadosRouter(): Router {
         ORDER BY m.id DESC LIMIT 1`,
       [emp(res), eu(res), eu(res), `${TRANSFERIDO_PARA}o departamento %`],
     );
+    // Chamado esperando na fila há mais de 10 minutos (o mais antigo): a tela toca a buzina para o Suporte
+    const [a] = await pool.query<any[]>(
+      `SELECT c.id, c.numero, COALESCE(p.nome, c.contato_nome) AS nome, TIMESTAMPDIFF(MINUTE, c.criado_em, NOW()) AS espera_min
+         FROM chamados c
+         LEFT JOIN pessoas p ON p.id = c.pessoa_id
+        WHERE c.empresa_id = ? AND c.status IN ${NA_FILA} AND c.atendente_id IS NULL
+          AND c.criado_em < NOW() - INTERVAL 10 MINUTE
+        ORDER BY c.criado_em, c.id LIMIT 1`,
+      [emp(res)],
+    );
     res.json({
       fila: Number(r[0].n),
+      atrasado: a[0] ? { ...a[0], espera_min: Number(a[0].espera_min) } : null,
       transferido: t[0] ?? null,
       transferido_departamento: td[0] ?? null,
       // Último chamado da fila: quem é do departamento Suporte ouve o aviso de chamado novo

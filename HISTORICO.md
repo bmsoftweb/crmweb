@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.71 — 2026-10-01
+
+- Chamados Ativos: quadro "Na fila" embaixo da lista, com posição, número, espera, cliente e atendente; clicar abre o chamado e "Assumir" assume sem sair da tela.
+- Chamados Ativos: o atendente aparece em linha própria no card (o nome comprido do cliente escondia o técnico nos chamados em andamento).
+- Fila de Chamados: chamado esperando há mais de 10 minutos toca uma buzina alta para o Suporte, a cada minuto até alguém assumir, com aviso na tela.
+
 ## 0.0.70 — 2026-09-30
 
 - Painel de Suporte: clicar no técnico abre a Consulta de Chamados filtrada por ele; gráficos no tempo com todos os rótulos a 45° (por dia até 45 dias, por semana até 92, por mês além disso) e sem colunas vazando.

@@ -846,6 +846,8 @@ export type FiltroChamados = 'meus' | 'todos' | 'aguardando' | 'andamento' | 'en
 export const fetchFilaChamados = (): Promise<ChamadoResumo[]> => get('/api/chamados/fila');
 export const fetchContagemChamados = (): Promise<{
   fila: number;
+  /** Chamado da fila esperando há mais de 10 minutos (o mais antigo): buzina */
+  atrasado: { id: number; numero: number; nome: string | null; espera_min: number } | null;
   /** Último chamado da fila (o mais novo) */
   novo: { id: number; numero: number; nome: string | null } | null;
   /** O usuário é do departamento Suporte: ouve o aviso de chamado novo */

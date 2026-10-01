@@ -33,10 +33,31 @@ const SONS: Record<string, { notas: number[]; intervalo: number; duracao: number
   cutucar: { notas: [1319, 988, 1319, 988, 1319, 988], intervalo: 0.12, duracao: 0.1, onda: 'square', volume: 0.12 },
 };
 
-export function tocarAviso(tipo: 'whatsapp' | 'suporte' | 'chamado' | 'campainha' | 'cutucar' = 'whatsapp') {
-  const som = SONS[tipo];
+/** Buzina de caminhão: três toques de um acorde grave em onda dente de serra, no volume máximo */
+function tocarBuzina(c: AudioContext) {
+  const t = c.currentTime;
+  [0, 0.75, 1.5].forEach((inicio) => {
+    [233, 294, 349].forEach((freq) => {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'sawtooth';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t + inicio);
+      g.gain.exponentialRampToValueAtTime(0.33, t + inicio + 0.02);
+      g.gain.setValueAtTime(0.33, t + inicio + 0.55);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + inicio + 0.6);
+      o.connect(g).connect(c.destination);
+      o.start(t + inicio);
+      o.stop(t + inicio + 0.62);
+    });
+  });
+}
+
+export function tocarAviso(tipo: 'whatsapp' | 'suporte' | 'chamado' | 'campainha' | 'cutucar' | 'buzina' = 'whatsapp') {
   try {
     ctx ??= new AudioContext();
+    if (tipo === 'buzina') return tocarBuzina(ctx);
+    const som = SONS[tipo];
     const t = ctx.currentTime;
     som.notas.forEach((freq, i) => {
       const o = ctx!.createOscillator();

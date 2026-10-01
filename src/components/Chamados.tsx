@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote, UserRound } from 'lucide-react';
 import {
   assumirChamado,
   buscarPessoasChamado,
@@ -90,6 +90,19 @@ const Categoria: React.FC<{ c: ChamadoResumo }> = ({ c }) =>
       {c.categoria_nome}
     </span>
   ) : null;
+/** Quem atende o chamado (linha própria no card, para o nome comprido do cliente não escondê-lo) */
+const Atendente: React.FC<{ c: ChamadoResumo }> = ({ c }) => (
+  <div className="flex items-center gap-1 text-[11px] truncate">
+    <UserRound className="w-3 h-3 shrink-0 text-stone-400" />
+    {c.atendente_nome ? (
+      <span className="font-semibold text-blue-700 dark:text-blue-400 truncate">{c.atendente_nome}</span>
+    ) : c.tecnico_padrao_nome ? (
+      <span className="text-stone-500 dark:text-stone-400 truncate">técnico: {c.tecnico_padrao_nome}</span>
+    ) : (
+      <span className="text-stone-400 italic">sem atendente</span>
+    )}
+  </div>
+);
 const Sla: React.FC = () => (
   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">
     <AlertTriangle className="w-3 h-3" /> SLA vencido
@@ -291,6 +304,8 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
   const [aberto, setAberto] = useState<number | null>(abrir);
   const [novo, setNovo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [fila, setFila] = useState<ChamadoResumo[] | null>(null);
+  const [assumindo, setAssumindo] = useState<number | null>(null);
 
   useEffect(() => {
     if (abrir) setAberto(abrir);
@@ -305,6 +320,9 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
     fetchChamados(filtro, busca.trim())
       .then(setLista)
       .catch((e) => setErro(e.message));
+    fetchFilaChamados()
+      .then(setFila)
+      .catch((e) => setErro(e.message));
   }, [filtro, busca]);
   useEffect(() => {
     const t = setTimeout(carregar, busca ? 300 : 0);
@@ -318,6 +336,22 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
   const mudou = () => {
     carregar();
     onMudou();
+  };
+
+  // Assumir direto do quadro da fila, sem sair da tela
+  const assumir = async (c: ChamadoResumo) => {
+    setAssumindo(c.id);
+    try {
+      await assumirChamado(c.id);
+      onToast(`Chamado nº ${c.numero} assumido.`);
+      mudou();
+      setAberto(c.id);
+    } catch (e: any) {
+      setErro(e.message);
+      carregar();
+    } finally {
+      setAssumindo(null);
+    }
   };
 
   return (
@@ -379,14 +413,58 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
                   </span>
                 </div>
                 <div className="text-xs font-semibold text-stone-900 dark:text-stone-100 truncate mt-1">{c.titulo}</div>
-                <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
-                  {c.pessoa_nome || 'Sem cliente'}
-                  {c.atendente_nome ? ` • ${c.atendente_nome}` : c.tecnico_padrao_nome ? ` • técnico: ${c.tecnico_padrao_nome}` : ' • sem atendente'}
-                </div>
+                <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.pessoa_nome || 'Sem cliente'}</div>
+                <Atendente c={c} />
                 {c.sla_vencido && <Sla />}
               </button>
             ))
           )}
+        </div>
+
+        {/* Quadro da fila: chamados aguardando atendimento */}
+        <div className="shrink-0 max-h-[40%] flex flex-col min-h-0 border-t-2 border-stone-200 dark:border-stone-800">
+          <div className="px-3 py-2 flex items-center justify-between bg-stone-50 dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-stone-500 dark:text-stone-400">Na fila</span>
+            <span className="text-[11px] font-bold text-stone-700 dark:text-stone-200">{fila?.length ?? '…'}</span>
+          </div>
+          <div className="overflow-y-auto">
+            {!fila ? (
+              <Loader2 className="w-4 h-4 m-3 animate-spin text-stone-400" />
+            ) : !fila.length ? (
+              <p className="px-3 py-3 text-xs text-stone-500 dark:text-stone-400">Nenhum chamado aguardando.</p>
+            ) : (
+              fila.map((c) => (
+                <div
+                  key={c.id}
+                  className={`flex items-center gap-2 px-3 py-2 border-b border-stone-100 dark:border-stone-800/70 ${
+                    aberto === c.id ? 'bg-blue-50 dark:bg-blue-950/40' : 'hover:bg-stone-50 dark:hover:bg-stone-800/50'
+                  }`}
+                >
+                  <button type="button" onClick={() => setAberto(c.id)} className="flex-1 min-w-0 text-left cursor-pointer">
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <span className="font-bold text-blue-600 dark:text-blue-400">{c.posicao}º</span>
+                      <span className="font-mono text-stone-400">nº {c.numero}</span>
+                      <span className="ml-auto text-stone-500 whitespace-nowrap">{tempoEspera(c.espera_min)}</span>
+                    </div>
+                    <div className="text-xs font-semibold text-stone-900 dark:text-stone-100 truncate">{c.titulo}</div>
+                    <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.pessoa_nome || 'Sem cliente'}</div>
+                    <Atendente c={c} />
+                    {c.sla_vencido && <Sla />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => assumir(c)}
+                    disabled={assumindo !== null}
+                    title="Assumir o chamado"
+                    className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-50"
+                  >
+                    {assumindo === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Hand className="w-3 h-3" />}
+                    Assumir
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
