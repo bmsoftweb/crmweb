@@ -309,6 +309,28 @@ export function createConversasRouter(): Router {
     }
   });
 
+  /**
+   * Pausar: a conversa sai de quem atende e volta para a Fila de Chamados (aguardando, mesmo departamento),
+   * sem voltar ao bot; mantém o "aguardando desde" original, como o chamado pausado mantém a chegada
+   */
+  router.post('/whatsapp/conversas/:telefone/pausar', async (req: Request, res: Response) => {
+    try {
+      const telefone = req.params.telefone;
+      if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
+      const emp = res.locals.empresaId;
+      await conferirTrava(res, telefone, true);
+      const [r] = await pool.query<any>(
+        "UPDATE whatsapp_conversas SET atendimento = 'humano', atendente_id = NULL, atendido_em = NULL, humano_desde = COALESCE(humano_desde, NOW()), retomar_em = NULL, atualizado_em = NOW() WHERE empresa_id = ? AND telefone = ? AND atendente_id IS NOT NULL",
+        [emp, telefone],
+      );
+      if (!r.affectedRows) return res.status(400).json({ error: 'Ninguém está atendendo esta conversa.' });
+      await marcarEvento(emp, telefone, `Pausado por ${res.locals.usuario?.nome ?? 'atendente'}: voltou para a fila`, res.locals.usuarioId);
+      res.json({ success: true });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
   /** Transferir para outro atendente (já em atendimento com ele) ou para um departamento (aguardando) */
   router.post('/whatsapp/conversas/:telefone/transferir', async (req: Request, res: Response) => {
     try {
@@ -417,14 +439,18 @@ export function createConversasRouter(): Router {
                 ${NOME_CONTATO('w')} AS nome_contato, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao,
                 DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, x.encerrada, d.nome AS departamento,
                 wc.atendimento, wc.atendente_id, COALESCE(wc.conta, 'provedor') AS conta, ua.nome AS atendente_nome, tp.nome AS tecnico_padrao_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
-                DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde
+                DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde,
+                -- Pausada: o último evento é a pausa, e depois dela não começou outra espera
+                COALESCE(ev.texto LIKE 'Pausado por%' AND ev.data_hora >= COALESCE(wc.humano_desde, ev.data_hora), 0) AS pausada
            FROM (SELECT telefone, MAX(IF(tipo NOT IN ('encerramento', 'evento'), id, NULL)) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
+                        MAX(IF(tipo = 'evento', id, NULL)) AS ultimo_evento,
                         SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas,
                         -- Encerrado (botão, tempo ou fim da automação) e o cliente ainda não escreveu de novo (a nota da pesquisa não conta)
                         COALESCE(MAX(IF(tipo = 'encerramento', data_hora, NULL))
                                  > COALESCE(MAX(IF(direcao = 'recebida' AND (origem IS NULL OR origem NOT LIKE 'pesquisa%'), data_hora, NULL)), '1000-01-01'), 0) AS encerrada
                    FROM whatsapp_mensagens WHERE empresa_id = ? GROUP BY telefone HAVING ultima IS NOT NULL) x
            JOIN whatsapp_mensagens w ON w.id = x.ultima
+           LEFT JOIN whatsapp_mensagens ev ON ev.id = x.ultimo_evento
            LEFT JOIN pessoas p ON p.id = x.pessoa_id
            LEFT JOIN pessoas_contatos c ON c.id = x.contato_id
            LEFT JOIN whatsapp_conversas wc ON wc.empresa_id = w.empresa_id AND wc.telefone = w.telefone
@@ -454,7 +480,7 @@ export function createConversasRouter(): Router {
               : comBot
                 ? 'bot'
                 : null;
-          return { ...r, estado, nao_vistas: Number(r.nao_vistas) };
+          return { ...r, estado, nao_vistas: Number(r.nao_vistas), pausada: estado === 'aguardando' && Boolean(Number(r.pausada)) };
         }),
       );
     } catch (err: any) {

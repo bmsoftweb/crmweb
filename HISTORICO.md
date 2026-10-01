@@ -2,6 +2,17 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.72 — 2026-10-01
+
+- Banco: `pessoas.ativo` (SQL em extras/crmweb_schema.sql).
+- Pessoas: campo Ativo (toggle, coluna e filtro). Inativo continua nos combos (propostas, negócios) com "(inativo)" no nome, para propostas de reativação.
+- Importar BM (pessoas): traz também os inativos do bmsoft, que entram inativos; os já importados seguem o Ativo do bmsoft. O resumo mostra quantos vieram inativos.
+- Produtos: ícone Clonar na lista — cópia com "(cópia)" no nome, mesmo preço, unidade e descrição, sem SKU, código de integração e fotos; abre a cópia para editar.
+- Menu: Fila de Chamados logo depois do Painel de Suporte.
+- Fila de Chamados: conversas do WhatsApp aguardando atendimento entram na fila junto com os chamados, em ordem de chegada, com a coluna Origem (Chamado / WhatsApp); "Atender" pega a conversa e abre no Whatsapp.
+- Whatsapp: botão Pausar — a conversa sai de quem atende e volta para a Fila de Chamados (sem voltar ao bot), com a etiqueta "pausado".
+- Chamados Ativos: o card mostra quem atende (azul) e, se for outro, o técnico padrão do cliente.
+
 ## 0.0.71 — 2026-10-01
 
 - Chamados Ativos: quadro "Na fila" embaixo da lista, com posição, número, espera, cliente e atendente; clicar abre o chamado e "Assumir" assume sem sair da tela.

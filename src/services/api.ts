@@ -201,7 +201,7 @@ export const novaVersaoProposta = (id: Id): Promise<{ id: string }> =>
  * Devolve o registro novo no formato da linha da lista, para abrir na aba de edição.
  */
 export const clonarDocumento = (
-  tipo: 'propostas' | 'pedidos',
+  tipo: 'propostas' | 'pedidos' | 'produtos',
   id: Id,
 ): Promise<{ id: number; numero_proposta?: number; numero_pedido?: number; titulo?: string }> =>
   enviar('POST', `/api/crm/${tipo}/${encodeURIComponent(String(id))}/clonar`);
@@ -245,6 +245,8 @@ export function importarBM(tipo: 'pessoas' | 'produtos'): Promise<{
   inalterados: number;
   /** Produtos: inativos no bmsoft que nunca vieram (não entram) */
   inativos?: number;
+  /** Pessoas: quantas vieram inativas do bmsoft (entram inativas) */
+  inativas?: number;
   /** Pessoas: endereços do bmsoft incluídos e atualizados */
   enderecos?: { incluidos: number; atualizados: number };
 }> {
@@ -574,6 +576,8 @@ export interface ConversaResumo {
   conta: 'provedor' | 'campanhas';
   /** Técnico padrão do cliente (pessoas.tecnico_padrao_id) */
   tecnico_padrao_nome: string | null;
+  /** Pausada por quem atendia: voltou para a Fila de Chamados */
+  pausada: boolean;
 }
 
 export interface MensagemWhatsApp {
@@ -686,6 +690,8 @@ export const mudarAtendimentoConversa = (telefone: string, atendimento: 'bot' | 
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atendimento`, { atendimento });
 /** Atender: pega a conversa e trava para o usuário */
 export const atenderConversa = (telefone: string): Promise<{ success: boolean }> => enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atender`);
+/** Pausar: a conversa sai de quem atende e volta para a Fila de Chamados */
+export const pausarConversa = (telefone: string): Promise<{ success: boolean }> => enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/pausar`);
 /** Transferir para um atendente ou um departamento */
 export const transferirConversa = (telefone: string, destino: { usuario_id?: number; departamento_id?: number }): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/transferir`, destino);

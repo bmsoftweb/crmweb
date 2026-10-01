@@ -473,7 +473,7 @@ export default function App() {
           </main>
         ) : activeTab === 'conversas' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
-            <ConversasView refreshToken={refreshToken} onVisto={atualizarNaoVistas} pedido={pedidoConversa} onToast={showToast} />
+            <ConversasView refreshToken={refreshToken} onVisto={atualizarNaoVistas} pedido={pedidoConversa} onToast={showToast} onVoltarFila={() => navegar('chamados_fila')} />
           </main>
         ) : activeTab === 'chamados_fila' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
@@ -485,6 +485,10 @@ export default function App() {
                 navegar('chamados_ativos');
               }}
               onToast={showToast}
+              onConversa={(telefone) => {
+                atualizarNaoVistas();
+                pedirConversa({ telefone });
+              }}
             />
           </main>
         ) : activeTab === 'chamados_ativos' ? (
@@ -574,6 +578,8 @@ export default function App() {
                         />
                       </>
                     )
+                  : activeResource.name === 'produtos'
+                    ? (row, { abrir, recarregar }) => <BotaoClonar tipo="produtos" registro={row} onAbrir={abrir} onRecarregar={recarregar} onToast={showToast} />
                   : activeResource.name === 'contratos'
                     ? (row, { recarregar }) => <ContratoDocumentos registro={row} onRecarregar={recarregar} onToast={showToast} />
                   : activeResource.name === 'campanhas'

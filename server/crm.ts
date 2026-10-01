@@ -713,6 +713,23 @@ ${link}` : mensagem;
     res.json({ success: true, id: novo.id, numero_pedido: novo.numero });
   }));
 
+  /**
+   * Clonar produto: cópia com "(cópia)" no nome, sem SKU nem código de integração (são únicos na empresa)
+   * e sem as fotos (são do produto original: excluir na cópia apagaria o arquivo da original)
+   */
+  router.post('/crm/produtos/:id/clonar', rota(async (req, res) => {
+    exigirAcesso(res, 'produtos', 'Produtos');
+    const emp = empresaDa(res);
+    const [r] = await pool.query<any>(
+      `INSERT INTO produtos (empresa_id, nome, descricao, preco_tabela, unidade_medida, ativo)
+       SELECT empresa_id, LEFT(CONCAT(nome, ' (cópia)'), 255), descricao, preco_tabela, unidade_medida, ativo
+         FROM produtos WHERE id = ? AND empresa_id = ?`,
+      [req.params.id, emp],
+    );
+    if (!r.affectedRows) throw erro(404, 'Produto não encontrado.');
+    res.json({ success: true, id: Number(r.insertId) });
+  }));
+
   /** Produtos ativos para a pesquisa dos editores de proposta e pedido */
   router.get('/crm/produtos', rota(async (req, res) => {
     const q = `%${String(req.query.q || '').trim()}%`;

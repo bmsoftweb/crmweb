@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote, UserRound, Headset } from 'lucide-react';
 import {
   assumirChamado,
+  atenderConversa,
+  ConversaResumo,
+  fetchConversas,
   buscarPessoasChamado,
   ChamadoDetalhe,
   ChamadoHistorico,
@@ -95,7 +98,13 @@ const Atendente: React.FC<{ c: ChamadoResumo }> = ({ c }) => (
   <div className="flex items-center gap-1 text-[11px] truncate">
     <UserRound className="w-3 h-3 shrink-0 text-stone-400" />
     {c.atendente_nome ? (
-      <span className="font-semibold text-blue-700 dark:text-blue-400 truncate">{c.atendente_nome}</span>
+      <>
+        <span className="font-semibold text-blue-700 dark:text-blue-400 truncate">{c.atendente_nome}</span>
+        {/* Atendido por outro técnico: mostra também o técnico padrão do cliente */}
+        {c.tecnico_padrao_nome && c.tecnico_padrao_id !== c.atendente_id && (
+          <span className="text-stone-500 dark:text-stone-400 truncate">• técnico: {c.tecnico_padrao_nome}</span>
+        )}
+      </>
     ) : c.tecnico_padrao_nome ? (
       <span className="text-stone-500 dark:text-stone-400 truncate">técnico: {c.tecnico_padrao_nome}</span>
     ) : (
@@ -136,19 +145,66 @@ interface FilaProps {
   onAbrir: (id: number) => void;
   onMudou: () => void;
   onToast: (msg: string) => void;
+  /** Conversa do WhatsApp assumida: abre no Whatsapp */
+  onConversa: (telefone: string) => void;
 }
 
-export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMudou, onToast }) => {
+/** Minutos desde "aaaa-mm-dd hh:mm:ss" (hora local, como o servidor manda) */
+const minutosDesde = (dataHora: string | null) =>
+  dataHora ? Math.max(0, Math.round((Date.now() - new Date(dataHora.replace(' ', 'T')).getTime()) / 60_000)) : 0;
+
+/** Linha da fila: chamado do sistema de suporte ou conversa do WhatsApp aguardando atendimento */
+type ItemFila = { tipo: 'chamado'; c: ChamadoResumo; espera: number } | { tipo: 'whatsapp'; w: ConversaResumo; espera: number };
+
+const Origem: React.FC<{ tipo: ItemFila['tipo'] }> = ({ tipo }) =>
+  tipo === 'whatsapp' ? (
+    <Etiqueta classe="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+      <MessageCircle className="w-3 h-3 inline -mt-0.5 mr-0.5" />
+      WhatsApp
+    </Etiqueta>
+  ) : (
+    <Etiqueta classe="bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+      <Headset className="w-3 h-3 inline -mt-0.5 mr-0.5" />
+      Chamado
+    </Etiqueta>
+  );
+
+export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMudou, onToast, onConversa }) => {
   const [fila, setFila] = useState<ChamadoResumo[] | null>(null);
+  const [conversas, setConversas] = useState<ConversaResumo[]>([]);
   const [erro, setErro] = useState<string | null>(null);
-  const [assumindo, setAssumindo] = useState<number | null>(null);
+  const [assumindo, setAssumindo] = useState<number | string | null>(null);
 
   const carregar = useCallback(() => {
     fetchFilaChamados()
       .then(setFila)
       .catch((e) => setErro(e.message));
+    // As do meu departamento, sem departamento ou de clientes de que sou o técnico padrão (sem permissão: só os chamados)
+    fetchConversas('', true)
+      .then((r) => setConversas(r.filter((w) => w.estado === 'aguardando')))
+      .catch(() => setConversas([]));
   }, []);
   useRecarga(carregar, [refreshToken]);
+
+  // Chamados e conversas juntos, em ordem de chegada (quem espera há mais tempo primeiro)
+  const itens: ItemFila[] | null = fila && [
+    ...fila.map((c) => ({ tipo: 'chamado' as const, c, espera: c.espera_min })),
+    ...conversas.map((w) => ({ tipo: 'whatsapp' as const, w, espera: minutosDesde(w.aguardando_desde) })),
+  ].sort((a, b) => b.espera - a.espera);
+
+  const atender = async (w: ConversaResumo) => {
+    setAssumindo(w.telefone);
+    try {
+      await atenderConversa(w.telefone);
+      onToast(`Você está atendendo ${w.nome || w.nome_contato || `+${w.telefone}`} no WhatsApp.`);
+      onConversa(w.telefone);
+    } catch (e: any) {
+      setErro(e.message);
+      carregar();
+    } finally {
+      setAssumindo(null);
+    }
+  };
 
   const assumir = async (c: ChamadoResumo) => {
     setAssumindo(c.id);
@@ -173,10 +229,10 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
     <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-stone-900">
       <div className="px-4 py-2.5 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-3 shrink-0">
         <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate min-w-0">
-          Chamados aguardando atendimento, em ordem de chegada. Quem assume passa a atender em Chamados Ativos.
+          Chamados e conversas do WhatsApp aguardando atendimento, em ordem de chegada. Chamado assumido vai para Chamados Ativos; conversa, para o Whatsapp.
         </div>
         <span className="text-xs text-stone-500 dark:text-stone-400 shrink-0">
-          Na fila: <strong className="text-stone-900 dark:text-stone-100">{fila?.length ?? '…'}</strong>
+          Na fila: <strong className="text-stone-900 dark:text-stone-100">{itens?.length ?? '…'}</strong>
         </span>
       </div>
       {erro && (
@@ -190,6 +246,7 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
           <thead className="sticky top-0 z-10">
             <tr>
               <th className={`${th} text-center`}>Posição</th>
+              <th className={`${th} text-left`}>Origem</th>
               <th className={`${th} text-right`}>Nº</th>
               <th className={`${th} text-left w-full`}>Chamado</th>
               <th className={`${th} text-left`}>Técnico</th>
@@ -201,69 +258,122 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
             </tr>
           </thead>
           <tbody>
-            {!fila ? (
+            {!itens ? (
               <tr>
-                <td colSpan={9} className="px-3 py-12 text-center">
+                <td colSpan={10} className="px-3 py-12 text-center">
                   <div className="flex items-center justify-center gap-2 text-stone-500 dark:text-stone-400">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Carregando chamados…</span>
                   </div>
                 </td>
               </tr>
-            ) : !fila.length ? (
+            ) : !itens.length ? (
               <tr>
-                <td colSpan={9} className="px-3 py-16 text-center">
+                <td colSpan={10} className="px-3 py-16 text-center">
                   <div className="flex flex-col items-center gap-2 text-stone-400">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                     <span className="text-sm font-medium text-stone-600 dark:text-stone-300">Fila vazia</span>
-                    <span className="text-xs">Nenhum chamado aguardando atendimento agora.</span>
+                    <span className="text-xs">Nenhum chamado ou conversa aguardando atendimento agora.</span>
                   </div>
                 </td>
               </tr>
             ) : (
-              fila.map((c) => (
-                <tr key={c.id} className="bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
+              itens.map((it, i) => {
+                const posicao = (
                   <td className={`${td} text-center`}>
-                    <span className="font-bold text-blue-600 dark:text-blue-400">{c.posicao}º</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400">{i + 1}º</span>
                   </td>
-                  <td className={`${td} text-right font-mono text-stone-500`}>{c.numero}</td>
-                  <td className={td}>
-                    <div className="font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
-                      {c.titulo}
-                      {c.status === 'pausado' && <Status s="pausado" />}
-                    </div>
-                    <div className="text-[11px] text-stone-500 dark:text-stone-400">
-                      {c.pessoa_nome || 'Sem cliente'}
-                      {c.departamento_nome && ` • ${c.departamento_nome}`}
-                    </div>
-                  </td>
-                  <td className={`${td} whitespace-nowrap`} title="Técnico padrão do cliente: quem deve atender (outro técnico pode assumir)">
-                    {c.tecnico_padrao_nome || <span className="text-stone-400">—</span>}
-                  </td>
-                  <td className={td}>
-                    <Categoria c={c} />
-                  </td>
-                  <td className={td}>
-                    <Prioridade p={c.prioridade} />
-                  </td>
-                  <td className={`${td} text-center text-stone-500 whitespace-nowrap`}>{formatDateTimeBR(c.criado_em)}</td>
-                  <td className={`${td} text-right whitespace-nowrap`}>
-                    <div className="font-semibold text-stone-800 dark:text-stone-100">{tempoEspera(c.espera_min)}</div>
-                    {c.sla_vencido && <Sla />}
-                  </td>
-                  <td className={`${td} text-center border-r-0`}>
-                    <button
-                      type="button"
-                      onClick={() => assumir(c)}
-                      disabled={assumindo !== null}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
-                    >
-                      {assumindo === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Hand className="w-3.5 h-3.5" />}
-                      Assumir
-                    </button>
-                  </td>
-                </tr>
-              ))
+                );
+                const linha = 'bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors';
+                if (it.tipo === 'whatsapp') {
+                  const w = it.w;
+                  return (
+                    <tr key={`w${w.telefone}`} className={linha}>
+                      {posicao}
+                      <td className={td}>
+                        <Origem tipo="whatsapp" />
+                      </td>
+                      <td className={`${td} text-right text-stone-400`}>—</td>
+                      <td className={td}>
+                        <div className="font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                          {w.nome || w.nome_contato || `+${w.telefone}`}
+                          {w.pausada && <Status s="pausado" />}
+                        </div>
+                        <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate max-w-[480px]">
+                          {w.texto || w.arquivo_nome || w.tipo}
+                          {w.departamento && ` • ${w.departamento}`}
+                        </div>
+                      </td>
+                      <td className={`${td} whitespace-nowrap`} title="Técnico padrão do cliente: quem deve atender (outro técnico pode assumir)">
+                        {w.tecnico_padrao_nome || <span className="text-stone-400">—</span>}
+                      </td>
+                      <td className={`${td} text-stone-400`}>—</td>
+                      <td className={`${td} text-stone-400`}>—</td>
+                      <td className={`${td} text-center text-stone-500 whitespace-nowrap`}>{w.aguardando_desde ? formatDateTimeBR(w.aguardando_desde) : '—'}</td>
+                      <td className={`${td} text-right whitespace-nowrap`}>
+                        <div className="font-semibold text-stone-800 dark:text-stone-100">{tempoEspera(it.espera)}</div>
+                      </td>
+                      <td className={`${td} text-center border-r-0`}>
+                        <button
+                          type="button"
+                          onClick={() => atender(w)}
+                          disabled={assumindo !== null}
+                          title="Pegar a conversa: o bot para e só você responde"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+                        >
+                          {assumindo === w.telefone ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Hand className="w-3.5 h-3.5" />}
+                          Atender
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                }
+                const c = it.c;
+                return (
+                  <tr key={c.id} className={linha}>
+                    {posicao}
+                    <td className={td}>
+                      <Origem tipo="chamado" />
+                    </td>
+                    <td className={`${td} text-right font-mono text-stone-500`}>{c.numero}</td>
+                    <td className={td}>
+                      <div className="font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                        {c.titulo}
+                        {c.status === 'pausado' && <Status s="pausado" />}
+                      </div>
+                      <div className="text-[11px] text-stone-500 dark:text-stone-400">
+                        {c.pessoa_nome || 'Sem cliente'}
+                        {c.departamento_nome && ` • ${c.departamento_nome}`}
+                      </div>
+                    </td>
+                    <td className={`${td} whitespace-nowrap`} title="Técnico padrão do cliente: quem deve atender (outro técnico pode assumir)">
+                      {c.tecnico_padrao_nome || <span className="text-stone-400">—</span>}
+                    </td>
+                    <td className={td}>
+                      <Categoria c={c} />
+                    </td>
+                    <td className={td}>
+                      <Prioridade p={c.prioridade} />
+                    </td>
+                    <td className={`${td} text-center text-stone-500 whitespace-nowrap`}>{formatDateTimeBR(c.criado_em)}</td>
+                    <td className={`${td} text-right whitespace-nowrap`}>
+                      <div className="font-semibold text-stone-800 dark:text-stone-100">{tempoEspera(c.espera_min)}</div>
+                      {c.sla_vencido && <Sla />}
+                    </td>
+                    <td className={`${td} text-center border-r-0`}>
+                      <button
+                        type="button"
+                        onClick={() => assumir(c)}
+                        disabled={assumindo !== null}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+                      >
+                        {assumindo === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Hand className="w-3.5 h-3.5" />}
+                        Assumir
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

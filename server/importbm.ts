@@ -122,7 +122,7 @@ export const digitos = (v: any, max: number): string | null => {
 /**
  * Uma linha do bmsoft já no formato da tabela pessoas do CRM (de → para):
  * ID → cod_integracao ("BM-<id>"), Nome → nome, Email → email,
- * Fone1/Celular/Fone2 → telefone, CPFCNPJ → cpf, Obs → obs.
+ * Fone1/Celular/Fone2 → telefone, CPFCNPJ → cpf, Obs → obs, Ativo → ativo.
  */
 function converter(linha: Record<string, any>) {
   return {
@@ -132,6 +132,8 @@ function converter(linha: Record<string, any>) {
     telefone: texto(linha.fone1, 50) || texto(linha.celular, 50) || texto(linha.fone2, 50),
     cpf: digitos(linha.cpfcnpj, 14),
     obs: texto(linha.obs, 512),
+    /** Inativo no bmsoft entra (ou fica) inativo no CRM: continua nas listas, para propostas de reativação */
+    ativo: String(linha.ativo ?? 'S').toUpperCase() === 'N' ? 0 : 1,
     /** ID do vendedor no bmsoft: vira o nome da revenda (campo personalizado "revenda", se existir) */
     id_vendedor: Number(linha.id_vendedor) || null,
     /** Endereço do cadastro (vira o endereço "Importado do bmsoft" da pessoa); null = sem endereço */
@@ -218,9 +220,10 @@ async function lerDoBm<T>(servidor: Servidor, sql: string, converter: (l: Record
   return todas;
 }
 
-const SQL_PESSOAS = `SELECT ID, Nome, Email, Fone1, Celular, Fone2, CPFCNPJ, CAST(Obs AS VARCHAR(512)) Obs, ID_Vendedor,
+// Todas (ativas e inativas): pessoa que ficou inativa no bmsoft fica inativa aqui
+const SQL_PESSOAS = `SELECT ID, Nome, Email, Fone1, Celular, Fone2, CPFCNPJ, CAST(Obs AS VARCHAR(512)) Obs, ID_Vendedor, Ativo,
        Endereco, Numero, Complemento, Bairro, CEP, Cod_Cidade, Cidade, UF
-  FROM PESSOAS WHERE Ativo = 'S' AND ID > :ultimo ORDER BY ID TOP ${PAGINA}`;
+  FROM PESSOAS WHERE ID > :ultimo ORDER BY ID TOP ${PAGINA}`;
 
 /** Cadastro de vendedores do bmsoft: o nome é a revenda da pessoa (PESSOAS.ID_Vendedor) */
 const SQL_VENDEDORES = `SELECT ID, Nome FROM VENDEDORES WHERE ID > :ultimo ORDER BY ID TOP ${PAGINA}`;
@@ -236,7 +239,7 @@ async function servidorDaEmpresa(empresaId: string): Promise<Servidor> {
   return servidorDoToken(token);
 }
 
-const CAMPOS = ['nome', 'email', 'telefone', 'cpf', 'obs'] as const;
+const CAMPOS = ['nome', 'email', 'telefone', 'cpf', 'obs', 'ativo'] as const;
 
 /** Tipo de pessoa dos registros importados */
 const TIPO = 'cliente';
@@ -294,7 +297,7 @@ export function createImportBmRouter(): Router {
         campoRevenda && p.id_vendedor ? valorRevenda(vendedores.get(p.id_vendedor), campoRevenda.opcoes ?? []) : null;
 
       const [existentes] = await pool.query<any[]>(
-        'SELECT id, cod_integracao, tipo, nome, email, telefone, cpf, obs, personalizados FROM pessoas WHERE empresa_id = ? AND cod_integracao IS NOT NULL',
+        'SELECT id, cod_integracao, tipo, nome, email, telefone, cpf, obs, ativo, personalizados FROM pessoas WHERE empresa_id = ? AND cod_integracao IS NOT NULL',
         [empresaId],
       );
       const porCodigo = new Map(existentes.map((r) => [String(r.cod_integracao), r]));
@@ -305,23 +308,23 @@ export function createImportBmRouter(): Router {
         const atual = porCodigo.get(p.cod_integracao);
         const revenda = revendaDe(p);
         if (!atual) {
-          novas.push([empresaId, TIPO, p.cod_integracao, p.nome, p.email, p.telefone, p.cpf, p.obs, revenda ? JSON.stringify({ revenda }) : null]);
+          novas.push([empresaId, TIPO, p.cod_integracao, p.nome, p.email, p.telefone, p.cpf, p.obs, p.ativo, revenda ? JSON.stringify({ revenda }) : null]);
           continue;
         }
         // Personalizados com a revenda nova (null = a revenda não mudou; os outros campos ficam como estão)
         const personalizados = comRevenda(atual.personalizados, revenda);
         // nada mudou
-        if (atual.tipo === TIPO && !personalizados && CAMPOS.every((c) => (atual[c] ?? null) === (p as any)[c])) continue;
+        if (atual.tipo === TIPO && !personalizados && CAMPOS.every((c) => (c === 'ativo' ? Number(atual.ativo) : (atual[c] ?? null)) === (p as any)[c])) continue;
         await pool.query(
-          'UPDATE pessoas SET tipo = ?, nome = ?, email = ?, telefone = ?, cpf = ?, obs = ?, personalizados = COALESCE(?, personalizados) WHERE id = ? AND empresa_id = ?',
-          [TIPO, p.nome, p.email, p.telefone, p.cpf, p.obs, personalizados, atual.id, empresaId],
+          'UPDATE pessoas SET tipo = ?, nome = ?, email = ?, telefone = ?, cpf = ?, obs = ?, ativo = ?, personalizados = COALESCE(?, personalizados) WHERE id = ? AND empresa_id = ?',
+          [TIPO, p.nome, p.email, p.telefone, p.cpf, p.obs, p.ativo, personalizados, atual.id, empresaId],
         );
         atualizados++;
       }
 
       for (let i = 0; i < novas.length; i += 200) {
         await pool.query(
-          'INSERT INTO pessoas (empresa_id, tipo, cod_integracao, nome, email, telefone, cpf, obs, personalizados) VALUES ?',
+          'INSERT INTO pessoas (empresa_id, tipo, cod_integracao, nome, email, telefone, cpf, obs, ativo, personalizados) VALUES ?',
           [novas.slice(i, i + 200)],
         );
       }
@@ -370,6 +373,7 @@ export function createImportBmRouter(): Router {
         inseridos: novas.length,
         atualizados,
         inalterados: pessoas.length - novas.length - atualizados,
+        inativas: pessoas.filter((p) => !p.ativo).length,
         enderecos,
       });
     } catch (err: any) {

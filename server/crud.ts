@@ -236,7 +236,7 @@ export function createCrudRouter() {
       }
 
       const sql =
-        resource.optionsSql ||
+        (labelField === resource.labelField && resource.optionsSql) ||
         `SELECT t.${pkCol(resource)} AS value, t.${labelField} AS label
            FROM ${resource.table} t
           WHERE ${resource.scopeSql}

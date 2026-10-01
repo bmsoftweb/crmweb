@@ -918,6 +918,9 @@ export const RESOURCES: ResourceDef[] = [
     pk: ['id'],
     autoIncrement: true,
     labelField: 'nome',
+    // Inativos continuam nos combos (proposta para reativar o sistema), marcados
+    optionsSql: `SELECT id AS value, CONCAT(nome, IF(ativo = 1, '', ' (inativo)')) AS label
+                   FROM pessoas WHERE empresa_id = ? ORDER BY nome LIMIT 5000`,
     defaultSort: { field: 'nome', dir: 'asc' },
     canCreate: true,
     canUpdate: true,
@@ -934,6 +937,16 @@ export const RESOURCES: ResourceDef[] = [
       // Tipo + Nome dividem a primeira linha do formulário (grade de 4 colunas)
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 255, span: 3 },
       { name: 'segmento_id', label: 'Segmento', type: 'text', listed: true, filterable: true, ref: { resource: 'segmentos', labelField: 'nome' } },
+      {
+        name: 'ativo',
+        label: 'Ativo',
+        type: 'boolean',
+        listed: true,
+        filterable: true,
+        default: true,
+        width: 'xs',
+        hint: 'Inativo continua nas listas (propostas, negócios) para quando o cliente quiser reativar. Vem do bmsoft na importação',
+      },
       {
         name: 'nao_receber_campanhas',
         label: 'Não receber campanhas',

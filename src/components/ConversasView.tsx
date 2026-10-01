@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
-import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, Network, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
-import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, limparConversa, atenderConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
+import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, limparConversa, atenderConversa, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -19,6 +19,8 @@ export interface PedidoConversa {
   /** Ícone do WhatsApp nas listas de Pessoas e de Contatos */
   pessoaId?: string | number;
   contatoId?: string | number;
+  /** Conversa atendida pela Fila de Chamados */
+  telefone?: string;
   seq: number;
 }
 
@@ -28,6 +30,8 @@ interface Props {
   onVisto: () => void;
   /** Aberta pela atividade WhatsApp da ficha do negócio, ou por uma pessoa/contato das listas */
   pedido?: PedidoConversa | null;
+  /** Conversa pausada: volta para a Fila de Chamados */
+  onVoltarFila?: () => void;
   onToast: (msg: string) => void;
 }
 
@@ -196,7 +200,7 @@ const Situacao: React.FC<{ s: MensagemWhatsApp['situacao'] }> = ({ s }) => {
 };
 
 /** Conversas do WhatsApp: lista por telefone à esquerda, mensagens e resposta à direita */
-export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, onToast }) => {
+export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, onToast, onVoltarFila }) => {
   const [conversas, setConversas] = useState<ConversaResumo[] | null>(null);
   const [busca, setBusca] = useState('');
   const [aberta, setAberta] = useState<string | null>(null);
@@ -255,6 +259,10 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   // Clique na atividade WhatsApp da ficha do negócio: abre o número do cliente
   useEffect(() => {
     if (!pedido) return;
+    if (pedido.telefone) {
+      setAberta(pedido.telefone);
+      return;
+    }
     if (!pedido.atividadeId) {
       fetchNumeroConversa({ pessoaId: pedido.pessoaId, contatoId: pedido.contatoId })
         .then((r) => {
@@ -702,6 +710,22 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     >
                       <Hand className="w-4 h-4" />
                       {conversa.estado === 'atendimento' ? 'Assumir' : 'Atender'}
+                    </button>
+                  )}
+                  {podeTransferir && (
+                    <button
+                      disabled={ocupadoAtendimento}
+                      onClick={() =>
+                        acaoAtendimento(async () => {
+                          await pausarConversa(aberta);
+                          onVoltarFila?.();
+                        }, 'Conversa pausada: voltou para a Fila de Chamados.')
+                      }
+                      title="Devolve a conversa para a Fila de Chamados: qualquer um pode atender (o bot não volta)"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                    >
+                      <Pause className="w-4 h-4" />
+                      Pausar
                     </button>
                   )}
                   {podeTransferir && (

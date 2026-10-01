@@ -96,8 +96,8 @@ export function gruposDoMenu(resources: ResourceDef[]): { titulo: string; itens:
       titulo: 'Suporte',
       itens: [
         { id: 'painel_suporte', label: 'Painel de Suporte', descricao: 'Indicadores dos atendimentos', icone: BarChart3 },
-        { id: 'conversas', label: 'Whatsapp', descricao: 'Mensagens do WhatsApp', icone: MessageCircle },
         { id: 'chamados_fila', label: 'Fila de Chamados', descricao: 'Chamados aguardando atendimento', icone: Inbox },
+        { id: 'conversas', label: 'Whatsapp', descricao: 'Mensagens do WhatsApp', icone: MessageCircle },
         { id: 'chamados_ativos', label: 'Chamados Ativos', descricao: 'Atendimento dos chamados', icone: Headset },
         { id: 'pesquisas_satisfacao', label: 'Pesquisa de Satisfação', descricao: 'Pesquisas de avaliação dos atendimentos', icone: ClipboardCheck },
         // Cadastros do grupo suporte entram aqui, depois das telas (Templates foi para Cadastros)
