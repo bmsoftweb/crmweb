@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   LayoutDashboard,
   KanbanSquare,
   Handshake,
@@ -94,6 +95,7 @@ export function gruposDoMenu(resources: ResourceDef[]): { titulo: string; itens:
     {
       titulo: 'Suporte',
       itens: [
+        { id: 'painel_suporte', label: 'Painel de Suporte', descricao: 'Indicadores dos atendimentos', icone: BarChart3 },
         { id: 'conversas', label: 'Whatsapp', descricao: 'Mensagens do WhatsApp', icone: MessageCircle },
         { id: 'chamados_fila', label: 'Fila de Chamados', descricao: 'Chamados aguardando atendimento', icone: Inbox },
         { id: 'chamados_ativos', label: 'Chamados Ativos', descricao: 'Atendimento dos chamados', icone: Headset },

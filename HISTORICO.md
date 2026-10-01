@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.69 — 2026-09-30
+
+- Suporte › Painel de Suporte (permissão nova `painel_suporte`): período (7/30/90 dias, este mês, mês passado, este ano) comparado com o anterior equivalente — chamados abertos/encerrados, tempo até assumir e de resolução, SLA cumprido, atendimentos do WhatsApp, % só pelo bot, satisfação e taxa de resposta; situação de agora (em aberto, fila, SLA estourado, aguardando cliente, pausados); gráficos por dia/mês, por categoria, canal, prioridade, departamento e forma de encerramento; notas; mapa de calor dia × hora; desempenho por técnico; clientes com mais chamados.
+- Widget de suporte do site: botão com o texto "NOVO SUPORTE" (temporário; `ROTULO` no widget.js) e tremida para chamar a atenção ao aparecer (3 vezes, para ao abrir o chat; respeita "reduzir animações").
+
 ## 0.0.68 — 2026-09-30
 
 - Banco: `atividades.criado_por` (SQL em extras/crmweb_schema.sql).

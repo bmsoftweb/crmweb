@@ -451,6 +451,35 @@ export const cadastrarWebhookCofreD4Sign = (): Promise<{ url: string; conferido:
 /** Testa as chaves da D4Sign gravadas e devolve os cofres da conta */
 export const testarD4Sign = (): Promise<{ cofres: { uuid: string; nome: string }[]; cofre: string; cofre_ok: boolean }> => enviar('POST', '/api/config/assinatura/d4sign/testar');
 
+/** Painel de Suporte: indicadores do período e do anterior equivalente (server/painelSuporte.ts) */
+export interface ResumoSuporte {
+  chamados: { abertos: number; encerrados: number; min_assumir: number | null; min_resolver: number | null; sla_pct: number | null };
+  whatsapp: { total: number; so_bot_pct: number | null; min_duracao: number | null };
+  satisfacao: { respondidas: number; media: number | null; resposta_pct: number | null };
+}
+export interface Contagem {
+  nome: string;
+  qtd: number;
+  extra?: number;
+}
+export interface PainelSuporteDados {
+  periodo: { chave: string; atual: { de: string; ate: string }; anterior: { de: string; ate: string } };
+  atual: ResumoSuporte;
+  anterior: ResumoSuporte;
+  agora: { em_aberto: number; na_fila: number; sla_estourado: number; pendente_cliente: number; pausados: number };
+  serie: { unidade: 'dia' | 'mes'; pontos: { k: string; abertos: number; encerrados: number; whatsapp: number }[] };
+  canais: Contagem[];
+  categorias: Contagem[];
+  prioridades: Contagem[];
+  departamentos: Contagem[];
+  motivos: Contagem[];
+  notas: Contagem[];
+  mapa: { dia: number; hora: number; n: number }[];
+  clientes: Contagem[];
+  tecnicos: { nome: string; encerrados: number; min_resolver: number | null; whatsapp: number; media: number | null; avaliacoes: number }[];
+}
+export const painelSuporte = (periodo: string): Promise<PainelSuporteDados> => get(`/api/suporte/painel?periodo=${encodeURIComponent(periodo)}`);
+
 export interface SituacaoAgendaGoogle {
   /** O servidor tem GOOGLE_CLIENT_ID/SECRET */
   disponivel: boolean;

@@ -35,6 +35,7 @@ import { AcaoConcluir } from './components/ConcluirAtividade';
 import { BotaoAcao } from './components/MenuAcoes';
 import { Headset } from 'lucide-react';
 import { AcaoRetornoLigacao, PesquisasSatisfacao } from './components/PesquisasSatisfacao';
+import { PainelSuporte } from './components/PainelSuporte';
 import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
@@ -391,6 +392,7 @@ export default function App() {
     kanban: ['Funil de Vendas', 'Arraste os negócios entre as etapas; solte em Ganho ou Perdido para encerrar'],
     configuracoes: ['Configurações', 'Preferências da empresa, por grupo'],
     conversas: ['Whatsapp', 'Mensagens do WhatsApp da empresa'],
+    painel_suporte: ['Painel de Suporte', 'Chamados, WhatsApp e satisfação no período, comparados com o período anterior'],
     chamados_fila: ['Fila de Chamados', 'Chamados aguardando atendimento, em ordem de chegada'],
     chamados_ativos: ['Chamados Ativos', 'Atendimento dos chamados de suporte'],
     pesquisas_satisfacao: ['Pesquisa de Satisfação', 'Sorteie atendimentos e pergunte aos clientes como foi'],
@@ -477,6 +479,12 @@ export default function App() {
                 navegar('chamados_fila');
               }}
             />
+          </main>
+        ) : activeTab === 'painel_suporte' ? (
+          <main className="flex-1 overflow-y-auto min-h-0 w-full">
+            <div className="px-4 sm:px-6 lg:px-8 py-6">
+              <PainelSuporte refreshToken={refreshToken} onNavigate={navegar} />
+            </div>
           </main>
         ) : activeTab === 'pesquisas_satisfacao' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">

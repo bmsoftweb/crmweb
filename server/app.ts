@@ -27,6 +27,7 @@ import { createSuporteRouter } from './suporte.js';
 import { createFotosRouter } from './fotos.js';
 import { createChamadosRouter } from './chamados.js';
 import { createAgendaGoogleRouter, createRetornoAgendaGoogleRouter, sincronizarAgendas } from './agendaGoogle.js';
+import { createPainelSuporteRouter } from './painelSuporte.js';
 import { waitUntil } from '@vercel/functions';
 import { lerPermissoes, prepararPermissoes } from './permissoes.js';
 import { PERFIS } from './schema.js';
@@ -340,6 +341,7 @@ export function createApp() {
 
   app.use('/api', createConfigRouter());
   app.use('/api', createAgendaGoogleRouter());
+  app.use('/api', createPainelSuporteRouter());
   app.use('/api', createImportBmRouter());
   app.use('/api', createFotosRouter());
   app.use('/api', createChamadosRouter());

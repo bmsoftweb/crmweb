@@ -99,3 +99,24 @@ html, body {
   40%, 80% { transform: translateX(6px); }
 }
 .animate-tremer { animation: tremer 0.45s ease-in-out 2; }
+
+/* Gráficos (Painel de Suporte): paleta categórica validada para daltonismo, na ordem fixa dos slots
+   (claro e escuro são passos próprios de cada modo, não uma inversão). Status: só com ícone + texto. */
+.viz {
+  --serie-1: #2a78d6;
+  --serie-2: #eb6834;
+  --serie-3: #1baf7a;
+  --serie-4: #eda100;
+  --status-bom: #006300;
+  --status-ruim: #d03b3b;
+  --grade: #e1e0d9;
+}
+.dark .viz {
+  --serie-1: #3987e5;
+  --serie-2: #d95926;
+  --serie-3: #199e70;
+  --serie-4: #c98500;
+  --status-bom: #0ca30c;
+  --status-ruim: #e66767;
+  --grade: #2c2c2a;
+}
