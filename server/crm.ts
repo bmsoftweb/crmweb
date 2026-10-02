@@ -6,7 +6,8 @@ import { friendlyDbError } from './crud.js';
 import { calcularTotais, num } from './totais.js';
 import { gerarPdf } from './pdf.js';
 import { enviarEmail } from './email.js';
-import { enviarPdfWhatsApp, telefoneWhatsApp } from './whatsapp.js';
+import { enviarMidiaWhatsApp, enviarPdfWhatsApp, telefoneWhatsApp } from './whatsapp.js';
+import { anexosDaProposta, baixarAnexo } from './anexos.js';
 import { htmlDocumento } from '../src/utils/imprimirDocumento.js';
 import { lerConfig } from './config.js';
 import { recalcularContrato } from './contratos.js';
@@ -428,11 +429,23 @@ ${link}` : mensagem;
     // Resumida: produtos agrupados pelo grupo (o cliente não vê o detalhe). Proposta vai sempre resumida
     const pdf = await gerarPdf(htmlDocumento(p, req.params.tipo as 'propostas' | 'pedidos', ehProposta || req.body?.resumida === true));
     const arquivo = ehProposta ? `Proposta ${p.numero_proposta}-v${p.versao}.pdf` : `Pedido ${p.numero_pedido}.pdf`;
+    // Anexos da proposta vão junto: no e-mail, anexados (passando de 20 MB no total, vão como links no texto);
+    // no WhatsApp, cada um numa mensagem logo depois do PDF
+    const anexos = ehProposta ? await anexosDaProposta(emp, Number(p.numero_proposta)) : [];
     if (canal === 'email') {
       const assunto = ehProposta ? `Proposta nº ${p.numero_proposta}` : `Pedido nº ${p.numero_pedido}`;
-      await enviarEmail(emp, { para: destino, assunto: titulo ? `${assunto} — ${titulo}` : assunto, texto: corpo, anexos: [{ nome: arquivo, conteudo: pdf }] });
+      const cabem = pdf.length + anexos.reduce((s, a) => s + a.tamanho, 0) <= 20 * 1024 * 1024;
+      const arquivos = cabem ? await Promise.all(anexos.map(async (a) => ({ nome: a.nome, conteudo: await baixarAnexo(a.url) }))) : [];
+      const texto = cabem || !anexos.length ? corpo : `${corpo}\n\nAnexos:\n${anexos.map((a) => `${a.nome}: ${a.url}`).join('\n')}`;
+      await enviarEmail(emp, { para: destino, assunto: titulo ? `${assunto} — ${titulo}` : assunto, texto, anexos: [{ nome: arquivo, conteudo: pdf }, ...arquivos] });
     } else {
-      await enviarPdfWhatsApp(emp, telefone, pdf, arquivo, corpo, { pessoa_id: p.pessoa_id, usuario_id: res.locals.usuarioId });
+      const reg = { pessoa_id: p.pessoa_id, usuario_id: res.locals.usuarioId };
+      await enviarPdfWhatsApp(emp, telefone, pdf, arquivo, corpo, reg);
+      for (const a of anexos) {
+        const tipo = a.tipo?.startsWith('image/') ? 'imagem' : a.tipo?.startsWith('video/') ? 'video' : 'documento';
+        const base64 = (await baixarAnexo(a.url)).toString('base64');
+        await enviarMidiaWhatsApp(emp, telefone, { tipo, base64, mimetype: a.tipo || 'application/octet-stream', nome: a.nome, legenda: null }, reg);
+      }
     }
 
     const status = ehProposta && p.status === 'rascunho' ? 'enviada' : p.status;

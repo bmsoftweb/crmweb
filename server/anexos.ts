@@ -38,6 +38,19 @@ async function numeroDaProposta(id: string, emp: string): Promise<number> {
 
 const prefixo = (emp: string, numero: number) => `propostas/${emp}/${numero}/`;
 
+/** Anexos da proposta (pelo número), na ordem em que foram incluídos: para o envio por e-mail e WhatsApp */
+export async function anexosDaProposta(emp: string, numero: number): Promise<{ nome: string; url: string; tipo: string | null; tamanho: number }[]> {
+  const [r] = await pool.query<any[]>('SELECT nome, url, tipo, tamanho FROM proposta_anexos WHERE empresa_id = ? AND numero_proposta = ? ORDER BY id', [emp, numero]);
+  return r.map((a) => ({ ...a, tamanho: Number(a.tamanho) }));
+}
+
+/** Conteúdo do anexo, baixado do Blob */
+export async function baixarAnexo(url: string): Promise<Buffer> {
+  const r = await fetch(url);
+  if (!r.ok) throw erro(502, `Não foi possível ler o anexo do storage (HTTP ${r.status}).`);
+  return Buffer.from(await r.arrayBuffer());
+}
+
 export function createAnexosRouter(): Router {
   const router = Router();
 
