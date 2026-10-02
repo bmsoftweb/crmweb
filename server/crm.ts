@@ -452,8 +452,14 @@ ${link}` : mensagem;
       const texto = cabem || !anexos.length ? corpo : `${corpo}\n\nAnexos:\n${anexos.map((a) => `${a.nome}: ${a.url}`).join('\n')}`;
       await enviarEmail(emp, { para: destino, assunto: titulo ? `${assunto} — ${titulo}` : assunto, texto, anexos: [{ nome: arquivo, conteudo: pdf }, ...arquivos] });
     } else {
-      // Proposta e pedido têm valores: ficam privados do departamento de quem envia (ex.: Vendas)
-      const reg = { pessoa_id: p.pessoa_id, usuario_id: res.locals.usuarioId, privado_departamento_id: res.locals.usuario?.departamento_id ?? null };
+      // Proposta e pedido têm valores: ficam privados do departamento escolhido em Configurações › Vendas
+      // (ex.: Comercial); sem escolha, do departamento de quem envia
+      const privacidade = await lerConfig(emp, 'vendas', 'privacidade_envio');
+      const reg = {
+        pessoa_id: p.pessoa_id,
+        usuario_id: res.locals.usuarioId,
+        privado_departamento_id: Number(privacidade?.departamento_id) || res.locals.usuario?.departamento_id || null,
+      };
       await enviarPdfWhatsApp(emp, telefone, pdf, arquivo, corpo, reg);
       for (const a of anexos) {
         const tipo = a.tipo?.startsWith('image/') ? 'imagem' : a.tipo?.startsWith('video/') ? 'video' : 'documento';

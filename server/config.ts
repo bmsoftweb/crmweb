@@ -27,7 +27,7 @@ const CHAVES: Record<string, string[]> = {
   // jornada_campanhas: a Automação de quem responde no WhatsApp das campanhas (mesma estrutura da jornada)
   whatsapp: ['provedor', 'campanhas', 'automaticas', 'chatbot', 'jornada', 'jornada_campanhas', 'pesquisa'],
   // { ativo: boolean } — tarefa "Retorno Envio" ao enviar proposta ou pedido (sem configuração: ligado)
-  vendas: ['retorno_envio'],
+  vendas: ['retorno_envio', 'privacidade_envio'],
   assinatura: ['d4sign'],
 };
 

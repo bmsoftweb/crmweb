@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.82 — 2026-10-01
+
+- Configurações › Vendas: "Departamento das propostas no WhatsApp" — a proposta e o pedido enviados pelo WhatsApp ficam privados desse departamento (ex.: Comercial), não importa quem envie; vazio, vale o departamento de quem envia.
+
 ## 0.0.81 — 2026-10-01
 
 - WhatsApp: o bot de atendimento e o resumo automático das pendências ignoram as mensagens privadas (não leem nem citam o conteúdo).
