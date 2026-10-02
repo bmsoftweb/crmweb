@@ -1039,3 +1039,40 @@ export const fetchItemDaAtividade = (
 ): Promise<{ id: number; pessoa_nome: string | null; pessoa_telefone: string | null; assunto: string | null; data_br: string | null; atendente_nome: string | null; objetivo: string | null; situacao: string; pesquisa_descricao: string }> =>
   get(`/api/pesquisas-satisfacao/da-atividade/${encodeURIComponent(String(atividadeId))}`);
 export const buscarPessoasPesquisa = (q: string): Promise<{ id: number; nome: string }[]> => get(`/api/pesquisas-satisfacao-pessoas?q=${encodeURIComponent(q)}`);
+
+// ------------------------------------------------------------
+// Prospecção (server/prospeccao.ts)
+// ------------------------------------------------------------
+export interface LeadProspeccao {
+  place_id: string;
+  nome: string;
+  categoria: string | null;
+  endereco: string | null;
+  endereco_partes: { cep: string | null; logradouro: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null };
+  telefone: string | null;
+  celular: string | null;
+  whatsapp_site: string | null;
+  email: string | null;
+  instagram: string | null;
+  site: string | null;
+  maps: string | null;
+  nota: number | null;
+  avaliacoes: number;
+  pontos: number;
+  motivos: string[];
+  pessoa_id: number | null;
+}
+export interface FiltroProspeccao {
+  termo: string;
+  local: string;
+  maximo: number;
+  nota_min: number;
+  avaliacoes_min: number;
+  exigir_site: boolean;
+  somente_celular: boolean;
+  ler_sites: boolean;
+}
+export const buscarProspeccao = (f: FiltroProspeccao): Promise<{ leads: LeadProspeccao[]; encontrados: number; descartados: number }> =>
+  enviar('POST', '/api/prospeccao/buscar', f);
+export const incluirProspeccao = (leads: LeadProspeccao[], segmentoId: string | null): Promise<{ incluidos: number; existentes: number }> =>
+  enviar('POST', '/api/prospeccao/incluir', { leads, segmento_id: segmentoId ? Number(segmentoId) : null });

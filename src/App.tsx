@@ -37,6 +37,7 @@ import { BotaoAcao } from './components/MenuAcoes';
 import { Headset } from 'lucide-react';
 import { AcaoRetornoLigacao, PesquisasSatisfacao } from './components/PesquisasSatisfacao';
 import { PainelSuporte } from './components/PainelSuporte';
+import { Prospeccao } from './components/Prospeccao';
 import { ContratoDocumentos } from './components/ContratoDocumentos';
 import { BotaoGerarContrato } from './components/BotaoGerarContrato';
 import { ConfiguracoesView } from './components/ConfiguracoesView';
@@ -419,6 +420,7 @@ export default function App() {
     chamados_fila: ['Fila de Chamados', 'Chamados aguardando atendimento, em ordem de chegada'],
     chamados_ativos: ['Chamados Ativos', 'Atendimento dos chamados de suporte'],
     pesquisas_satisfacao: ['Pesquisa de Satisfação', 'Sorteie atendimentos e pergunte aos clientes como foi'],
+    prospeccao: ['Prospecção', 'Busque empresas no Google Maps por segmento e região e inclua as qualificadas como leads'],
   };
   const [headerTitle, headerSubtitle] = activeResource
     ? [activeResource.label, activeResource.description]
@@ -516,6 +518,10 @@ export default function App() {
         ) : activeTab === 'pesquisas_satisfacao' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
             <PesquisasSatisfacao refreshToken={refreshToken} onToast={showToast} />
+          </main>
+        ) : activeTab === 'prospeccao' ? (
+          <main className="flex-1 flex flex-col min-h-0 w-full">
+            <Prospeccao onToast={showToast} />
           </main>
         ) : activeTab === 'configuracoes' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">

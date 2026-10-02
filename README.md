@@ -134,6 +134,25 @@ Chave: `bmsoft PESSOAS.ID` → `crmweb pessoas.cod_integracao`, dentro da empres
 lead é quem nasce aqui no CRM. Só entram as pessoas ativas (`Ativo = 'S'`); quem já foi
 importado é atualizado, o resto é incluído, então dá para reimportar quantas vezes quiser.
 
+### Prospecção
+
+Tela **Prospecção** (menu Marketing, `server/prospeccao.ts`). Busca empresas no Google Maps pela
+**Google Places API (New)**, a API oficial (nada de raspar a busca do Google, que os termos proíbem):
+"o que procurar" + "cidade ou região", até 60 empresas por busca. Saem as fechadas e as que não
+passam nos filtros (nota mínima, avaliações mínimas, só com site, só com celular). Com **Ler os sites**,
+o servidor abre a página inicial de cada empresa (só endereços públicos, 6 s e 600 KB no máximo) e
+pega o celular do link do WhatsApp (`wa.me`), o e-mail e o Instagram.
+
+Nota de qualificação (0 a 100): WhatsApp no site 35 ou celular 30; nota no Google ≥ 4,5 → 20, ≥ 4 → 12;
+avaliações ≥ 100 → 20, ≥ 30 → 12; site 15; e-mail 10. Quem já está no CRM (pelo `cod_integracao`
+`GP-<id do Google>` ou pelo telefone) aparece marcado e não é incluído de novo. **Incluir como lead**
+grava a pessoa (`tipo = 'lead'`) com WhatsApp, telefone, e-mail, segmento opcional, endereço principal e
+os dados do Google na observação. A busca em si não grava nada.
+
+Chave: **Configurações › Prospecção** (cifrada) ou `GOOGLE_PLACES_API_KEY` no `.env`. O Google cobra
+cada busca (telefone e avaliações são campos da faixa Enterprise). Teste:
+`npx tsx server/prospeccao.test.ts` (com as variáveis `MYSQL_*` definidas).
+
 ## Arquitetura
 
 ```
@@ -144,6 +163,7 @@ server/regras.ts    regras pós-gravação: follow-up do negócio, datas de ganh
 server/crm.ts       Kanban, ficha do negócio, propostas, pedidos, painel
 server/config.ts    configurações da empresa (tabela config: empresa + grupo + chave)
 server/importbm.ts  importação das pessoas do bmsoft pela bmAPI
+server/prospeccao.ts busca de leads no Google Maps (Places API) e inclusão em Pessoas
 server/totais.ts    cálculo dos totais de proposta/pedido (teste: npx tsx server/totais.test.ts)
 src/components/     Kanban, NegocioFicha, DocumentoEditor, AtividadeModal, Dashboard + telas genéricas
 ```

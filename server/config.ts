@@ -8,13 +8,14 @@ import { jornadaPublica, prepararJornada } from './jornada.js';
 import { exigirAcesso } from './permissoes.js';
 import { pesquisaPublica, prepararPesquisa } from './pesquisa.js';
 import { cadastrarWebhookCofre, configD4Publica, prepararConfigD4, verificarConta } from './d4sign.js';
+import { configProspeccaoPublica, prepararConfigProspeccao } from './prospeccao.js';
 
 /**
  * Configurações da empresa (tabela config).
  *
  * Cada linha é `empresa_id + grupo + chave = valor`, com o valor em JSON. A tela de
  * Configurações tem uma aba por grupo: "pessoas" (campos_personalizados), "email" (smtp),
- * "whatsapp" (provedor), "vendas" (retorno_envio), "assinatura" (d4sign) e "contratos" (modelo). Senhas e tokens são gravados cifrados e nunca voltam para o
+ * "whatsapp" (provedor), "vendas" (retorno_envio), "assinatura" (d4sign), "prospeccao" (google) e "contratos" (modelo). Senhas e tokens são gravados cifrados e nunca voltam para o
  * navegador (server/email.ts, server/whatsapp.ts).
  */
 
@@ -29,6 +30,8 @@ const CHAVES: Record<string, string[]> = {
   // { ativo: boolean } — tarefa "Retorno Envio" ao enviar proposta ou pedido (sem configuração: ligado)
   vendas: ['retorno_envio', 'privacidade_envio'],
   assinatura: ['d4sign'],
+  // Chave da Google Places API usada na tela Prospecção
+  prospeccao: ['google'],
 };
 
 /**
@@ -47,6 +50,8 @@ const COM_SEGREDO: Record<string, { preparar: (valor: any, anterior: any) => any
   'whatsapp.jornada_campanhas': { preparar: (v, a) => prepararJornada(v, a), publica: (v) => jornadaPublica(v) },
   'whatsapp.pesquisa': { preparar: (v) => prepararPesquisa(v), publica: (v) => pesquisaPublica(v) },
   'assinatura.d4sign': { preparar: prepararConfigD4, publica: configD4Publica },
+  // Funções chamadas na hora (prospeccao.ts importa este módulo)
+  'prospeccao.google': { preparar: (v, a) => prepararConfigProspeccao(v, a), publica: (v) => configProspeccaoPublica(v) },
 };
 export const somenteAdmin = (res: Response) => {
   if (res.locals.usuario?.tipo !== 'admin') {

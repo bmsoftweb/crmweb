@@ -11,6 +11,7 @@ import { ConfigVendas } from './ConfigVendas';
 import { ConfigAssinatura } from './ConfigAssinatura';
 import { ModelosContrato } from './ModelosContrato';
 import { ConfigAgendaGoogle } from './ConfigAgendaGoogle';
+import { ConfigProspeccao } from './ConfigProspeccao';
 
 /**
  * Configurações da empresa, no mesmo formato do meuConsultorioWeb: uma aba por
@@ -61,6 +62,11 @@ const ABAS = [
     id: 'agenda',
     titulo: 'Google Agenda',
     descricao: 'Agenda do Google da empresa: os eventos viram atividades, e visitas e reuniões do CRM vão para a agenda.',
+  },
+  {
+    id: 'prospeccao',
+    titulo: 'Prospecção',
+    descricao: 'Chave da Google Places API usada na tela Prospecção para buscar empresas no Google Maps.',
   },
   {
     id: 'modelos_contrato',
@@ -154,6 +160,7 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
           {aba === 'vendas' && <ConfigVendas somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'assinatura' && <ConfigAssinatura somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'agenda' && <ConfigAgendaGoogle somenteLeitura={somenteLeitura} onToast={onToast} />}
+          {aba === 'prospeccao' && <ConfigProspeccao somenteLeitura={somenteLeitura} onToast={onToast} />}
           {aba === 'modelos_contrato' && <ModelosContrato somenteLeitura={somenteLeitura} onToast={onToast} />}
         </div>
       </div>
