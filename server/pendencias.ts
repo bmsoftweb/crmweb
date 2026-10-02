@@ -159,6 +159,8 @@ export function analisarAtendimentoWhatsApp(empresaId: string | number, telefone
       `SELECT m.direcao, m.tipo, m.texto, m.origem, m.pessoa_id, x.nome AS usuario FROM whatsapp_mensagens m LEFT JOIN usuarios x ON x.id = m.usuario_id
         WHERE m.empresa_id = ? AND m.telefone = ? AND m.situacao <> 'falhou' AND m.tipo NOT IN ('evento', 'encerramento')
           AND (m.origem IS NULL OR (m.origem NOT LIKE 'pesquisa%' AND m.origem NOT LIKE 'inatividade%'))
+          -- Mensagem privada de um departamento não entra no resumo (a pendência pode ser vista por outros)
+          AND m.privado_departamento_id IS NULL
           AND m.id > COALESCE((SELECT MAX(e.id) FROM whatsapp_mensagens e WHERE e.empresa_id = m.empresa_id AND e.telefone = m.telefone
                                 AND (e.tipo = 'encerramento' OR (e.tipo = 'evento' AND e.texto LIKE ?))
                                 AND e.id < (SELECT MAX(z.id) FROM whatsapp_mensagens z WHERE z.empresa_id = m.empresa_id AND z.telefone = m.telefone AND z.tipo = 'encerramento')), 0)

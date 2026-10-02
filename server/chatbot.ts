@@ -692,6 +692,8 @@ async function historico(ctx: Contexto): Promise<Content[]> {
        SELECT id, direcao, tipo, texto FROM whatsapp_mensagens
         WHERE empresa_id = ? AND telefone = ? AND situacao <> 'falhou' AND (texto <> '' OR tipo <> 'texto') AND tipo NOT IN ('encerramento', 'evento')
           AND (origem IS NULL OR (origem NOT LIKE 'pesquisa%' AND origem NOT LIKE 'inatividade%'))
+          -- Mensagem privada de um departamento (ex.: proposta com valores) fica fora do que o bot lê
+          AND privado_departamento_id IS NULL
           AND id > COALESCE((SELECT MAX(e.id) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento' AND e.usuario_id IS NOT NULL), 0)
           AND data_hora > COALESCE((SELECT MAX(e.data_hora) FROM whatsapp_mensagens e WHERE e.empresa_id = ? AND e.telefone = ? AND e.tipo = 'encerramento' AND e.usuario_id IS NULL), '1000-01-01')
         ORDER BY id DESC LIMIT ?) m

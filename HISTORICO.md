@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.81 — 2026-10-01
+
+- WhatsApp: o bot de atendimento e o resumo automático das pendências ignoram as mensagens privadas (não leem nem citam o conteúdo).
+
 ## 0.0.80 — 2026-10-01
 
 - Banco: `whatsapp_mensagens.privado_departamento_id` (SQL em extras/crmweb_schema.sql).
