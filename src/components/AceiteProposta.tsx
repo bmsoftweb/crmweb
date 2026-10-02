@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Eraser, FileDown, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, Eraser, FileDown, FileText, Image as Imagem, Loader2, XCircle } from 'lucide-react';
 import { formatDateBR, formatDateTimeBR, formatMoeda } from '../utils/formatters';
 import { INPUT_CLASS_LG, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { Toggle } from './Toggle';
@@ -21,6 +21,8 @@ interface PropostaPublica {
   valor_total: number;
   /** Resumida: quantidade e preço vêm nulos (linha do grupo, só com o valor) */
   itens: { produto: string; unidade: string | null; quantidade: number | null; preco_unitario: number | null; desconto: number; subtotal: number }[];
+  /** Anexos da proposta (PDFs, imagens...) */
+  anexos: { nome: string; url: string; tipo: string | null; tamanho: number }[];
   /** Parcelas da condição de pagamento */
   parcelas: { numero: number; vencimento: string; forma: string; valor: number }[];
   decisao: { nome: string; em: string } | null;
@@ -292,6 +294,23 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
           >
             <FileDown className="w-4 h-4" /> Ver a proposta em PDF
           </a>
+
+          {p.anexos?.length > 0 && (
+            <div className="text-sm">
+              <div className="text-xs font-semibold text-stone-400 mb-1">Anexos</div>
+              <div className="divide-y divide-stone-100 border-y border-stone-100">
+                {p.anexos.map((a) => (
+                  <a key={a.url} href={a.url} target="_blank" rel="noreferrer" className="py-2 flex items-center gap-2 text-blue-600 hover:text-blue-800">
+                    {a.tipo?.startsWith('image/') ? <Imagem className="w-4 h-4 shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
+                    <span className="flex-1 min-w-0 truncate font-medium">{a.nome}</span>
+                    <span className="text-xs text-stone-400 tabular-nums">
+                      {a.tamanho >= 1048576 ? `${(a.tamanho / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(a.tamanho / 1024))} KB`}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Resposta */}

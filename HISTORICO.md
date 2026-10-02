@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.78 — 2026-10-01
+
+- Página de aprovação do cliente (link da proposta): mostra os anexos da proposta, com nome, tamanho e link para abrir.
+
 ## 0.0.77 — 2026-10-01
 
 - Envio da proposta: os anexos vão junto. No e-mail, anexados ao PDF (passando de 20 MB no total, vão como links no texto); no WhatsApp, cada anexo numa mensagem logo depois do PDF (imagem, vídeo ou documento).
