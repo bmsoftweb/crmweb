@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.84 — 2026-10-02
+
+- Prospecção: o código do Google Maps (Place ID) vai para a coluna nova `pessoas.google_place_id`, e o `cod_integracao` do lead fica `CRMWEB-<id>`, como nos cadastros feitos no CRM (livre para o bmsoft). O "Já no CRM" usa o Place ID ou o telefone. Em Pessoas, campo "Google Place ID" só leitura e pesquisável.
+- Prospecção: botão "+" ao lado do Segmento cria um segmento ali mesmo (Enter grava, Esc cancela), que já fica selecionado.
+- Campanhas: no WhatsApp a mensagem termina sozinha com "_Para não receber mais, responda SAIR._" (nos disparos e na prévia), a não ser que o texto já fale em SAIR.
+- Banco: `ALTER TABLE pessoas ADD COLUMN google_place_id VARCHAR(100) NULL AFTER cod_integracao, ADD UNIQUE KEY uk_pessoas_empresa_place (empresa_id, google_place_id)` (em extras/crmweb_schema.sql).
+
 ## 0.0.83 — 2026-10-02
 
 - Marketing › Prospecção (nova tela): busca empresas no Google Maps pela Google Places API (oficial) por segmento e cidade/região, com filtros de nota mínima, avaliações mínimas, só com celular e só com site. Opção de ler o site de cada empresa para achar o link do WhatsApp (wa.me), o e-mail e o Instagram. Cada empresa ganha uma nota de qualificação (0 a 100: celular/WhatsApp, nota e avaliações no Google, site, e-mail); quem já está no CRM (pelo código do Google ou pelo telefone) aparece marcado. As escolhidas entram em Pessoas como **lead**, com WhatsApp, telefone, e-mail, endereço principal, segmento opcional e os dados do Google na observação (`cod_integracao` `GP-<id do Google>`).

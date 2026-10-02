@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Globe, Instagram, Loader2, MapPin, MessageCircle, Search, Star, UserPlus } from 'lucide-react';
-import { buscarProspeccao, fetchOptions, FiltroProspeccao, incluirProspeccao, LeadProspeccao } from '../services/api';
+import { Check, ExternalLink, Globe, Instagram, Loader2, MapPin, MessageCircle, Plus, Search, Star, UserPlus, X } from 'lucide-react';
+import { buscarProspeccao, createRecord, fetchOptions, FiltroProspeccao, incluirProspeccao, LeadProspeccao } from '../services/api';
 import { OpcaoRef } from '../types';
 import { FIELD_CLASS, HINT_CLASS, INPUT_CLASS, LABEL_CLASS } from '../utils/formStyles';
 import { SelectBusca } from './SelectBusca';
@@ -57,6 +57,8 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
   const [incluidos, setIncluidos] = useState<Set<string>>(new Set());
   const [segmentos, setSegmentos] = useState<OpcaoRef[]>([]);
   const [segmento, setSegmento] = useState('');
+  /** Nome do segmento sendo criado ali mesmo (null = mostra o combo) */
+  const [novoSegmento, setNovoSegmento] = useState<string | null>(null);
   const [incluindo, setIncluindo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -99,6 +101,20 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
       setErro(err.message);
     } finally {
       setIncluindo(false);
+    }
+  };
+
+  const criarSegmento = async () => {
+    const nome = novoSegmento?.trim();
+    if (!nome) return;
+    setErro(null);
+    try {
+      const { id } = await createRecord('segmentos', { nome, ativo: true });
+      setSegmentos(await fetchOptions('segmentos', 'nome'));
+      setSegmento(String(id));
+      setNovoSegmento(null);
+    } catch (err: any) {
+      setErro(err.message);
     }
   };
 
@@ -275,7 +291,36 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
           </span>
           <div className="ml-auto flex items-center gap-2">
             <label htmlFor="pr-segmento" className={LABEL_CLASS}>Segmento</label>
-            <SelectBusca id="pr-segmento" value={segmento} options={segmentos} onChange={setSegmento} vazioLabel="— Sem segmento —" className={`${INPUT_CLASS} w-56`} />
+            {novoSegmento === null ? (
+              <>
+                <SelectBusca id="pr-segmento" value={segmento} options={segmentos} onChange={setSegmento} vazioLabel="— Sem segmento —" className={`${INPUT_CLASS} w-56`} />
+                <button type="button" onClick={() => setNovoSegmento('')} title="Novo segmento" className={`${botao} border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800`}>
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  id="pr-segmento"
+                  autoFocus
+                  maxLength={100}
+                  placeholder="Nome do novo segmento"
+                  value={novoSegmento}
+                  onChange={(e) => setNovoSegmento(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') criarSegmento();
+                    if (e.key === 'Escape') setNovoSegmento(null);
+                  }}
+                  className={`${INPUT_CLASS} w-56`}
+                />
+                <button type="button" onClick={criarSegmento} disabled={!novoSegmento.trim()} title="Gravar o segmento" className={`${botao} bg-emerald-600 hover:bg-emerald-700 text-white`}>
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button type="button" onClick={() => setNovoSegmento(null)} title="Cancelar" className={`${botao} border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800`}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
             <button type="button" onClick={incluir} disabled={!qtdMarcados || incluindo} className={botaoPrimario}>
               {incluindo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
               Incluir {qtdMarcados || ''} como lead

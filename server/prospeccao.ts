@@ -19,12 +19,12 @@ import { chaveTelefone, telefoneWhatsApp } from './whatsapp.js';
  * A chave da API fica em Configurações › Prospecção (config prospeccao.google, cifrada) ou no
  * GOOGLE_PLACES_API_KEY do .env. A busca não grava nada: a tela escolhe e manda incluir.
  *
- * Chave da inclusão: cod_integracao "GP-<place id>". Quem já está no CRM (pelo código ou pelo
- * telefone) aparece marcado na busca e não é incluído de novo.
+ * Chave da inclusão: pessoas.google_place_id (o cod_integracao fica livre para o bmsoft, "CRMWEB-<id>"
+ * como os cadastros feitos aqui). Quem já está no CRM (pelo place id ou pelo telefone) aparece
+ * marcado na busca e não é incluído de novo.
  */
 
 const ONDE = 'Configurações › Prospecção';
-const PREFIXO = 'GP-';
 const URL_BUSCA = 'https://places.googleapis.com/v1/places:searchText';
 const CAMPOS_GOOGLE = [
   'places.id',
@@ -403,9 +403,11 @@ async function buscar(empresaId: string, corpo: any): Promise<{ leads: Lead[]; e
 /** Quem já está no CRM: pelo código do Google ou por algum dos telefones */
 async function marcarQuemJaExiste(empresaId: string, leads: Lead[]) {
   if (!leads.length) return;
-  const codigos = leads.map((l) => `${PREFIXO}${l.place_id}`);
-  const [porCodigo] = await pool.query<any[]>('SELECT id, cod_integracao FROM pessoas WHERE empresa_id = ? AND cod_integracao IN (?)', [empresaId, codigos]);
-  const mapaCodigo = new Map(porCodigo.map((r) => [String(r.cod_integracao), Number(r.id)]));
+  const [porPlace] = await pool.query<any[]>('SELECT id, google_place_id FROM pessoas WHERE empresa_id = ? AND google_place_id IN (?)', [
+    empresaId,
+    leads.map((l) => l.place_id),
+  ]);
+  const mapaPlace = new Map(porPlace.map((r) => [String(r.google_place_id), Number(r.id)]));
   const chaves = (l: Lead) => [l.whatsapp_site, l.celular, l.telefone].map((t) => chaveTelefone(t)).filter((c): c is string => Boolean(c));
   const todas = [...new Set(leads.flatMap(chaves))];
   const mapaFone = new Map<string, number>();
@@ -425,7 +427,7 @@ async function marcarQuemJaExiste(empresaId: string, leads: Lead[]) {
     }
   }
   for (const l of leads) {
-    l.pessoa_id = mapaCodigo.get(`${PREFIXO}${l.place_id}`) ?? chaves(l).map((c) => mapaFone.get(c)).find(Boolean) ?? null;
+    l.pessoa_id = mapaPlace.get(l.place_id) ?? chaves(l).map((c) => mapaFone.get(c)).find(Boolean) ?? null;
   }
 }
 
@@ -502,10 +504,12 @@ async function incluir(empresaId: string, corpo: any): Promise<{ incluidos: numb
         .join('\n');
       const whatsapp = l.whatsapp_site || l.celular;
       const [r] = await conn.query<any>(
-        `INSERT INTO pessoas (empresa_id, tipo, cod_integracao, nome, email, telefone, whatsapp, obs, segmento_id)
+        `INSERT INTO pessoas (empresa_id, tipo, google_place_id, nome, email, telefone, whatsapp, obs, segmento_id)
          VALUES (?, 'lead', ?, ?, ?, ?, ?, ?, ?)`,
-        [empresaId, `${PREFIXO}${l.place_id}`, l.nome, l.email, l.telefone, whatsapp ? whatsapp.slice(2) : null, obs, segmentoId],
+        [empresaId, l.place_id, l.nome, l.email, l.telefone, whatsapp ? whatsapp.slice(2) : null, obs, segmentoId],
       );
+      // Mesmo código dos cadastros feitos no CRM (regras.ts › aposGravar)
+      await conn.query("UPDATE pessoas SET cod_integracao = CONCAT('CRMWEB-', id) WHERE id = ?", [r.insertId]);
       const e = l.endereco_partes;
       if (e.logradouro || e.cidade || e.cep) {
         await conn.query(

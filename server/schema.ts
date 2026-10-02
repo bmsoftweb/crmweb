@@ -1012,6 +1012,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'obs', label: 'Observação', type: 'textarea' },
       { name: 'personalizados', label: 'Campos Personalizados', type: 'personalizados' },
       { name: 'cod_integracao', label: 'Cód.Integração', type: 'text', readOnly: true, listed: true, filterable: true, searchable: true, hint: 'Preenchido pela importação do bmsoft (PESSOAS.ID)' },
+      { name: 'google_place_id', label: 'Google Place ID', type: 'text', readOnly: true, searchable: true, hint: 'Código da empresa no Google Maps, gravado pela Prospecção: evita incluir o mesmo lead de novo' },
       {
         name: 'cidade_uf',
         label: 'Cidade/UF',

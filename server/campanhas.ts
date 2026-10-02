@@ -179,6 +179,11 @@ export function personalizar(texto: string | null | undefined, dados: Record<str
   return String(texto ?? '').replace(RE_VARIAVEL, (_, v) => String(dados[v.toLowerCase()] ?? ''));
 }
 
+/** No WhatsApp a campanha termina com o aviso de descadastro (PEDIU_SAIR), se o texto ainda não falar em SAIR */
+export function comAvisoSair(texto: string, canal: string | undefined): string {
+  return canal === 'whatsapp' && !/\bSAIR\b/i.test(texto) ? `${texto.trimEnd()}\n\n_Para não receber mais, responda SAIR._` : texto;
+}
+
 
 // ------------------------------------------------------------
 // Público e disparos
@@ -277,7 +282,7 @@ export async function gerarDisparos(campanhaId: string | number, empresaId: stri
         continue;
       }
       const assunto = personalizar(c.assunto, p).trim().slice(0, 255) || null;
-      linhas.push([c.id, p.id, String(p.nome ?? '').slice(0, 255), d.canal, d.destino, assunto, personalizar(c.mensagem, p), quando]);
+      linhas.push([c.id, p.id, String(p.nome ?? '').slice(0, 255), d.canal, d.destino, assunto, comAvisoSair(personalizar(c.mensagem, p), d.canal), quando]);
     }
     for (let i = 0; i < linhas.length; i += 500) {
       await conn.query('INSERT INTO campanha_disparos (campanha_id, pessoa_id, nome, canal, destino, assunto, mensagem, agendado_para) VALUES ?', [
@@ -509,12 +514,15 @@ export function createCampanhasRouter() {
       res.json({
         publico: await contarPublico(c.criterios, res.locals.empresaId),
         imagem: c.imagem || null,
-        exemplos: pessoas.map((p) => ({
-          nome: p.nome,
-          destino: destinoDe(c.canal, p)?.destino ?? null,
-          assunto: personalizar(c.assunto, p),
-          corpo: personalizar(c.mensagem, p),
-        })),
+        exemplos: pessoas.map((p) => {
+          const d = destinoDe(c.canal, p);
+          return {
+            nome: p.nome,
+            destino: d?.destino ?? null,
+            assunto: personalizar(c.assunto, p),
+            corpo: comAvisoSair(personalizar(c.mensagem, p), d?.canal),
+          };
+        }),
       });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: friendlyDbError(err, 'campanha') });
