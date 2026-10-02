@@ -32,7 +32,7 @@ import { BotaoEnviar } from './components/BotaoEnviar';
 import { BotaoLinkAceite } from './components/BotaoLinkAceite';
 import { BotaoNovaVersao } from './components/BotaoNovaVersao';
 import { AcaoConversaBot } from './components/ConversaBot';
-import { AcaoConcluir } from './components/ConcluirAtividade';
+import { AcaoConcluir, BotaoConcluirRapido } from './components/ConcluirAtividade';
 import { BotaoAcao } from './components/MenuAcoes';
 import { Headset } from 'lucide-react';
 import { AcaoRetornoLigacao, PesquisasSatisfacao } from './components/PesquisasSatisfacao';
@@ -548,6 +548,16 @@ export default function App() {
                     : undefined
               }
               acoesEmMenu={['propostas', 'pedidos', 'campanhas', 'atividades'].includes(activeResource.name)}
+              colunaInicial={
+                activeResource.name === 'atividades'
+                  ? {
+                      titulo: 'Concluir',
+                      render: (row, { recarregar }) => (
+                        <BotaoConcluirRapido registro={row} onFeito={() => (showToast('Atividade concluída.'), recarregar())} />
+                      ),
+                    }
+                  : undefined
+              }
               acoesLinha={
                 activeResource.name === 'propostas' || activeResource.name === 'pedidos'
                   ? (row, { abrir, recarregar }) => (

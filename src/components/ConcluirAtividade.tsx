@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, Loader2, X } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, X } from 'lucide-react';
 import { updateRecord } from '../services/api';
 import { RegistroCrud } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
@@ -26,6 +26,48 @@ export const AcaoConcluir: React.FC<{ registro: RegistroCrud; onFeito: () => voi
               onFeito();
             }}
           />,
+          document.body,
+        )}
+    </>
+  );
+};
+
+/**
+ * Concluir rápido (1ª coluna da lista): o círculo abre a mesma janela do "Concluir" do menu, para escrever o
+ * resultado. Concluída mostra o visto verde.
+ */
+export const BotaoConcluirRapido: React.FC<{ registro: RegistroCrud; onFeito: () => void }> = ({ registro, onFeito }) => {
+  const [aberta, setAberta] = useState(false);
+  if (Number(registro.concluida)) {
+    return (
+      <span title="Concluída" className="inline-flex p-1 text-emerald-600 dark:text-emerald-400">
+        <CheckCircle2 className="w-4 h-4" />
+      </span>
+    );
+  }
+  return (
+    <>
+      <button
+        type="button"
+        title="Concluir (registra o resultado)"
+        onClick={() => setAberta(true)}
+        className="inline-flex p-1 rounded-full text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer"
+      >
+        <Circle className="w-4 h-4" />
+      </button>
+      {aberta &&
+        createPortal(
+          // O span segura os cliques: no React eles subiriam até a linha da lista mesmo pelo portal
+          <span onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+            <JanelaConcluir
+              registro={registro}
+              onFechar={() => setAberta(false)}
+              onFeito={() => {
+                setAberta(false);
+                onFeito();
+              }}
+            />
+          </span>,
           document.body,
         )}
     </>

@@ -10,14 +10,19 @@ interface FichaPanelProps {
   label: string;
   refOptions: Record<string, OpcaoRef[]>;
   onClose: () => void;
+  /** Recolhido controlado por quem usa (ex.: ao trocar a lista pelo calendário); sem ele, o painel cuida sozinho */
+  recolhido?: boolean;
+  onRecolhidoChange?: (v: boolean) => void;
 }
 
 /**
  * Ficha do registro selecionado embaixo da lista (resource.ficha), no mesmo lugar e visual do
  * painel mestre-detalhe: todos os campos, com os textos longos (observação, resumo) por inteiro.
  */
-export const FichaPanel: React.FC<FichaPanelProps> = ({ resource, row, label, refOptions, onClose }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+export const FichaPanel: React.FC<FichaPanelProps> = ({ resource, row, label, refOptions, onClose, recolhido, onRecolhidoChange }) => {
+  const [recolhidoLocal, setRecolhidoLocal] = useState(false);
+  const isCollapsed = recolhido ?? recolhidoLocal;
+  const setIsCollapsed = (f: (c: boolean) => boolean) => (onRecolhidoChange ? onRecolhidoChange(f(isCollapsed)) : setRecolhidoLocal(f));
   const campos = resource.fields.filter((f) => f.type !== 'password' && !f.foraDaFicha);
   const curtos = campos.filter((f) => f.type !== 'textarea');
   // Texto longo vazio só ocupa espaço

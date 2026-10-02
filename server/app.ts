@@ -91,7 +91,7 @@ const usuarioPublico = (u: any) => ({
  * empresas.id é VARCHAR: a comparação é feita como texto.
  */
 const SQL_USUARIO_EMPRESA = `
-  SELECT u.id, u.tipo, u.nome, u.email, u.senha_hash, u.cargo, u.permissoes, e.id AS empresa_id, e.nome AS empresa_nome
+  SELECT u.id, u.tipo, u.nome, u.email, u.senha_hash, u.cargo, u.permissoes, u.departamento_id, e.id AS empresa_id, e.nome AS empresa_nome
     FROM usuarios u
     JOIN empresas e ON e.id = CAST(u.empresa_id AS CHAR)
    WHERE u.ativo = 1`;

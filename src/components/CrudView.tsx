@@ -67,6 +67,8 @@ interface CrudViewProps {
   acoesLinha?: (row: RegistroCrud, ctx: { abrir: (row: RegistroCrud) => void; recarregar: () => void }) => React.ReactNode;
   /** Ações da linha (as de acoesLinha, Editar e Excluir) num menu "..." com descrição, em vez de ícones soltos */
   acoesEmMenu?: boolean;
+  /** Coluna estreita logo depois do indicador, com um botão rápido por linha (ex.: Concluir atividade) */
+  colunaInicial?: { titulo: string; render: (row: RegistroCrud, ctx: { recarregar: () => void }) => React.ReactNode };
   /** Botões extras nas linhas do painel de detalhes (ex.: WhatsApp do contato), por recurso filho */
   acoesDetalhe?: (recurso: string, row: RegistroCrud, ctx: { recarregar: () => void }) => React.ReactNode;
   /** Usuário logado (regras por usuário, ex.: quem pode excluir a atividade) */
@@ -118,6 +120,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
   acoesLista,
   acoesLinha,
   acoesEmMenu,
+  colunaInicial,
   acoesDetalhe,
   usuario,
   filtrosIniciais,
@@ -353,6 +356,8 @@ export const CrudView: React.FC<CrudViewProps> = ({
   };
 
   const tabelaRef = useRef<HTMLTableElement>(null);
+  /** Posição da 1ª coluna de dados no cabeçalho: depois do indicador (e da coluna inicial, se houver) */
+  const inicioColunas = colunaInicial ? 2 : 1;
 
   /**
    * Mede a largura que cada coluna teria só pelo conteúdo, ignorando as larguras
@@ -384,7 +389,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
     const medidas = medirColunas();
     if (!medidas) return;
     setLarguras(
-      Object.fromEntries(colunas.map((f, i) => [f.name, Math.max(60, medidas[i + 1])])),
+      Object.fromEntries(colunas.map((f, i) => [f.name, Math.max(60, medidas[i + inicioColunas])])),
     );
   };
 
@@ -399,9 +404,9 @@ export const CrudView: React.FC<CrudViewProps> = ({
     const area = tabela?.parentElement;
     if (!tabela || !area) return;
     const cabecalhos = Array.from(tabela.querySelectorAll('thead th')) as HTMLElement[];
-    const atuais = cabecalhos.slice(1, 1 + colunas.length).map((th) => th.offsetWidth);
+    const atuais = cabecalhos.slice(inicioColunas, inicioColunas + colunas.length).map((th) => th.offsetWidth);
     const soma = atuais.reduce((a, b) => a + b, 0);
-    const fixas = cabecalhos[0].offsetWidth + cabecalhos[cabecalhos.length - 1].offsetWidth;
+    const fixas = cabecalhos.slice(0, inicioColunas).reduce((a, th) => a + th.offsetWidth, 0) + cabecalhos[cabecalhos.length - 1].offsetWidth;
     const disponivel = area.clientWidth - fixas - 1;
     if (soma <= 0 || disponivel <= 0) return;
     const fator = disponivel / soma;
@@ -484,8 +489,11 @@ export const CrudView: React.FC<CrudViewProps> = ({
     }
   };
   const [visao, setVisao] = useState<'lista' | VisaoCalendario>(lerVisao);
+  /** Ficha embaixo recolhida: entra recolhida ao trocar para Semana/Mês; abre de novo ao escolher outro registro */
+  const [fichaRecolhida, setFichaRecolhida] = useState(false);
   const trocarVisao = (v: 'lista' | VisaoCalendario) => {
     setVisao(v);
+    if (v !== 'lista') setFichaRecolhida(true);
     try {
       localStorage.setItem(chaveVisao, v);
     } catch {
@@ -558,6 +566,9 @@ export const CrudView: React.FC<CrudViewProps> = ({
   // Lista com detalhe já abre com o painel: sem seleção, vale a primeira linha.
   // Fechado no X, o painel só volta quando o usuário escolhe uma linha.
   const painelFechado = useRef(false);
+  // Outro registro escolhido: a ficha volta a abrir
+  const idSelecionado = selecionado ? recordId(selecionado) : null;
+  useEffect(() => setFichaRecolhida(false), [idSelecionado]);
   useEffect(() => {
     // No calendário, a ficha só abre quando o usuário escolhe uma atividade
     if (temDetalhe && visao === 'lista' && !selecionado && !painelFechado.current && rows.length) setSelecionado(rows[0]);
@@ -898,6 +909,15 @@ export const CrudView: React.FC<CrudViewProps> = ({
                         }`}
                       />
                     </td>
+                    {colunaInicial && (
+                      <td
+                        className={`w-[34px] min-w-[34px] max-w-[34px] px-0 text-center align-middle border-r border-stone-100 dark:border-stone-800/60 ${bordasCelula}`}
+                        onClick={(e) => e.stopPropagation()}
+                        onDoubleClick={(e) => e.stopPropagation()}
+                      >
+                        {colunaInicial.render(row, { recarregar: recarregarComDetalhe })}
+                      </td>
+                    )}
                     {colunas.map((f, iCol) => (
                       <td
                         key={f.name}
@@ -1334,6 +1354,12 @@ export const CrudView: React.FC<CrudViewProps> = ({
                   )}
                 </div>
               </th>
+              {colunaInicial && (
+                <th
+                  title={colunaInicial.titulo}
+                  className="w-[34px] min-w-[34px] max-w-[34px] px-0 text-center border-b border-r border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950"
+                />
+              )}
               {colunas.map((f) => {
                 const isSorted = sort === f.name;
                 return (
@@ -1389,7 +1415,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
           <tbody className={isLoading && rows.length > 0 ? 'opacity-60' : undefined}>
             {isLoading && rows.length === 0 && (
               <tr>
-                <td colSpan={colunas.length + 3} className="px-3 py-12 text-center">
+                <td colSpan={colunas.length + 2 + inicioColunas} className="px-3 py-12 text-center">
                   <div className="flex items-center justify-center gap-2 text-stone-500 dark:text-stone-400">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Carregando registros…</span>
@@ -1400,7 +1426,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
 
             {!isLoading && rows.length === 0 && (
               <tr>
-                <td colSpan={colunas.length + 3} className="px-3 py-16 text-center">
+                <td colSpan={colunas.length + 2 + inicioColunas} className="px-3 py-16 text-center">
                   <div className="flex flex-col items-center gap-2 text-stone-400">
                     <Inbox className="w-8 h-8" />
                     <span className="text-sm font-medium text-stone-600 dark:text-stone-300">
@@ -1474,6 +1500,8 @@ export const CrudView: React.FC<CrudViewProps> = ({
           row={rows.find((r) => recordId(r) === recordId(selecionado)) ?? selecionado}
           label={recordLabel(selecionado)}
           refOptions={refOptions}
+          recolhido={fichaRecolhida}
+          onRecolhidoChange={setFichaRecolhida}
           onClose={() => {
             painelFechado.current = true;
             setSelecionado(null);

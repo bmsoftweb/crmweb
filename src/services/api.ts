@@ -621,6 +621,8 @@ export interface ConversaResumo {
   tecnico_padrao_nome: string | null;
   /** Pausada por quem atendia: voltou para a Fila de Chamados */
   pausada: boolean;
+  /** Última mensagem privada (oculta: de outro departamento, sem o conteúdo) */
+  privada?: { departamento: string; oculta?: boolean } | null;
 }
 
 export interface MensagemWhatsApp {
@@ -639,6 +641,8 @@ export interface MensagemWhatsApp {
   /** Motivo, quando não saiu */
   erro: string | null;
   data_hora: string;
+  /** Privada de um departamento (oculta: o usuário não é de lá; vem sem o conteúdo) */
+  privada?: { departamento: string; oculta?: boolean } | null;
 }
 
 /** minhas: as sem departamento, as do meu departamento e as que eu assumi */
@@ -732,6 +736,9 @@ export const limparConversa = (telefone: string): Promise<{ success: boolean; ap
 export const mudarAtendimentoConversa = (telefone: string, atendimento: 'bot' | 'humano'): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atendimento`, { atendimento });
 /** Atender: pega a conversa e trava para o usuário */
+/** Mensagem privada: privada=false torna pública; sem departamento, vale o do usuário (o administrador escolhe) */
+export const marcarMensagemPrivada = (id: number, privada: boolean, departamentoId?: string | number | null): Promise<{ success: boolean }> =>
+  enviar('POST', `/api/whatsapp/mensagens/${id}/privada`, { privada, departamento_id: departamentoId ?? null });
 export const atenderConversa = (telefone: string): Promise<{ success: boolean }> => enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atender`);
 /** Pausar: a conversa sai de quem atende e volta para a Fila de Chamados */
 export const pausarConversa = (telefone: string): Promise<{ success: boolean }> => enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/pausar`);

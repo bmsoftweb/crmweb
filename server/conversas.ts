@@ -6,6 +6,20 @@ import { lerConfig } from './config.js';
 import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
 import { jornadaAtende, lerJornadaConfig } from './jornada.js';
 import { podeAcessar } from './permissoes.js';
+
+/** Mensagem privada: vê quem é do departamento dela ou o administrador; sem departamento, todos */
+function podeVerPrivada(res: Response, departamentoId: unknown): boolean {
+  if (!departamentoId) return true;
+  const u = res.locals.usuario;
+  return u?.tipo === 'admin' || Number(u?.departamento_id) === Number(departamentoId);
+}
+
+/** Tira o conteúdo da mensagem privada que o usuário não pode ver (fica só o aviso "privada de <departamento>") */
+function mascararPrivada<T extends Record<string, any>>(res: Response, m: T): T {
+  const privada = m.privado_departamento_id ? { departamento: m.privado_departamento ?? 'outro departamento' } : null;
+  if (!privada || podeVerPrivada(res, m.privado_departamento_id)) return { ...m, privada };
+  return { ...m, privada: { ...privada, oculta: true }, texto: null, arquivo_nome: null };
+}
 import { enviarPesquisa } from './pesquisa.js';
 
 /** Começo do evento de transferência (para um atendente ou um departamento): /whatsapp/nao-vistas acha por ele a transferida para mim */
@@ -438,6 +452,7 @@ export function createConversasRouter(): Router {
         `SELECT w.telefone, x.pessoa_id, p.nome, x.contato_id, c.nome AS contato_nome, COALESCE(c.departamento, c.cargo) AS contato_setor,
                 ${NOME_CONTATO('w')} AS nome_contato, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao,
                 DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora, x.nao_vistas, x.encerrada, d.nome AS departamento,
+                w.privado_departamento_id, (SELECT dp.nome FROM departamentos dp WHERE dp.id = w.privado_departamento_id) AS privado_departamento,
                 wc.atendimento, wc.atendente_id, COALESCE(wc.conta, 'provedor') AS conta, ua.nome AS atendente_nome, tp.nome AS tecnico_padrao_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
                 DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde,
                 -- Pausada: o último evento é a pausa, e depois dela não começou outra espera
@@ -468,7 +483,9 @@ export function createConversasRouter(): Router {
       // Estado: em atendimento (alguém pegou), aguardando (humano sem atendente; sem bot, quando o
       // cliente foi o último a escrever) ou com o bot
       res.json(
-        rows.map(({ atendimento, atendente_id, encerrada, ...r }) => {
+        rows.map(({ atendimento, atendente_id, encerrada, ...linha }) => {
+          // Última mensagem privada de outro departamento: a prévia não mostra o conteúdo
+          const r = mascararPrivada(res, linha);
           const comBot = jornadaAtende(r.conta === 'campanhas' ? jornadas.campanhas : jornadas.provedor, r.telefone);
           // Encerrada fica marcada até o cliente mandar mensagem de novo (aí começa outro ciclo)
           const estado = atendente_id
@@ -492,13 +509,43 @@ export function createConversasRouter(): Router {
    * Imagem, figurinha, áudio, vídeo ou documento da mensagem, buscado no provedor (o arquivo não fica no CRM).
    * Documento vai como anexo (a tela baixa com o nome original): nunca é exibido pelo navegador no CRM.
    */
+  /**
+   * Marca (departamento_id) ou desmarca (null) a mensagem como privada. O administrador escolhe qualquer
+   * departamento; os demais só o próprio, e só mexem no que conseguem ver.
+   */
+  router.post('/whatsapp/mensagens/:id/privada', async (req: Request, res: Response) => {
+    try {
+      const u = res.locals.usuario;
+      const admin = u?.tipo === 'admin';
+      const [rows] = await pool.query<any[]>('SELECT id, privado_departamento_id FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ?', [
+        Number(req.params.id) || 0,
+        res.locals.empresaId,
+      ]);
+      if (!rows[0]) return res.status(404).json({ error: 'Mensagem não encontrada.' });
+      if (!podeVerPrivada(res, rows[0].privado_departamento_id)) return res.status(403).json({ error: 'Mensagem privada de outro departamento.' });
+      // privada: false = pública; senão o departamento escolhido (administrador) ou o do próprio usuário
+      const dep = req.body?.privada === false ? null : Number(req.body?.departamento_id) || Number(u?.departamento_id) || null;
+      if (req.body?.privada !== false && !dep) return res.status(400).json({ error: 'Você não está em nenhum departamento: peça ao administrador para marcar.' });
+      if (dep) {
+        if (!admin && dep !== Number(u?.departamento_id)) return res.status(403).json({ error: 'Você só pode deixar a mensagem privada do seu departamento.' });
+        const [d] = await pool.query<any[]>('SELECT id FROM departamentos WHERE id = ? AND empresa_id = ?', [dep, res.locals.empresaId]);
+        if (!d[0]) return res.status(400).json({ error: 'Departamento não encontrado.' });
+      }
+      await pool.query('UPDATE whatsapp_mensagens SET privado_departamento_id = ? WHERE id = ?', [dep, rows[0].id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
   router.get('/whatsapp/mensagens/:id/midia', async (req: Request, res: Response) => {
     try {
       const [rows] = await pool.query<any[]>(
-        "SELECT wa_id, tipo, arquivo_nome, telefone FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video', 'documento')",
+        "SELECT wa_id, tipo, arquivo_nome, telefone, privado_departamento_id FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video', 'documento')",
         [Number(req.params.id) || 0, res.locals.empresaId],
       );
       if (!rows[0]?.wa_id) return res.status(404).json({ error: 'Arquivo não encontrado.' });
+      if (!podeVerPrivada(res, rows[0].privado_departamento_id)) return res.status(403).json({ error: 'Mensagem privada de outro departamento.' });
       const { mimetype, dados } = await midiaDaMensagem(res.locals.empresaId, rows[0].wa_id, rows[0].telefone);
       res.set({ 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
       if (rows[0].tipo === 'documento') return res.attachment(rows[0].arquivo_nome || 'arquivo').type(mimetype).send(dados);
@@ -536,9 +583,11 @@ export function createConversasRouter(): Router {
       const [mensagens] = await pool.query<any[]>(
         `SELECT * FROM (
            SELECT w.id, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao, u.nome AS usuario_nome,
+                  w.privado_departamento_id, dp.nome AS privado_departamento,
                   (w.disparo_id IS NOT NULL) AS campanha, (w.origem IS NOT NULL AND w.origem NOT LIKE 'bot:%') AS automatica,
                   (w.origem LIKE 'bot:%') AS bot, w.erro, DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora
              FROM whatsapp_mensagens w LEFT JOIN usuarios u ON u.id = w.usuario_id
+             LEFT JOIN departamentos dp ON dp.id = w.privado_departamento_id
             WHERE w.empresa_id = ? AND w.telefone = ?
             ORDER BY w.data_hora DESC, w.id DESC LIMIT 300) m
           ORDER BY m.data_hora, m.id`,
@@ -576,7 +625,7 @@ export function createConversasRouter(): Router {
         /** Número por onde a conversa entrou: as respostas saem por ele */
         conta,
         encerravel: Boolean(Number(c.encerravel)),
-        departamento: c.departamento ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => ({ ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
+        departamento: c.departamento ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => mascararPrivada(res, { ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
     } catch (err: any) {
       falha(res, err);
     }

@@ -252,6 +252,8 @@ interface Registro {
   contato_id?: number | null;
   usuario_id?: number | null;
   disparo_id?: number | null;
+  /** Mensagem privada: só este departamento (e o administrador) vê na tela */
+  privado_departamento_id?: number | null;
 }
 
 /** "*Luis:* texto": o cliente vê quem da equipe escreveu (o registro no CRM fica sem, a tela já mostra o nome) */
@@ -548,12 +550,12 @@ async function registrarEnviada(
     const dono = m.pessoa_id ? { pessoa_id: m.pessoa_id, contato_id: m.contato_id ?? null } : await donoDoTelefone(empresaId, numero);
     await pool.query(
       `INSERT INTO whatsapp_mensagens
-         (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, situacao, disparo_id, usuario_id, vista, data_hora)
-       VALUES (?, ?, ?, ?, 'enviada', ?, ?, ?, ?, 'enviada', ?, ?, 1, NOW())
+         (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, situacao, disparo_id, usuario_id, privado_departamento_id, vista, data_hora)
+       VALUES (?, ?, ?, ?, 'enviada', ?, ?, ?, ?, 'enviada', ?, ?, ?, 1, NOW())
        ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)), contato_id = COALESCE(contato_id, VALUES(contato_id)),
          disparo_id = COALESCE(disparo_id, VALUES(disparo_id)), usuario_id = COALESCE(usuario_id, VALUES(usuario_id)),
          arquivo_nome = COALESCE(arquivo_nome, VALUES(arquivo_nome)), texto = COALESCE(VALUES(texto), texto)`,
-      [empresaId, dono.pessoa_id, dono.contato_id, numero, m.tipo, m.texto, m.arquivo_nome ?? null, waId, m.disparo_id ?? null, m.usuario_id ?? null],
+      [empresaId, dono.pessoa_id, dono.contato_id, numero, m.tipo, m.texto, m.arquivo_nome ?? null, waId, m.disparo_id ?? null, m.usuario_id ?? null, m.privado_departamento_id ?? null],
     );
     // O aviso de entrega pode ter chegado antes deste registro
     if (waId && m.disparo_id) await repassarAoDisparo(empresaId, waId);

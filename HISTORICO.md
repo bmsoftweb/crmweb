@@ -2,6 +2,14 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.80 — 2026-10-01
+
+- Banco: `whatsapp_mensagens.privado_departamento_id` (SQL em extras/crmweb_schema.sql).
+- Whatsapp: mensagens privadas — só o departamento da mensagem (e o administrador) vê o conteúdo; os outros veem "🔒 Mensagem privada de <departamento>" (também na prévia da lista; a mídia não abre). Cadeado na mensagem para tornar privada (do próprio departamento; o administrador escolhe) ou pública. Proposta e pedido enviados pelo WhatsApp saem privados do departamento de quem envia.
+- Atividades/Tarefas (Lista): 1ª coluna com o círculo de concluir rápido, que abre a janela do resultado; concluída mostra o visto verde.
+- Atividades/Tarefas: ao trocar a Lista por Semana ou Mês, o painel de detalhes entra recolhido (abre ao escolher outra atividade).
+- Lembrete de validade da proposta: {{numero}} passa a ser o controle.
+
 ## 0.0.79 — 2026-10-01
 
 - Banco: tabela `pedido_parcelas` (SQL em extras/crmweb_schema.sql).

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
-import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
-import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, limparConversa, atenderConversa, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, LockOpen, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
+import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, limparConversa, atenderConversa, marcarMensagemPrivada, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -169,8 +169,10 @@ const TIPOS: Record<string, string> = {
 };
 
 /** Texto curto da última mensagem, para a lista */
-const resumo = (m: { tipo: string; texto: string | null; arquivo_nome: string | null }) =>
-  m.tipo === 'texto' ? m.texto || '' : `[${TIPOS[m.tipo] || m.tipo}] ${m.texto || m.arquivo_nome || ''}`.trim();
+const resumo = (m: { tipo: string; texto: string | null; arquivo_nome: string | null; privada?: { departamento: string; oculta?: boolean } | null }) =>
+  m.privada?.oculta
+    ? `🔒 Mensagem privada (${m.privada.departamento})`
+    : m.tipo === 'texto' ? m.texto || '' : `[${TIPOS[m.tipo] || m.tipo}] ${m.texto || m.arquivo_nome || ''}`.trim();
 
 /** AAAA-MM-DD de ontem, no horário local (nunca toISOString) */
 function ontemIso(): string {
@@ -451,6 +453,14 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const podeTransferir = conversa?.estado === 'atendimento' && (conversa.eu_atendo || conversa.sou_admin);
   /** Ação de atendimento em andamento: os botões ficam desabilitados (sem clique repetido) */
   const [ocupadoAtendimento, setOcupadoAtendimento] = useState(false);
+  /** Mensagem sendo marcada como privada (ou tornada pública) */
+  const [privando, setPrivando] = useState<MensagemWhatsApp | null>(null);
+  const [depPrivada, setDepPrivada] = useState('');
+  const [departamentos, setDepartamentos] = useState<OpcaoRef[]>([]);
+  useEffect(() => {
+    if (privando && !privando.privada && conversa?.sou_admin && !departamentos.length) fetchOptions('departamentos', 'nome').then(setDepartamentos).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [privando]);
   const acaoAtendimento = async (fn: () => Promise<unknown>, aviso: string) => {
     if (!aberta || ocupadoAtendimento) return;
     setOcupadoAtendimento(true);
@@ -466,8 +476,42 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
     }
   };
 
+  const dialogoPrivada = privando && (
+    <ConfirmDialog
+      titulo={privando.privada ? 'Tornar a mensagem pública?' : 'Tornar a mensagem privada?'}
+      mensagem={
+        privando.privada
+          ? `Hoje só ${privando.privada.departamento} (e o administrador) vê esta mensagem. Pública, todos que acessam a conversa veem.`
+          : conversa?.sou_admin
+            ? 'Só o departamento escolhido (e o administrador) vai ver o conteúdo; os outros veem "mensagem privada".'
+            : 'Só o seu departamento (e o administrador) vai ver o conteúdo; os outros veem "mensagem privada".'
+      }
+      confirmar={privando.privada ? 'Tornar pública' : 'Tornar privada'}
+      tom="normal"
+      onConfirmar={async () => {
+        await marcarMensagemPrivada(privando.id, !privando.privada, depPrivada || null);
+        setPrivando(null);
+        setDepPrivada('');
+        onToast(privando.privada ? 'Mensagem pública.' : 'Mensagem privada.');
+        if (aberta) await carregarConversa(aberta);
+      }}
+      onCancelar={() => {
+        setPrivando(null);
+        setDepPrivada('');
+      }}
+    >
+      {!privando.privada && conversa?.sou_admin && (
+        <div className={FIELD_CLASS}>
+          <label htmlFor="privada-dep" className={LABEL_CLASS}>Departamento</label>
+          <SelectBusca id="privada-dep" value={depPrivada} options={departamentos} onChange={setDepPrivada} vazioLabel="— O meu —" className={`${INPUT_CLASS} w-full`} />
+        </div>
+      )}
+    </ConfirmDialog>
+  );
+
   return (
     <div className="flex-1 min-h-0 flex bg-white dark:bg-stone-900">
+      {dialogoPrivada}
       {/* Lista de conversas */}
       <aside className={`${aberta ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 xl:w-96 shrink-0 flex-col min-h-0 border-r border-stone-200 dark:border-stone-800`}>
         <div className="p-3 border-b border-stone-200 dark:border-stone-800 flex items-stretch gap-2">
@@ -845,8 +889,19 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                           </div>
                         );
                       }
+                      // Privada de outro departamento: só o aviso, sem o conteúdo
+                      if (m.privada?.oculta) {
+                        return (
+                          <div key={m.id} className={`flex mb-1.5 ${minha ? 'justify-end' : 'justify-start'}`}>
+                            <div className="max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 py-1.5 text-xs italic bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
+                              <Lock className="w-3.5 h-3.5 shrink-0" />
+                              Mensagem privada de {m.privada.departamento} · {diaHora(m.data_hora)}
+                            </div>
+                          </div>
+                        );
+                      }
                       return (
-                        <div key={m.id} title={m.erro ? `Não enviada: ${m.erro}` : undefined} className={`flex mb-1.5 ${minha ? 'justify-end' : 'justify-start'}`}>
+                        <div key={m.id} title={m.erro ? `Não enviada: ${m.erro}` : undefined} className={`group flex mb-1.5 ${minha ? 'justify-end' : 'justify-start'}`}>
                           <div
                             className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 py-1.5 text-[13px] leading-snug shadow-xs ${
                               minha
@@ -863,6 +918,15 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             )}
                             {m.texto && <div className="whitespace-pre-wrap break-words">{m.texto}</div>}
                             <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${minha ? 'text-blue-100' : 'text-stone-400'}`}>
+                              <button
+                                type="button"
+                                onClick={() => setPrivando(m)}
+                                title={m.privada ? `Privada de ${m.privada.departamento}: clique para tornar pública` : 'Tornar privada (só um departamento vê)'}
+                                className={`flex items-center gap-0.5 cursor-pointer ${m.privada ? 'font-semibold' : 'opacity-0 group-hover:opacity-100'}`}
+                              >
+                                {m.privada ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+                                {m.privada && m.privada.departamento}
+                              </button>
                               {diaHora(m.data_hora)}
                               {minha && <Situacao s={m.situacao} />}
                             </div>

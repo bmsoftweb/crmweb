@@ -222,7 +222,8 @@ export async function avisosDevidos(empresaId: number, cfg: ConfigAutomaticas, d
 
   if (cfg.proposta.ativo) {
     const [rows] = await db.query<any[]>(
-      `SELECT pr.id, pr.numero_proposta AS numero, pr.titulo, pr.valor_total, DATE_FORMAT(pr.data_validade, '%d/%m/%Y') AS validade,
+      // {{numero}} da proposta = o controle (a referência que o cliente conhece); sem controle, o número
+      `SELECT pr.id, COALESCE(NULLIF(TRIM(pr.controle), ''), pr.numero_proposta) AS numero, pr.titulo, pr.valor_total, DATE_FORMAT(pr.data_validade, '%d/%m/%Y') AS validade,
               DATE_FORMAT(pr.data_validade, '%Y-%m-%d') AS dv, ${daPessoa()}
          FROM propostas pr JOIN pessoas p ON p.id = pr.pessoa_id
         WHERE pr.empresa_id = ? AND pr.status = 'enviada' AND ${COM_TELEFONE}
