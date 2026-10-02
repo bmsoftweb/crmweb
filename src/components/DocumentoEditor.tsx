@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
+  Plus,
   CopyPlus,
   Printer,
   Loader2,
@@ -15,14 +16,20 @@ import {
   TipoDocumento,
   aprovarProposta,
   buscarProdutos,
+  createRecord,
+  fetchCondicoesPagamento,
   fetchDocumento,
+  fetchFunis,
   fetchOptions,
+  invalidateOptions,
   novaVersaoProposta,
   salvarDocumento,
 } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
-import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoeda } from '../utils/formatters';
-import { CONDICOES_PAGAMENTO } from '../utils/crm';
+import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoeda, hojeIso } from '../utils/formatters';
+import { FORMAS_PAGAMENTO, gerarParcelas, redistribuir, somaParcelas } from '../utils/parcelas';
+import { DateField } from './DateField';
+import { AnexosProposta } from './AnexosProposta';
 import { htmlDocumento } from '../utils/imprimirDocumento';
 import { Toggle } from './Toggle';
 import { NumberField } from './NumberField';
@@ -30,8 +37,15 @@ import { SelectBusca } from './SelectBusca';
 import { ConfirmDialog } from './ConfirmDialog';
 import { AvisoErro } from './AvisoErro';
 
-/** Opções do combo de condição de pagamento */
-const OPCOES_CONDICAO = CONDICOES_PAGAMENTO.map((c) => ({ value: c, label: c }));
+/** Parcela na tela (valor no formato do NumberField) */
+interface ParcelaTela {
+  chave: string;
+  vencimento: string;
+  forma_pagamento: string;
+  valor: string;
+  /** Valor acertado à mão com o cliente: o Recalcular não mexe nele */
+  ajustada: boolean;
+}
 
 interface DocumentoEditorProps {
   tipo: TipoDocumento;
@@ -102,11 +116,53 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
     impressao_resumida: '0',
   });
   const [itens, setItens] = useState<ItemDocumento[]>([]);
+  // Condições do cadastro e as parcelas da proposta (vencimento, forma e valor)
+  const [condicoes, setCondicoes] = useState<{ nome: string; prazos: string; forma_pagamento: string }[]>([]);
+  const [parcelas, setParcelas] = useState<ParcelaTela[]>([]);
   const [descontoAdicional, setDescontoAdicional] = useState('');
   const [removendo, setRemovendo] = useState<ItemDocumento | null>(null);
   const [confirmando, setConfirmando] = useState<'aprovar' | 'versao' | null>(null);
 
   const [opcoes, setOpcoes] = useState<Record<string, OpcaoRef[]>>({});
+  /** Inclusão rápida de negócio: título e etapa (1ª etapa do 1º funil, como padrão) */
+  const [negocioRapido, setNegocioRapido] = useState<{ titulo: string; etapa_id: string } | null>(null);
+  const [etapas, setEtapas] = useState<OpcaoRef[]>([]);
+  const abrirNegocioRapido = async () => {
+    const cliente = (opcoes.pessoas || []).find((o) => String(o.value) === String(cab.pessoa_id))?.label.replace(/ \(inativo\)$/, '');
+    let lista = etapas;
+    if (!lista.length) {
+      try {
+        const funis = await fetchFunis();
+        lista = funis.flatMap((f) => f.etapas.map((e) => ({ value: String(e.id), label: `${f.nome} › ${e.nome}` })));
+        setEtapas(lista);
+      } catch (err: any) {
+        return setErro(err.message);
+      }
+    }
+    if (!lista.length) return setErro('Cadastre um funil com etapas antes de incluir o negócio.');
+    setNegocioRapido({ titulo: [cliente, cab.titulo].filter(Boolean).join(' - ').slice(0, 255), etapa_id: String(lista[0].value) });
+  };
+  const criarNegocioRapido = async () => {
+    if (!negocioRapido) return;
+    if (!negocioRapido.titulo.trim()) throw new Error('Informe o título do negócio.');
+    const r = await createRecord('negocios', {
+      titulo: negocioRapido.titulo.trim(),
+      valor: tot.total || 0,
+      moeda: 'BRL',
+      etapa_id: negocioRapido.etapa_id,
+      pessoa_id: cab.pessoa_id || null,
+      status: 'aberto',
+    });
+    invalidateOptions('negocios');
+    const negocios = await fetchOptions('negocios', 'titulo');
+    setOpcoes((o) => ({ ...o, negocios }));
+    campo('negocio_id')(String(r.id));
+    setNegocioRapido(null);
+    onToast('Negócio incluído e ligado à proposta.');
+  };
+  useEffect(() => {
+    fetchCondicoesPagamento().then(setCondicoes).catch(() => {});
+  }, []);
   useEffect(() => {
     Promise.all([fetchOptions('negocios', 'titulo'), fetchOptions('pessoas', 'nome')])
       .then(([negocios, pessoas]) => setOpcoes({ negocios, pessoas }))
@@ -144,6 +200,15 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
           desconto: n(i.desconto) ? String(i.desconto) : '',
         }));
         setItens(lidos);
+        setParcelas(
+          (d.parcelas || []).map((x: RegistroCrud) => ({
+            chave: novaChave(),
+            vencimento: String(x.vencimento),
+            forma_pagamento: String(x.forma_pagamento),
+            valor: Number(x.valor).toFixed(2),
+            ajustada: Boolean(Number(x.ajustada)),
+          })),
+        );
         // O desconto adicional não tem coluna própria: é o que sobra além dos descontos dos itens
         const adicional = centavos(n(d.valor_desconto) - lidos.reduce((s, i) => s + n(i.desconto), 0));
         setDescontoAdicional(adicional > 0 ? adicional.toFixed(2) : '');
@@ -163,15 +228,63 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
   const bloqueado = ehProposta ? negociacaoFechada : ['faturado', 'cancelado'].includes(doc?.status || '');
   const tot = useMemo(() => totaisDaTela(itens, descontoAdicional), [itens, descontoAdicional]);
   const campo = (nome: string) => (v: string) => setCab((c) => ({ ...c, [nome]: v }));
+  const campoCliente = (largura: string) => (
+    <div className={`${FIELD_CLASS} ${largura}`}>
+      <label htmlFor="doc-pessoa" className={LABEL_CLASS}>Cliente (contato)</label>
+      <SelectBusca
+        id="doc-pessoa"
+        value={cab.pessoa_id}
+        options={opcoes.pessoas || []}
+        onChange={campo('pessoa_id')}
+        vazioLabel={cab.negocio_id ? '— O do negócio —' : '— Nenhum —'}
+        className={`${INPUT_CLASS} w-full`}
+      />
+    </div>
+  );
+  // Proposta nova: o foco já vem no Cliente (1º campo a preencher)
+  useEffect(() => {
+    if (ehProposta && !idInicial && !negocioId) document.getElementById('doc-pessoa')?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Documento antigo pode ter uma condição que não está na lista: ela entra como opção
-  // para continuar aparecendo (e não sumir na próxima gravação)
+  // Condições do cadastro; a gravada no documento entra como opção se não estiver mais nele
   const opcoesCondicao = useMemo(() => {
+    const lista = condicoes.map((c) => ({ value: c.nome, label: c.nome }));
     const atual = String(cab.condicao || '').trim();
-    return atual && !CONDICOES_PAGAMENTO.includes(atual)
-      ? [{ value: atual, label: atual }, ...OPCOES_CONDICAO]
-      : OPCOES_CONDICAO;
-  }, [cab.condicao]);
+    return atual && !lista.some((o) => o.value === atual) ? [{ value: atual, label: atual }, ...lista] : lista;
+  }, [condicoes, cab.condicao]);
+
+  /** Parcelas da condição escolhida, com o total atual, vencendo a partir de hoje */
+  const parcelasDaCondicao = (nome: string): ParcelaTela[] => {
+    const c = condicoes.find((x) => x.nome === nome);
+    if (!c) return [];
+    return gerarParcelas(c.prazos, tot.total, hojeIso(), c.forma_pagamento).map((x) => ({
+      chave: novaChave(),
+      vencimento: x.vencimento,
+      forma_pagamento: x.forma_pagamento,
+      valor: x.valor.toFixed(2),
+      ajustada: false,
+    }));
+  };
+  const escolherCondicao = (nome: string) => {
+    campo('condicao')(nome);
+    if (!ehProposta) return;
+    setParcelas(parcelasDaCondicao(nome));
+  };
+  /** Recalcular: as ajustadas à mão ficam; o que falta para o total é dividido entre as outras */
+  const recalcularParcelas = (lista: ParcelaTela[], total: number) =>
+    redistribuir(lista.map((x) => ({ ...x, valor: Number(x.valor) || 0 })), total).map((x) => ({ ...x, valor: x.valor.toFixed(2) }));
+  const alterarParcela = (chave: string, dados: Partial<ParcelaTela>) =>
+    setParcelas((lista) => lista.map((x) => (x.chave === chave ? { ...x, ...dados } : x)));
+  const somaDasParcelas = somaParcelas(parcelas.map((x) => x.valor));
+  const diferencaParcelas = centavos(tot.total - somaDasParcelas);
+
+  // Total mudou (item, quantidade, desconto): recalcula as parcelas não ajustadas, mantendo vencimentos e formas
+  useEffect(() => {
+    if (!ehProposta || !parcelas.length || diferencaParcelas === 0 || tot.total <= 0) return;
+    setParcelas((lista) => recalcularParcelas(lista, tot.total));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tot.total]);
 
   const alterarItem = (chave: string, dados: Partial<ItemDocumento>) =>
     setItens((lista) => lista.map((i) => (i.chave === chave ? { ...i, ...dados } : i)));
@@ -201,7 +314,13 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
       validade_dias: cab.validade_dias,
       [ehProposta ? 'condicoes_pagamento' : 'condicao_pagamento']: cab.condicao,
       observacoes: cab.observacoes,
-      ...(ehProposta ? { controle: cab.controle, impressao_resumida: cab.impressao_resumida === '1' } : {}),
+      ...(ehProposta
+        ? {
+            controle: cab.controle,
+            impressao_resumida: cab.impressao_resumida === '1',
+            parcelas: parcelas.map(({ vencimento, forma_pagamento, valor, ajustada }) => ({ vencimento, forma_pagamento, valor, ajustada })),
+          }
+        : {}),
       desconto_adicional: descontoAdicional || 0,
       itens: itens.map(({ produto_id, quantidade, preco_unitario, desconto }) => ({ produto_id, quantidade, preco_unitario, desconto: desconto || 0 })),
     };
@@ -351,25 +470,41 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
 
           {/* Cabeçalho */}
           <fieldset disabled={bloqueado && ehProposta} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-0 p-0 m-0 min-w-0">
+            {ehProposta && campoCliente('sm:col-span-2')}
             {ehProposta && (
               <div className={`${FIELD_CLASS} sm:col-span-2`}>
                 <label htmlFor="doc-titulo" className={LABEL_CLASS}>Título<span className="text-rose-500 ml-1">*</span></label>
                 <input id="doc-titulo" required maxLength={255} value={cab.titulo} onChange={(e) => campo('titulo')(e.target.value)} className={`${INPUT_CLASS} w-full`} />
               </div>
             )}
-            <div className={`${FIELD_CLASS} ${ehProposta ? '' : 'lg:col-span-3'}`}>
+            <div className={`${FIELD_CLASS} lg:col-span-3`}>
               <label htmlFor="doc-negocio" className={LABEL_CLASS}>Negócio{ehProposta && <span className="text-rose-500 ml-1">*</span>}</label>
-              <SelectBusca
-                id="doc-negocio"
-                required={ehProposta}
-                // A proposta pertence ao negócio para sempre: versões e pedido dependem disso
-                disabled={ehProposta && Boolean(id || negocioId)}
-                value={cab.negocio_id}
-                options={opcoes.negocios || []}
-                onChange={campo('negocio_id')}
-                vazioLabel={ehProposta ? '— Selecione —' : '— Sem negócio —'}
-                className={`${INPUT_CLASS} w-full`}
-              />
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                <SelectBusca
+                  id="doc-negocio"
+                  required={ehProposta}
+                  // A proposta pertence ao negócio para sempre: versões e pedido dependem disso
+                  disabled={ehProposta && Boolean(id || negocioId)}
+                  value={cab.negocio_id}
+                  options={opcoes.negocios || []}
+                  onChange={campo('negocio_id')}
+                  vazioLabel={ehProposta ? '— Selecione —' : '— Sem negócio —'}
+                  className={`${INPUT_CLASS} w-full`}
+                />
+                </div>
+                {/* Inclusão rápida do negócio esquecido: cliente + título da proposta */}
+                {ehProposta && !id && !negocioId && (
+                  <button
+                    type="button"
+                    onClick={abrirNegocioRapido}
+                    title="Incluir um negócio novo para esta proposta (cliente + título da proposta)"
+                    className="shrink-0 h-[38px] w-[38px] flex items-center justify-center rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-blue-600 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className={FIELD_CLASS}>
               <label htmlFor="doc-status" className={LABEL_CLASS}>Status</label>
@@ -389,7 +524,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
             </div>
           </fieldset>
 
-          <fieldset disabled={bloqueado} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-0 p-0 m-0 mb-2.5 min-w-0">
+          <fieldset disabled={bloqueado} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-0 p-0 mx-0 mt-4 mb-2.5 min-w-0">
             {ehProposta && (
               <div className={FIELD_CLASS}>
                 <label htmlFor="doc-controle" className={LABEL_CLASS}>Controle</label>
@@ -411,24 +546,14 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
                 <NumberField id="doc-validade" value={cab.validade_dias} onChange={campo('validade_dias')} className={`${INPUT_CLASS} w-full`} />
               </div>
             )}
-            <div className={`${FIELD_CLASS} ${ehProposta ? '' : 'lg:col-span-2'}`}>
-              <label htmlFor="doc-pessoa" className={LABEL_CLASS}>Cliente (contato)</label>
-              <SelectBusca
-                id="doc-pessoa"
-                value={cab.pessoa_id}
-                options={opcoes.pessoas || []}
-                onChange={campo('pessoa_id')}
-                vazioLabel={cab.negocio_id ? '— O do negócio —' : '— Nenhum —'}
-                className={`${INPUT_CLASS} w-full`}
-              />
-            </div>
+            {!ehProposta && campoCliente('lg:col-span-2')}
             <div className={`${FIELD_CLASS} ${ehProposta ? '' : 'lg:col-span-2'}`}>
               <label htmlFor="doc-condicao" className={LABEL_CLASS}>{ehProposta ? 'Condições de Pagamento' : 'Condição de Pagamento'}</label>
               <SelectBusca
                 id="doc-condicao"
                 value={cab.condicao}
                 options={opcoesCondicao}
-                onChange={campo('condicao')}
+                onChange={escolherCondicao}
                 vazioLabel="— Escolha —"
                 className={`${INPUT_CLASS} w-full`}
               />
@@ -510,6 +635,116 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
             </div>
           </div>
 
+          {/* Parcelas da condição de pagamento (proposta) */}
+          {ehProposta && (parcelas.length > 0 || cab.condicao) && (
+            <div className="border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 bg-stone-50 dark:bg-stone-950/60 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-3">
+                <span className="text-xs font-bold text-stone-700 dark:text-stone-200">
+                  Parcelas ({parcelas.length}){cab.condicao ? ` — ${cab.condicao}` : ''}
+                </span>
+                {!bloqueado && (
+                  <div className="flex items-center gap-2">
+                    {parcelas.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setParcelas((lista) => recalcularParcelas(lista, tot.total))}
+                        title="As parcelas ajustadas à mão ficam; o que falta para o total é dividido entre as outras"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                      >
+                        Recalcular
+                      </button>
+                    )}
+                    {condicoes.some((c) => c.nome === cab.condicao) && (
+                      <button
+                        type="button"
+                        onClick={() => setParcelas(parcelasDaCondicao(cab.condicao))}
+                        title="Gera de novo as parcelas da condição: valores divididos por igual (desfaz os ajustes) e vencimentos a partir de hoje"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
+                      >
+                        Refazer Parcelas
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {parcelas.length === 0 ? (
+                <p className="px-4 py-4 text-xs text-stone-500 dark:text-stone-400">
+                  Esta condição não está no cadastro (Cadastros › Condições de Pagamento): escolha uma condição cadastrada para gerar as parcelas.
+                </p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-stone-50/60 dark:bg-stone-950/30 text-stone-500 dark:text-stone-400">
+                    <tr>
+                      <th className="px-3 py-2 text-center font-semibold w-12">Nº</th>
+                      <th className="px-3 py-2 text-center font-semibold w-44">Vencimento</th>
+                      <th className="px-3 py-2 text-left font-semibold">Forma de Pagamento</th>
+                      <th className="px-3 py-2 text-right font-semibold w-40">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parcelas.map((x, k) => (
+                      <tr key={x.chave} className="border-t border-stone-100 dark:border-stone-800/60">
+                        <td className="px-3 py-1.5 text-center text-stone-500">
+                          {k + 1}ª
+                          {x.ajustada && (
+                            <div className="text-[9px] font-semibold text-amber-600 dark:text-amber-400" title="Valor acertado à mão: o Recalcular não mexe nele">
+                              ajustada
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-center">
+                          {bloqueado ? (
+                            formatDateBR(x.vencimento)
+                          ) : (
+                            <DateField value={x.vencimento} onChange={(v) => alterarParcela(x.chave, { vencimento: v })} className={`${INPUT_CLASS} w-full`} />
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <select
+                            value={x.forma_pagamento}
+                            disabled={bloqueado}
+                            onChange={(e) => alterarParcela(x.chave, { forma_pagamento: e.target.value })}
+                            className={`${INPUT_CLASS} w-full cursor-pointer`}
+                          >
+                            {(FORMAS_PAGAMENTO.includes(x.forma_pagamento) ? FORMAS_PAGAMENTO : [x.forma_pagamento, ...FORMAS_PAGAMENTO]).map((f) => (
+                              <option key={f} value={f}>
+                                {f}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <NumberField
+                            value={x.valor}
+                            scale={2}
+                            disabled={bloqueado}
+                            onChange={(v) => alterarParcela(x.chave, { valor: v, ajustada: true })}
+                            className={`${INPUT_CLASS} w-full`}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-stone-200 dark:border-stone-700">
+                      <td colSpan={3} className={`px-3 py-2 text-right ${diferencaParcelas ? 'text-amber-700 dark:text-amber-400 font-semibold' : 'text-stone-500'}`}>
+                        {diferencaParcelas
+                          ? `A soma das parcelas difere do total em ${formatMoeda(Math.abs(diferencaParcelas))}: use Recalcular, ajuste os valores ou Refazer Parcelas`
+                          : 'Soma das parcelas'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono font-semibold text-stone-800 dark:text-stone-100">{formatMoeda(somaDasParcelas)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* Anexos (os mesmos em todas as versões da proposta) */}
+          {ehProposta && (
+            <AnexosProposta id={id} empresaId={doc?.empresa_id ?? null} numero={doc?.numero_proposta ?? null} bloqueado={negociacaoFechada} onToast={onToast} />
+          )}
+
           {/* Observações e totais */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className={`${FIELD_CLASS} lg:col-span-2`}>
@@ -563,6 +798,41 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
         </div>
       </div>
 
+      {negocioRapido && (
+        <ConfirmDialog
+          titulo="Incluir negócio"
+          mensagem="O negócio é criado aberto, com o cliente da proposta, e já fica ligado a ela."
+          confirmar="Incluir"
+          tom="normal"
+          onConfirmar={criarNegocioRapido}
+          onCancelar={() => setNegocioRapido(null)}
+        >
+          <div className="flex flex-col gap-3">
+            <div className={FIELD_CLASS}>
+              <label htmlFor="neg-rapido-titulo" className={LABEL_CLASS}>Título<span className="text-rose-500 ml-1">*</span></label>
+              <input
+                id="neg-rapido-titulo"
+                autoFocus
+                maxLength={255}
+                value={negocioRapido.titulo}
+                onChange={(e) => setNegocioRapido({ ...negocioRapido, titulo: e.target.value })}
+                onFocus={(e) => e.target.select()}
+                className={`${INPUT_CLASS} w-full`}
+              />
+            </div>
+            <div className={FIELD_CLASS}>
+              <label htmlFor="neg-rapido-etapa" className={LABEL_CLASS}>Funil › Etapa</label>
+              <SelectBusca
+                id="neg-rapido-etapa"
+                value={negocioRapido.etapa_id}
+                options={etapas}
+                onChange={(v) => setNegocioRapido({ ...negocioRapido, etapa_id: v })}
+                className={`${INPUT_CLASS} w-full`}
+              />
+            </div>
+          </div>
+        </ConfirmDialog>
+      )}
       {removendo && (
         <ConfirmDialog
           titulo="Remover item?"

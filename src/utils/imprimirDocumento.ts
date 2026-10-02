@@ -48,7 +48,8 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos', re
   const titulo = ehProposta ? `Proposta nº ${p.numero_proposta} — versão ${p.versao}` : `Pedido de Venda nº ${p.numero_pedido}`;
   const condicao = ehProposta ? p.condicoes_pagamento : p.condicao_pagamento;
   const meta = ehProposta
-    ? `<div class="b">Nº ${esc(p.numero_proposta)} • v${esc(p.versao)}</div>
+    ? // O controle é o número principal; o nº interno vai pequeno, entre parênteses (sem controle, só o nº)
+      `<div>${p.controle ? `<span class="controle">${esc(p.controle)}</span> <span class="id">(nº ${esc(p.numero_proposta)} • v${esc(p.versao)})</span>` : `<span class="b">Nº ${esc(p.numero_proposta)} • v${esc(p.versao)}</span>`}</div>
       <div>Emitida em ${formatDateBR(p.criado_em)}</div>
       <div>Válida até ${formatDateBR(p.data_validade)}</div>`
     : `<div class="b">Nº ${esc(p.numero_pedido)}</div>
@@ -134,6 +135,8 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos', re
   tr { page-break-inside: avoid; }
   .r { text-align: right; white-space: nowrap; } .c { text-align: center; } .b { font-weight: 700; }
   .sku { font-size: 9px; color: #78716c; font-family: monospace; }
+  .controle { font-size: 13px; font-weight: 700; }
+  .id { font-size: 8px; color: #a8a29e; }
   .totais { margin-left: auto; width: 260px; }
   .totais div { display: flex; justify-content: space-between; padding: 3px 0; }
   .totais .total { border-top: 2px solid #1c1917; margin-top: 4px; padding-top: 6px; font-size: 14px; font-weight: 700; }
@@ -174,6 +177,20 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos', re
     ${adicional > 0 ? `<div><span>Desconto adicional</span><span>− ${formatMoeda(adicional)}</span></div>` : ''}
     <div class="total"><span>Total</span><span>${formatMoeda(p.valor_total)}</span></div>
   </div>
+
+  ${
+    // Proposta: como o cliente vai pagar (parcelas da condição de pagamento)
+    ehProposta && p.parcelas?.length
+      ? `<section><h3>Parcelas${p.condicoes_pagamento ? ` — ${esc(p.condicoes_pagamento)}` : ''}</h3>
+    <table><thead><tr><th class="c" style="width:28px">#</th><th class="c">Vencimento</th><th>Forma de pagamento</th><th class="r">Valor</th></tr></thead>
+    <tbody>${p.parcelas
+      .map(
+        (x: RegistroCrud) =>
+          `<tr><td class="c">${esc(x.numero)}</td><td class="c">${formatDateBR(x.vencimento)}</td><td>${esc(x.forma_pagamento)}</td><td class="r b">${formatMoeda(x.valor)}</td></tr>`,
+      )
+      .join('')}</tbody></table></section>`
+      : ''
+  }
 
   ${bloco('Observações', p.observacoes)}
 

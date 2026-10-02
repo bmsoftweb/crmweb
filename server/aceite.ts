@@ -138,6 +138,7 @@ export function createAceiteRouter() {
       valor_total: Number(p.valor_total),
       // Sempre resumida: uma linha por grupo de produtos, só com o valor (o cliente não vê o detalhe)
       itens: agruparItens(p.itens, true).map((l) => ({ produto: l.nome, unidade: null, quantidade: null, preco_unitario: null, desconto: 0, subtotal: l.valor })),
+      parcelas: (p.parcelas || []).map((x: any) => ({ numero: Number(x.numero), vencimento: x.vencimento, forma: x.forma_pagamento, valor: Number(x.valor) })),
       decisao: p.aceite_em ? { nome: p.aceite_nome, em: p.aceite_em } : null,
     });
   }));

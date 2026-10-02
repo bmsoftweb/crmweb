@@ -25,6 +25,7 @@ import { tratarRespostaPesquisa } from './pesquisa.js';
 import { createAceiteRouter } from './aceite.js';
 import { createSuporteRouter } from './suporte.js';
 import { createFotosRouter } from './fotos.js';
+import { createAnexosRouter } from './anexos.js';
 import { createChamadosRouter } from './chamados.js';
 import { createAgendaGoogleRouter, createRetornoAgendaGoogleRouter, sincronizarAgendas } from './agendaGoogle.js';
 import { createPainelSuporteRouter } from './painelSuporte.js';
@@ -344,6 +345,7 @@ export function createApp() {
   app.use('/api', createPainelSuporteRouter());
   app.use('/api', createImportBmRouter());
   app.use('/api', createFotosRouter());
+  app.use('/api', createAnexosRouter());
   app.use('/api', createChamadosRouter());
   app.use('/api', createImportArquivoRouter());
   app.use('/api', createEnderecosRouter());

@@ -25,6 +25,7 @@ import { DocumentoEditor } from './components/DocumentoEditor';
 import { BotaoImportarBM } from './components/ImportarBMModal';
 import { BotaoImportarArquivo } from './components/ImportarArquivoModal';
 import { BotaoClonar } from './components/BotaoClonar';
+import { BotaoReverter } from './components/BotaoReverter';
 import { BotaoImprimir } from './components/BotaoImprimir';
 import { AcaoCampanha, BotaoEnviarDisparo } from './components/AcoesCampanha';
 import { BotaoEnviar } from './components/BotaoEnviar';
@@ -568,6 +569,10 @@ export default function App() {
                         )}
                         {activeResource.name === 'propostas' && row.status === 'aceita' && (
                           <BotaoGerarContrato registro={row} onAbrirContratos={() => navegar('contratos')} onToast={showToast} />
+                        )}
+                        {/* TEMPORÁRIO (testes): Reverter, só para o administrador */}
+                        {activeResource.name === 'propostas' && usuario?.tipo === 'admin' && (row.status === 'aceita' || row.status === 'recusada') && (
+                          <BotaoReverter registro={row} onRecarregar={recarregar} onToast={showToast} />
                         )}
                         <BotaoClonar
                           tipo={activeResource.name as 'propostas' | 'pedidos'}

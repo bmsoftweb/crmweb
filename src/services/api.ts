@@ -192,6 +192,49 @@ export const fetchDocumento = (tipo: TipoDocumento, id: Id): Promise<RegistroCru
 export const salvarDocumento = (tipo: TipoDocumento, id: Id | null, payload: RegistroCrud): Promise<{ id: string }> =>
   id ? enviar('PUT', `/api/crm/${tipo}/${encodeURIComponent(String(id))}`, payload) : enviar('POST', `/api/crm/${tipo}`, payload);
 /** Link para o cliente aprovar e assinar a proposta (server/aceite.ts) */
+// ------------------------------------------------------------
+// Anexos da proposta (server/anexos.ts): os mesmos em todas as versões
+// ------------------------------------------------------------
+export interface AnexoProposta {
+  id: number;
+  nome: string;
+  url: string;
+  tipo: string | null;
+  tamanho: number;
+  criado_em: string;
+  usuario_nome: string | null;
+}
+export const fetchAnexosProposta = (id: Id): Promise<AnexoProposta[]> => get(`/api/crm/propostas/${encodeURIComponent(String(id))}/anexos`);
+/**
+ * Envia o arquivo direto do navegador para o Vercel Blob (sem o limite de 4,5 MB da Vercel) e grava o anexo.
+ * empresaId e numero formam a pasta da proposta (o servidor confere).
+ */
+export async function enviarAnexoProposta(id: Id, empresaId: Id, numero: Id, arquivo: File): Promise<void> {
+  const { upload } = await import('@vercel/blob/client');
+  const nome = arquivo.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '_').slice(-120) || 'anexo';
+  const blob = await upload(`propostas/${empresaId}/${numero}/${nome}`, arquivo, {
+    access: 'public',
+    handleUploadUrl: '/api/crm/anexos/upload',
+    clientPayload: JSON.stringify({ proposta_id: id }),
+    headers: headers(),
+    multipart: arquivo.size > 5 * 1024 * 1024,
+  });
+  await enviar('POST', `/api/crm/propostas/${encodeURIComponent(String(id))}/anexos`, {
+    url: blob.url,
+    nome: arquivo.name,
+    tipo: arquivo.type || null,
+    tamanho: arquivo.size,
+  });
+}
+export const excluirAnexoProposta = (id: Id, anexoId: Id) =>
+  enviar('DELETE', `/api/crm/propostas/${encodeURIComponent(String(id))}/anexos/${encodeURIComponent(String(anexoId))}`);
+
+/** Condições de pagamento ativas (Cadastros), com os prazos e a forma padrão: o editor gera as parcelas */
+export const fetchCondicoesPagamento = (): Promise<{ id: number; nome: string; prazos: string; forma_pagamento: string }[]> =>
+  get('/api/crm/condicoes-pagamento');
+/** TEMPORÁRIO (testes): proposta aceita/recusada volta para "enviada" (server/crm.ts) */
+export const reverterProposta = (id: Id): Promise<{ success: boolean; pedidos_excluidos: number }> =>
+  enviar('POST', `/api/crm/propostas/${encodeURIComponent(String(id))}/reverter`);
 export const linkAceiteProposta = (id: Id): Promise<{ link: string }> =>
   enviar('POST', `/api/crm/propostas/${encodeURIComponent(String(id))}/link`);
 export const novaVersaoProposta = (id: Id): Promise<{ id: string }> =>

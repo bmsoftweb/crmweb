@@ -11,6 +11,7 @@ import { htmlDocumento } from '../src/utils/imprimirDocumento.js';
 import { lerConfig } from './config.js';
 import { recalcularContrato } from './contratos.js';
 import { linkAceite } from './aceite.js';
+import { somaParcelas } from '../src/utils/parcelas.js';
 
 /** Envolve a rota: qualquer exceção vira 400 com mensagem legível */
 const rota =
@@ -72,6 +73,29 @@ const DOC = {
 } as const;
 
 /**
+ * Parcelas da proposta vindas do editor: vencimento válido, forma e valor positivo, e a soma igual ao total.
+ * Sem parcelas (lista vazia) também vale.
+ */
+function conferirParcelas(lista: any, total: number) {
+  if (!Array.isArray(lista) || !lista.length) return [];
+  const parcelas = lista.map((p: any, i: number) => {
+    const vencimento = String(p?.vencimento ?? '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(vencimento)) throw new Error(`Parcela ${i + 1}: informe o vencimento.`);
+    const valor = Math.round(num(p?.valor) * 100) / 100;
+    if (valor <= 0) throw new Error(`Parcela ${i + 1}: o valor deve ser maior que zero.`);
+    const forma = String(p?.forma_pagamento ?? '').trim().slice(0, 30);
+    if (!forma) throw new Error(`Parcela ${i + 1}: escolha a forma de pagamento.`);
+    return { numero: i + 1, vencimento, forma_pagamento: forma, valor, ajustada: p?.ajustada === true ? 1 : 0 };
+  });
+  const soma = somaParcelas(parcelas.map((p) => p.valor));
+  if (Math.round(soma * 100) !== Math.round(total * 100)) {
+    const br = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    throw new Error(`A soma das parcelas (${br(soma)}) é diferente do total da proposta (${br(total)}). Use "Recalcular" ou "Refazer Parcelas".`);
+  }
+  return parcelas;
+}
+
+/**
  * Documento com itens. "empresa_*" é a empresa logada (quem vende, no cabeçalho da impressão);
  * "pessoa_*" é o cliente.
  */
@@ -101,7 +125,18 @@ export async function lerDocumento(tipo: TipoDoc, id: string, empresaId: string)
     const [pr] = await pool.query<any[]>('SELECT numero_proposta, versao FROM propostas WHERE id = ?', [cab[0].proposta_id]);
     Object.assign(cab[0], { proposta_numero: pr[0]?.numero_proposta, proposta_versao: pr[0]?.versao });
   }
-  return { ...cab[0], itens };
+  // Proposta: parcelas da condição de pagamento (vencimento, forma e valor)
+  const parcelas =
+    tipo === 'proposta'
+      ? (
+          await pool.query<any[]>(
+            `SELECT numero, DATE_FORMAT(vencimento, '%Y-%m-%d') AS vencimento, forma_pagamento, valor, ajustada
+               FROM proposta_parcelas WHERE proposta_id = ? ORDER BY numero`,
+            [id],
+          )
+        )[0]
+      : [];
+  return { ...cab[0], itens, parcelas };
 }
 
 async function gravarItens(conn: any, tipo: TipoDoc, id: Id, linhas: ReturnType<typeof calcularTotais>['linhas']) {
@@ -437,6 +472,7 @@ ${link}` : mensagem;
     if (!texto(b.titulo)) throw new Error('Informe o título da proposta.');
     if (!Array.isArray(b.itens) || !b.itens.length) throw new Error('Inclua pelo menos um produto na proposta.');
     const tot = calcularTotais(b.itens, b.desconto_adicional);
+    const parcelas = conferirParcelas(b.parcelas, tot.total);
 
     let negocioId: string;
     if (idExistente) {
@@ -487,6 +523,12 @@ ${link}` : mensagem;
         propostaId = Number(nova.insertId);
       }
       await gravarItens(conn, 'proposta', propostaId!, tot.linhas);
+      await conn.query('DELETE FROM proposta_parcelas WHERE proposta_id = ?', [propostaId]);
+      if (parcelas.length) {
+        await conn.query('INSERT INTO proposta_parcelas (proposta_id, numero, vencimento, forma_pagamento, valor, ajustada) VALUES ?', [
+          parcelas.map((p) => [propostaId, p.numero, p.vencimento, p.forma_pagamento, p.valor, p.ajustada]),
+        ]);
+      }
       return propostaId!;
     });
     res.json({ success: true, id });
@@ -529,6 +571,12 @@ ${link}` : mensagem;
            FROM proposta_itens WHERE proposta_id = ?`,
         [novoId, origem.id],
       );
+      // Parcelas (vencimento, forma e valor) vão junto
+      await conn.query(
+        `INSERT INTO proposta_parcelas (proposta_id, numero, vencimento, forma_pagamento, valor, ajustada)
+         SELECT ?, numero, vencimento, forma_pagamento, valor, ajustada FROM proposta_parcelas WHERE proposta_id = ? ORDER BY numero`,
+        [novoId, origem.id],
+      );
       // A versão enviada deixa de valer: o cliente pediu renegociação
       if (origem.status === 'enviada') await conn.query("UPDATE propostas SET status = 'recusada' WHERE id = ?", [origem.id]);
       await registrarHistorico(conn, emp, {
@@ -560,6 +608,12 @@ ${link}` : mensagem;
       await conn.query(
         `INSERT INTO proposta_itens (proposta_id, produto_id, quantidade, preco_unitario, desconto, subtotal)
          SELECT ?, produto_id, quantidade, preco_unitario, desconto, subtotal FROM proposta_itens WHERE proposta_id = ? ORDER BY id`,
+        [id, origem.id],
+      );
+      // Parcelas (vencimento, forma e valor) vão junto
+      await conn.query(
+        `INSERT INTO proposta_parcelas (proposta_id, numero, vencimento, forma_pagamento, valor, ajustada)
+         SELECT ?, numero, vencimento, forma_pagamento, valor, ajustada FROM proposta_parcelas WHERE proposta_id = ? ORDER BY numero`,
         [id, origem.id],
       );
       await registrarHistorico(conn, emp, {
@@ -735,6 +789,54 @@ ${link}` : mensagem;
   }));
 
   /** Produtos ativos para a pesquisa dos editores de proposta e pedido */
+  /**
+   * TEMPORÁRIO (para testes; tirar depois): volta a proposta aceita/recusada para "enviada", como antes da
+   * resposta do cliente. Apaga a assinatura e o pedido em rascunho gerado por ela; as outras versões, fechadas
+   * pela aceitação, voltam a "recusada". Só administrador; recusa se o pedido já andou ou se há contrato.
+   */
+  router.post('/crm/propostas/:id/reverter', rota(async (req, res) => {
+    if (res.locals.usuario?.tipo !== 'admin') throw erro(403, 'Só o administrador pode reverter a proposta.');
+    const emp = empresaDa(res);
+    const p = await lerDocumento('proposta', req.params.id, emp);
+    if (!['aceita', 'recusada'].includes(p.status) && !p.aceite_em) throw erro(400, 'A proposta não foi aceita nem recusada: não há o que reverter.');
+    const [ped] = await pool.query<any[]>('SELECT id, numero_pedido, status FROM pedidos WHERE proposta_id = ? AND empresa_id = ?', [p.id, emp]);
+    const andou = ped.find((x) => x.status !== 'rascunho');
+    if (andou) throw erro(400, `O pedido nº ${andou.numero_pedido} gerado por esta proposta já saiu do rascunho: não dá para reverter.`);
+    const [ct] = await pool.query<any[]>('SELECT id FROM contratos WHERE proposta_id = ? AND empresa_id = ? LIMIT 1', [p.id, emp]);
+    if (ct.length) throw erro(400, 'Esta proposta já gerou um contrato: não dá para reverter.');
+    await transacao(async (conn) => {
+      if (ped.length) await conn.query('DELETE FROM pedidos WHERE id IN (?) AND empresa_id = ?', [ped.map((x) => x.id), emp]);
+      await conn.query(
+        `UPDATE propostas SET status = 'enviada', aceite_em = NULL, aceite_nome = NULL, aceite_documento = NULL, aceite_ip = NULL,
+                aceite_navegador = NULL, aceite_assinatura = NULL, aceite_hash = NULL
+          WHERE id = ? AND empresa_id = ?`,
+        [p.id, emp],
+      );
+      if (p.status === 'aceita') {
+        await conn.query("UPDATE propostas SET status = 'recusada' WHERE empresa_id = ? AND numero_proposta = ? AND id <> ? AND status = 'fechada'", [
+          emp,
+          p.numero_proposta,
+          p.id,
+        ]);
+      }
+      await registrarHistorico(conn, emp, {
+        negocio_id: p.negocio_id, proposta_id: p.id, pessoa_id: p.pessoa_id,
+        descricao: `Proposta #${p.numero_proposta} v${p.versao} revertida para Enviada (teste)${ped.length ? `; pedido #${ped.map((x) => x.numero_pedido).join(', #')} excluído` : ''}.`,
+      });
+      await sincronizarNegocio(p.negocio_id, conn);
+    });
+    res.json({ success: true, pedidos_excluidos: ped.length });
+  }));
+
+  /** Condições de pagamento ativas, com os prazos e a forma padrão, para o editor gerar as parcelas */
+  router.get('/crm/condicoes-pagamento', rota(async (_req, res) => {
+    const [rows] = await pool.query<any[]>(
+      'SELECT id, nome, prazos, forma_pagamento FROM condicoes_pagamento WHERE empresa_id = ? AND ativo = 1 ORDER BY nome',
+      [empresaDa(res)],
+    );
+    res.json(rows);
+  }));
+
   router.get('/crm/produtos', rota(async (req, res) => {
     const q = `%${String(req.query.q || '').trim()}%`;
     const [rows] = await pool.query<any[]>(

@@ -21,6 +21,8 @@ interface PropostaPublica {
   valor_total: number;
   /** Resumida: quantidade e preço vêm nulos (linha do grupo, só com o valor) */
   itens: { produto: string; unidade: string | null; quantidade: number | null; preco_unitario: number | null; desconto: number; subtotal: number }[];
+  /** Parcelas da condição de pagamento */
+  parcelas: { numero: number; vencimento: string; forma: string; valor: number }[];
   decisao: { nome: string; em: string } | null;
 }
 
@@ -258,6 +260,21 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
             <div className="text-sm">
               <div className="text-xs font-semibold text-stone-400">Condições de pagamento</div>
               <div className="whitespace-pre-wrap">{p.condicoes_pagamento}</div>
+            </div>
+          )}
+          {p.parcelas?.length > 0 && (
+            <div className="text-sm">
+              <div className="text-xs font-semibold text-stone-400 mb-1">Parcelas</div>
+              <div className="divide-y divide-stone-100 border-y border-stone-100">
+                {p.parcelas.map((x) => (
+                  <div key={x.numero} className="py-1.5 grid grid-cols-[2rem_6rem_1fr_auto] gap-2 tabular-nums">
+                    <span className="text-stone-400">{x.numero}ª</span>
+                    <span className="text-center">{formatDateBR(x.vencimento)}</span>
+                    <span className="text-stone-600">{x.forma}</span>
+                    <span className="font-semibold text-right">{formatMoeda(x.valor)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {p.observacoes && (

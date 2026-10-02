@@ -2,6 +2,16 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.76 — 2026-10-01
+
+- Banco: tabelas `condicoes_pagamento`, `proposta_parcelas` (com `ajustada`) e `proposta_anexos` (SQL em extras/crmweb_schema.sql).
+- Cadastros › Condições de Pagamento (prazos em dias, ex.: 0/30/60, e forma padrão). Na proposta, escolher a condição gera as parcelas (vencimento, forma e valor); valor acertado à mão fica "ajustada" e o Recalcular divide o restante entre as outras; "Refazer Parcelas" gera tudo de novo. A soma tem de bater com o total. As parcelas saem na impressão, no PDF enviado e na página de aprovação; Nova versão e Clonar copiam.
+- Propostas: anexos (PDFs, imagens...) no Vercel Blob, até 25 MB cada, enviados direto do navegador; ligados ao número da proposta, valem para todas as versões.
+- Proposta nova: Cliente é o 1º campo (com o foco) e o "+" ao lado do Negócio inclui um negócio na hora (cliente + título da proposta).
+- Impressão da proposta: o controle é o número principal no cabeçalho; o nº interno vai pequeno, entre parênteses.
+- Pedidos: aba "Resumo por Grupo" no detalhe; nas propostas ela passa a ser a 1ª aba. Painéis de detalhe com números à direita e datas centralizadas.
+- Propostas: opção TEMPORÁRIA "Reverter" (administrador) para voltar a proposta aceita/recusada a Enviada nos testes.
+
 ## 0.0.75 — 2026-10-01
 
 - Propostas: tudo o que vai para o cliente sai sempre resumido (PDF do envio por e-mail/WhatsApp, página de aprovação do link e PDF de lá). No pedido, o envio continua com a opção "PDF resumido".

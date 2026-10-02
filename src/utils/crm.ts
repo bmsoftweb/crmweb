@@ -79,21 +79,6 @@ export const iconeInteracao = (tipo: string | null | undefined): LucideIcon =>
 export const rotuloAtividade = (tipo: string | null | undefined) =>
   TIPOS_ATIVIDADE.find((t) => t.value === tipo)?.label || String(tipo || '');
 
-/** Sugestões do campo de condição de pagamento (aceita também texto livre) */
-export const CONDICOES_PAGAMENTO = [
-  'À vista',
-  'À vista com desconto',
-  'Boleto 28 dias',
-  '30 dias',
-  '30/60 dias',
-  '30/60/90 dias',
-  'Entrada + 30/60 dias',
-  'Cartão de crédito à vista',
-  'Cartão de crédito em 3x',
-  'Cartão de crédito em 6x',
-  'PIX',
-];
-
 export type Semaforo = 'verde' | 'vermelho' | 'amarelo';
 
 /**

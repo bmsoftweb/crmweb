@@ -11,6 +11,8 @@
  * Todo recurso declara scopeSql, aplicado em TODA consulta (alias "t", um "?" = empresa).
  */
 
+import { FORMAS_PAGAMENTO } from '../src/utils/parcelas.js';
+
 export type FieldType =
   | 'text'
   | 'textarea'
@@ -344,6 +346,43 @@ const itensFields = (fk: string, label: string, ref: string): FieldDef[] => [
   { name: 'subtotal', label: 'Subtotal', type: 'decimal', scale: 2, listed: true },
 ];
 
+/**
+ * Itens do documento agrupados como na impressão resumida (agruparItens): uma linha por grupo de produtos, os grupos
+ * primeiro (na ordem do 1º item), depois os produtos sem grupo. Valor bruto (qtd × preço). Só leitura.
+ */
+const resumoPorGrupo = (itens: string, fk: string, doc: string, nomeDoc: string): ResourceDef => ({
+  name: `${itens}_grupos`,
+  table: `(SELECT MIN(i.id) AS id, i.${fk}, MAX(COALESCE(g.nome, pr.nome)) AS grupo, COUNT(*) AS itens,
+                  ROUND(SUM(i.quantidade * i.preco_unitario), 2) AS valor,
+                  MAX(pr.grupo_id IS NULL) * 1000000000 + MIN(i.id) AS posicao
+             FROM ${itens} i JOIN produtos pr ON pr.id = i.produto_id
+             LEFT JOIN produtos_grupos g ON g.id = pr.grupo_id
+            GROUP BY i.${fk}, IF(pr.grupo_id IS NULL, CONCAT('i', i.id), CONCAT('g', pr.grupo_id)))`,
+  scopeSql: `t.${fk} IN (SELECT id FROM ${doc} WHERE empresa_id = ?)`,
+  label: 'Resumo por Grupo',
+  labelSingular: 'Grupo',
+  description: `Itens do documento (${nomeDoc}) agrupados pelo grupo do produto`,
+  icon: 'Layers',
+  group: 'vendas',
+  oculto: true,
+  // A grade de detalhe ordena pela chave: a posição (única) já põe os grupos primeiro
+  pk: ['posicao'],
+  autoIncrement: true,
+  labelField: 'grupo',
+  defaultSort: { field: 'posicao', dir: 'asc' },
+  canCreate: false,
+  canUpdate: false,
+  canDelete: false,
+  fields: [
+    ID,
+    { name: fk, label: nomeDoc, type: 'text', ref: { resource: doc, labelField: doc === 'propostas' ? 'titulo' : 'numero_pedido' } },
+    { name: 'grupo', label: 'Grupo / Produto', type: 'text', listed: true },
+    { name: 'itens', label: 'Itens', type: 'number', listed: true, width: 'xs' },
+    { name: 'valor', label: 'Valor', type: 'decimal', scale: 2, listed: true },
+    { name: 'posicao', label: 'Posição', type: 'number', readOnly: true },
+  ],
+});
+
 export const RESOURCES: ResourceDef[] = [
   // ============================================================
   // VENDAS
@@ -657,8 +696,9 @@ export const RESOURCES: ResourceDef[] = [
     canUpdate: true,
     canDelete: true,
     details: [
-      { resource: 'proposta_itens', foreignKey: 'proposta_id', label: 'Itens da Proposta', totalField: 'subtotal' },
+      // Resumo por Grupo é a 1ª aba do detalhe
       { resource: 'proposta_itens_grupos', foreignKey: 'proposta_id', label: 'Resumo por Grupo', totalField: 'valor' },
+      { resource: 'proposta_itens', foreignKey: 'proposta_id', label: 'Itens da Proposta', totalField: 'subtotal' },
     ],
     // Versões da proposta em árvore: a v1 em cima, as demais como filhas
     arvore: { grupo: 'numero_proposta', ordem: 'versao' },
@@ -709,39 +749,7 @@ export const RESOURCES: ResourceDef[] = [
     canDelete: false,
     fields: [...itensFields('proposta_id', 'Proposta', 'propostas'), { name: 'criado_em', label: 'Criado em', type: 'datetime', readOnly: true }],
   },
-  {
-    // Itens da proposta agrupados como na impressão resumida (agruparItens): uma linha por grupo de produtos,
-    // os grupos primeiro (na ordem do 1º item), depois os produtos sem grupo. Valor bruto (qtd × preço). Só leitura.
-    name: 'proposta_itens_grupos',
-    table: `(SELECT MIN(i.id) AS id, i.proposta_id, MAX(COALESCE(g.nome, pr.nome)) AS grupo, COUNT(*) AS itens,
-                    ROUND(SUM(i.quantidade * i.preco_unitario), 2) AS valor,
-                    MAX(pr.grupo_id IS NULL) * 1000000000 + MIN(i.id) AS posicao
-               FROM proposta_itens i JOIN produtos pr ON pr.id = i.produto_id
-               LEFT JOIN produtos_grupos g ON g.id = pr.grupo_id
-              GROUP BY i.proposta_id, IF(pr.grupo_id IS NULL, CONCAT('i', i.id), CONCAT('g', pr.grupo_id)))`,
-    scopeSql: 't.proposta_id IN (SELECT id FROM propostas WHERE empresa_id = ?)',
-    label: 'Resumo por Grupo',
-    labelSingular: 'Grupo',
-    description: 'Itens da proposta agrupados pelo grupo do produto',
-    icon: 'Layers',
-    group: 'vendas',
-    oculto: true,
-    pk: ['id'],
-    autoIncrement: true,
-    labelField: 'grupo',
-    defaultSort: { field: 'posicao', dir: 'asc' },
-    canCreate: false,
-    canUpdate: false,
-    canDelete: false,
-    fields: [
-      ID,
-      { name: 'proposta_id', label: 'Proposta', type: 'text', ref: { resource: 'propostas', labelField: 'titulo' } },
-      { name: 'grupo', label: 'Grupo / Produto', type: 'text', listed: true },
-      { name: 'itens', label: 'Itens', type: 'number', listed: true, width: 'xs' },
-      { name: 'valor', label: 'Valor', type: 'decimal', scale: 2, listed: true },
-      { name: 'posicao', label: 'Posição', type: 'number', readOnly: true },
-    ],
-  },
+  resumoPorGrupo('proposta_itens', 'proposta_id', 'propostas', 'Proposta'),
   {
     name: 'pedidos',
     table: 'pedidos',
@@ -760,7 +768,10 @@ export const RESOURCES: ResourceDef[] = [
     canCreate: true,
     canUpdate: true,
     canDelete: true,
-    details: [{ resource: 'pedido_itens', foreignKey: 'pedido_id', label: 'Itens do Pedido', totalField: 'subtotal' }],
+    details: [
+      { resource: 'pedido_itens', foreignKey: 'pedido_id', label: 'Itens do Pedido', totalField: 'subtotal' },
+      { resource: 'pedido_itens_grupos', foreignKey: 'pedido_id', label: 'Resumo por Grupo', totalField: 'valor' },
+    ],
     fields: [
       ID,
       { name: 'numero_pedido', label: 'Número', type: 'number', readOnly: true, listed: true, width: 'xs' },
@@ -796,6 +807,7 @@ export const RESOURCES: ResourceDef[] = [
     canDelete: false,
     fields: [...itensFields('pedido_id', 'Pedido', 'pedidos'), { name: 'criado_em', label: 'Criado em', type: 'datetime', readOnly: true }],
   },
+  resumoPorGrupo('pedido_itens', 'pedido_id', 'pedidos', 'Pedido'),
   {
     // Totais, documentos, assinatura (D4Sign) e renovação: server/contratos.ts
     name: 'contratos',
@@ -1344,6 +1356,42 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true },
       { name: 'cod_integracao', label: 'Cód.Integração', type: 'text', readOnly: true, filterable: true, searchable: true, hint: 'Preenchido pela importação do bmsoft (PRODUTOSPRINCIPAL.ID)' },
       { name: 'fotos', label: 'Fotos', type: 'fotos', hint: 'Até 4 fotos, do computador ou da internet' },
+      ...CRIADO_ATUALIZADO,
+    ],
+  },
+  {
+    // Condições de pagamento: os prazos geram as parcelas da proposta (vencimento, forma e valor)
+    name: 'condicoes_pagamento',
+    table: 'condicoes_pagamento',
+    tenantColumn: 'empresa_id',
+    scopeSql: 't.empresa_id = ?',
+    label: 'Condições de Pagamento',
+    labelSingular: 'Condição de Pagamento',
+    description: 'Prazos e forma de pagamento: na proposta, geram as parcelas com vencimento e valor',
+    icon: 'CreditCard',
+    group: 'cadastros',
+    pk: ['id'],
+    autoIncrement: true,
+    labelField: 'nome',
+    defaultSort: { field: 'nome', dir: 'asc' },
+    canCreate: true,
+    canUpdate: true,
+    canDelete: true,
+    fields: [
+      ID,
+      { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 100, hint: 'Como aparece na proposta (ex.: Entrada + 30/60 dias)' },
+      {
+        name: 'prazos',
+        label: 'Prazos (dias)',
+        type: 'text',
+        required: true,
+        listed: true,
+        maxLength: 100,
+        placeholder: '0/30/60',
+        hint: 'Dias de cada parcela a partir da data da proposta, separados por "/": 0 = à vista; 30/60/90 = três parcelas',
+      },
+      { name: 'forma_pagamento', label: 'Forma de Pagamento', type: 'enum', required: true, listed: true, filterable: true, options: FORMAS_PAGAMENTO.map((f) => ({ value: f, label: f })), default: 'Boleto', hint: 'Forma padrão das parcelas (pode ser trocada em cada parcela na proposta)' },
+      { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true, default: true, width: 'xs' },
       ...CRIADO_ATUALIZADO,
     ],
   },

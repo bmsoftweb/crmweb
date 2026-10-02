@@ -6,6 +6,10 @@ import { listRecords, fetchOptions, createRecord, updateRecord, deleteRecord, in
 import { CellValue } from './CellValue';
 import { AvisoErro } from './AvisoErro';
 import { RecordForm } from './RecordForm';
+
+/** Como nas listas: números à direita; datas e sim/não centralizados */
+const alinhar = (tipo: string) =>
+  tipo === 'number' || tipo === 'decimal' ? 'text-right' : tipo === 'date' || tipo === 'datetime' || tipo === 'boolean' ? 'text-center' : 'text-left';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface DetailPanelProps {
@@ -287,7 +291,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
                     {listedFields.map((f) => (
                       <th
                         key={f.name}
-                        className="px-3 py-2 text-left font-semibold text-stone-600 dark:text-stone-300 whitespace-nowrap border-b border-stone-200 dark:border-stone-800"
+                        className={`px-3 py-2 ${alinhar(f.type)} font-semibold text-stone-600 dark:text-stone-300 whitespace-nowrap border-b border-stone-200 dark:border-stone-800`}
                       >
                         {f.label}
                       </th>
@@ -310,7 +314,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
                       {listedFields.map((f) => (
                         <td
                           key={f.name}
-                          className="px-3 py-2 text-stone-700 dark:text-stone-300 align-middle max-w-xs truncate border-b border-stone-100 dark:border-stone-800/60"
+                          className={`px-3 py-2 ${alinhar(f.type)} text-stone-700 dark:text-stone-300 align-middle max-w-xs truncate border-b border-stone-100 dark:border-stone-800/60`}
                         >
                           <CellValue field={f} row={row} refOptions={refOptions} />
                         </td>
