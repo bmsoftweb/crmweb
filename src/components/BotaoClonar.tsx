@@ -4,6 +4,7 @@ import { Copy } from 'lucide-react';
 import { BotaoAcao } from './MenuAcoes';
 import { RegistroCrud } from '../types';
 import { clonarDocumento, getRecord } from '../services/api';
+import { refProposta } from '../utils/formatters';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface Props {
@@ -47,7 +48,7 @@ export const BotaoClonar: React.FC<Props> = ({ tipo, registro, onAbrir, onRecarr
     tipo === 'produtos'
       ? `"${registro.nome}"`
       : ehProposta
-        ? `#${registro.numero_proposta ?? registro.id} v${registro.versao ?? 1}`
+        ? refProposta(registro)
         : `#${registro.numero_pedido ?? registro.id}`;
 
   /** Um erro aqui aparece dentro do diálogo de confirmação */
@@ -58,7 +59,7 @@ export const BotaoClonar: React.FC<Props> = ({ tipo, registro, onAbrir, onRecarr
       onToast(
         tipo === 'produtos'
           ? `Produto clonado: ${registro.nome} (cópia).`
-          : `${ehProposta ? 'Proposta clonada' : 'Pedido clonado'} como #${r.numero_proposta ?? r.numero_pedido}.`,
+          : ehProposta ? 'Proposta clonada.' : `Pedido clonado como #${r.numero_pedido}.`,
       );
       setConfirmando(false);
       onRecarregar();

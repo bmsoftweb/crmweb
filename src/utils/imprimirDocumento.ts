@@ -1,5 +1,5 @@
 import { RegistroCrud } from '../types.js';
-import { STATUS_LABELS, formatCNPJ, formatDateBR, formatMoeda } from './formatters.js';
+import { STATUS_LABELS, formatCNPJ, formatDateBR, formatMoeda, refProposta } from './formatters.js';
 
 /** Escapa texto vindo do banco antes de entrar no HTML */
 const esc = (v: unknown) =>
@@ -45,7 +45,7 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos', re
   const itens: RegistroCrud[] = p.itens || [];
   const descItens = itens.reduce((s, i) => s + (Number(i.desconto) || 0), 0);
   const adicional = Math.round(((Number(p.valor_desconto) || 0) - descItens) * 100) / 100;
-  const titulo = ehProposta ? `Proposta nº ${p.numero_proposta} — versão ${p.versao}` : `Pedido de Venda nº ${p.numero_pedido}`;
+  const titulo = ehProposta ? `Proposta ${refProposta(p)}` : `Pedido de Venda nº ${p.numero_pedido}`;
   const condicao = ehProposta ? p.condicoes_pagamento : p.condicao_pagamento;
   const meta = ehProposta
     ? // O controle é o número principal; o nº interno vai pequeno, entre parênteses (sem controle, só o nº)
@@ -55,7 +55,7 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos', re
     : `<div class="b">Nº ${esc(p.numero_pedido)}</div>
       <div>Emissão ${formatDateBR(p.data_emissao)}</div>
       <div>Situação: ${esc(STATUS_LABELS[p.status] || p.status)}</div>
-      ${p.proposta_numero ? `<div>Ref. proposta nº ${esc(p.proposta_numero)} v${esc(p.proposta_versao)}</div>` : ''}`;
+      ${p.proposta_numero ? `<div>Ref. proposta ${esc(refProposta({ controle: p.proposta_controle, numero_proposta: p.proposta_numero, versao: p.proposta_versao }))}</div>` : ''}`;
 
   const linhas = resumida
     ? agruparItens(itens, ehProposta)
@@ -179,9 +179,9 @@ export function htmlDocumento(p: RegistroCrud, tipo: 'propostas' | 'pedidos', re
   </div>
 
   ${
-    // Proposta: como o cliente vai pagar (parcelas da condição de pagamento)
-    ehProposta && p.parcelas?.length
-      ? `<section><h3>Parcelas${p.condicoes_pagamento ? ` — ${esc(p.condicoes_pagamento)}` : ''}</h3>
+    // Como o cliente vai pagar (parcelas da condição de pagamento)
+    p.parcelas?.length
+      ? `<section><h3>Parcelas${condicao ? ` — ${esc(condicao)}` : ''}</h3>
     <table><thead><tr><th class="c" style="width:28px">#</th><th class="c">Vencimento</th><th>Forma de pagamento</th><th class="r">Valor</th></tr></thead>
     <tbody>${p.parcelas
       .map(

@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.79 — 2026-10-01
+
+- Banco: tabela `pedido_parcelas` (SQL em extras/crmweb_schema.sql).
+- Pedidos: as parcelas da proposta passam para o pedido ao aprovar (vencimentos, formas, valores e ajustes); o pedido tem a mesma seção de parcelas (Recalcular / Refazer Parcelas), imprime e clona as parcelas.
+- Propostas: a referência para as pessoas passa a ser o controle (ex.: "Proposta 2026/001-01") na impressão, no PDF e no nome do arquivo, no envio, na página do cliente, no "Ref. proposta" do pedido, nas telas, avisos e histórico; sem controle, "nº 1 v1".
+
 ## 0.0.78 — 2026-10-01
 
 - Página de aprovação do cliente (link da proposta): mostra os anexos da proposta, com nome, tamanho e link para abrir.

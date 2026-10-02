@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Eraser, FileDown, FileText, Image as Imagem, Loader2, XCircle } from 'lucide-react';
-import { formatDateBR, formatDateTimeBR, formatMoeda } from '../utils/formatters';
+import { formatDateBR, formatDateTimeBR, formatMoeda, refProposta } from '../utils/formatters';
 import { INPUT_CLASS_LG, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { Toggle } from './Toggle';
 
@@ -10,6 +10,8 @@ interface PropostaPublica {
   situacao: Situacao;
   numero: number;
   versao: number;
+  /** Controle da proposta (a referência para o cliente) */
+  controle: string | null;
   titulo: string;
   cliente: string | null;
   empresa: { nome: string; cnpj: string | null; endereco: string | null; logo: string | null };
@@ -140,7 +142,7 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.error || 'Não foi possível abrir a proposta.');
         setP(d);
-        document.title = `Proposta nº ${d.numero} — ${d.empresa.nome}`;
+        document.title = `Proposta ${refProposta({ controle: d.controle, numero_proposta: d.numero, versao: d.versao })} — ${d.empresa.nome}`;
       })
       .catch((e) => setErroCarga(e.message));
   useEffect(() => {
@@ -212,7 +214,7 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-stone-400">
-                Proposta nº {p.numero} • versão {p.versao}
+                Proposta {refProposta({ controle: p.controle, numero_proposta: p.numero, versao: p.versao })}
               </div>
               <h1 className="text-lg font-bold text-stone-900">{p.titulo}</h1>
               {p.cliente && <div className="text-sm text-stone-500">Para: {p.cliente}</div>}
@@ -349,7 +351,7 @@ export const AceiteProposta: React.FC<{ token: string }> = ({ token }) => {
               onChange={setConcordo}
               label={
                 <span className="text-sm text-stone-700">
-                  Li e aprovo a proposta nº {p.numero} (versão {p.versao}), no valor de {formatMoeda(p.valor_total)}.
+                  Li e aprovo a proposta {refProposta({ controle: p.controle, numero_proposta: p.numero, versao: p.versao })}, no valor de {formatMoeda(p.valor_total)}.
                 </span>
               }
             />

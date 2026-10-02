@@ -6,6 +6,7 @@ import { aprovarProposta, lerDocumento, registrarHistorico } from './crm.js';
 import { sincronizarNegocio } from './regras.js';
 import { gerarPdf } from './pdf.js';
 import { agruparItens, htmlDocumento } from '../src/utils/imprimirDocumento.js';
+import { refProposta, refPropostaArquivo } from '../src/utils/formatters.js';
 import { enviarAutomatica, telefoneWhatsApp } from './whatsapp.js';
 import { anexosDaProposta } from './anexos.js';
 
@@ -127,6 +128,7 @@ export function createAceiteRouter() {
     res.json({
       situacao,
       numero: p.numero_proposta,
+      controle: p.controle ?? null,
       versao: p.versao,
       titulo: p.titulo,
       cliente: p.pessoa_nome ?? null,
@@ -150,7 +152,7 @@ export function createAceiteRouter() {
     const { p } = await doToken(req.params.token);
     const pdf = await gerarPdf(htmlDocumento(p, 'propostas', true));
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="Proposta ${p.numero_proposta}-v${p.versao}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="Proposta ${refPropostaArquivo(p)}.pdf"`);
     res.send(pdf);
   }));
 
@@ -186,7 +188,7 @@ export function createAceiteRouter() {
       emp,
       p,
       `aceite:${p.id}`,
-      `✅ A proposta nº ${p.numero_proposta} v${p.versao} (${p.titulo}) foi *aprovada e assinada* pelo cliente ${nome}. Pedido nº ${pedido.numeroPedido} gerado.`,
+      `✅ A proposta ${refProposta(p)} (${p.titulo}) foi *aprovada e assinada* pelo cliente ${nome}. Pedido nº ${pedido.numeroPedido} gerado.`,
     );
     res.json({ success: true });
   }));
@@ -208,10 +210,10 @@ export function createAceiteRouter() {
       negocio_id: p.negocio_id,
       proposta_id: p.id,
       pessoa_id: p.pessoa_id,
-      descricao: `Proposta #${p.numero_proposta} v${p.versao} recusada pelo cliente no link (${nome}). Motivo: ${motivo}`,
+      descricao: `Proposta ${refProposta(p)} recusada pelo cliente no link (${nome}). Motivo: ${motivo}`,
     });
     await sincronizarNegocio(p.negocio_id);
-    await avisarDono(emp, p, `recusa:${p.id}`, `❌ A proposta nº ${p.numero_proposta} v${p.versao} (${p.titulo}) foi *recusada* pelo cliente ${nome}. Motivo: ${motivo}`);
+    await avisarDono(emp, p, `recusa:${p.id}`, `❌ A proposta ${refProposta(p)} (${p.titulo}) foi *recusada* pelo cliente ${nome}. Motivo: ${motivo}`);
     res.json({ success: true });
   }));
 

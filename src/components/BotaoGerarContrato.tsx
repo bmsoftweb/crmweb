@@ -4,6 +4,7 @@ import { ScrollText } from 'lucide-react';
 import { BotaoAcao } from './MenuAcoes';
 import { RegistroCrud } from '../types';
 import { gerarContratoDaProposta } from '../services/api';
+import { refProposta } from '../utils/formatters';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface Props {
@@ -48,7 +49,7 @@ export const BotaoGerarContrato: React.FC<Props> = ({ registro, onAbrirContratos
         createPortal(
           <span onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
             <ConfirmDialog
-              titulo={`Gerar contrato da proposta #${registro.numero_proposta} v${registro.versao}?`}
+              titulo={`Gerar contrato da proposta ${refProposta(registro)}?`}
               mensagem="Cria o contrato em rascunho com o cliente, o negócio e os itens da proposta, começando hoje, com vigência de 12 meses, cobrança mensal e renovação automática. Ajuste o que for preciso antes de mandar assinar."
               confirmar="Gerar contrato"
               tom="normal"

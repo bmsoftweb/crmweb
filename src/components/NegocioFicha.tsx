@@ -27,7 +27,7 @@ import {
   updateRecord,
 } from '../services/api';
 import { BotaoConversaBot } from './ConversaBot';
-import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoeda } from '../utils/formatters';
+import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoeda, refProposta } from '../utils/formatters';
 import { INPUT_CLASS } from '../utils/formStyles';
 import { COR_SEMAFORO, TIPOS_INTERACAO, iconeAtividade, iconeInteracao, quando, semaforoFollowup } from '../utils/crm';
 import { AtividadeModal } from './AtividadeModal';
@@ -417,7 +417,7 @@ export const NegocioFicha: React.FC<NegocioFichaProps> = ({ negocioId, resource,
             onAbrir={(id) => setVisao({ tipo: 'propostas', id })}
             linhas={propostas}
             colunas={[
-              ['Proposta', (p) => `#${p.numero_proposta} v${p.versao}`],
+              ['Proposta', (p) => refProposta(p)],
               ['Título', (p) => p.titulo],
               ['Válida até', (p) => formatDateBR(p.data_validade), 'text-center'],
               ['Total', (p) => formatMoeda(p.valor_total), 'text-right font-mono'],

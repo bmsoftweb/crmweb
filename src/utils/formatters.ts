@@ -200,3 +200,16 @@ export function ontemIso(): string {
   o.setDate(o.getDate() - 1);
   return `${o.getFullYear()}-${String(o.getMonth() + 1).padStart(2, '0')}-${String(o.getDate()).padStart(2, '0')}`;
 }
+
+/**
+ * Referência da proposta para as pessoas: o controle (ex.: 2026/001-01); sem controle, "nº 1 v1".
+ * O número interno (numero_proposta) fica só para o sistema.
+ */
+export function refProposta(p: { controle?: unknown; numero_proposta?: unknown; versao?: unknown }): string {
+  const c = String(p.controle ?? '').trim();
+  return c || `nº ${p.numero_proposta ?? '…'} v${p.versao ?? 1}`;
+}
+
+/** Referência da proposta usável em nome de arquivo (sem barras) */
+export const refPropostaArquivo = (p: { controle?: unknown; numero_proposta?: unknown; versao?: unknown }) =>
+  refProposta(p).replace(/^nº /, '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-');

@@ -4,6 +4,7 @@ import { GitBranchPlus } from 'lucide-react';
 import { BotaoAcao } from './MenuAcoes';
 import { RegistroCrud } from '../types';
 import { fetchDocumento, novaVersaoProposta } from '../services/api';
+import { refProposta } from '../utils/formatters';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface Props {
@@ -21,7 +22,7 @@ interface Props {
 export const BotaoNovaVersao: React.FC<Props> = ({ registro, onAbrir, onRecarregar, onToast }) => {
   const [confirmando, setConfirmando] = useState(false);
   const [gerando, setGerando] = useState(false);
-  const numero = `#${registro.numero_proposta} v${registro.versao}`;
+  const numero = refProposta(registro);
 
   /** Um erro aqui (ex.: outra versão já aceita) aparece dentro do diálogo */
   const gerar = async () => {
@@ -29,7 +30,7 @@ export const BotaoNovaVersao: React.FC<Props> = ({ registro, onAbrir, onRecarreg
     try {
       const { id } = await novaVersaoProposta(registro.id as number);
       const nova = await fetchDocumento('propostas', id);
-      onToast(`Versão v${nova.versao} da proposta #${nova.numero_proposta} criada.`);
+      onToast(`Versão ${refProposta(nova)} criada.`);
       setConfirmando(false);
       onRecarregar();
       onAbrir(nova);

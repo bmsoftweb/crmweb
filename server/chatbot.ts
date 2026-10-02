@@ -5,6 +5,7 @@ import { lerConfig } from './config.js';
 import { cifrar, decifrar, textoConfig } from './segredo.js';
 import { aposGravar, sincronizarNegocio } from './regras.js';
 import { chaveTelefone, contaDaConversa, donoDoTelefone, enviarAutomatica, enviarReservada, enviarWhatsApp, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type Dono, type MensagemNova } from './whatsapp.js';
+import { refProposta } from '../src/utils/formatters.js';
 import { campanhaDaConversa, PEDIU_SAIR, type CampanhaDaConversa } from './campanhas.js';
 
 /**
@@ -725,7 +726,7 @@ async function dadosDoCliente(ctx: Contexto): Promise<string> {
     [emp, pessoaId],
   );
   const [prop] = await pool.query<any[]>(
-    `SELECT numero_proposta, titulo, status, valor_total, DATE_FORMAT(data_validade, '%d/%m/%Y') AS validade FROM propostas
+    `SELECT numero_proposta, versao, controle, titulo, status, valor_total, DATE_FORMAT(data_validade, '%d/%m/%Y') AS validade FROM propostas
       WHERE empresa_id = ? AND pessoa_id = ? ORDER BY id DESC LIMIT 5`,
     [emp, pessoaId],
   );
@@ -737,7 +738,7 @@ async function dadosDoCliente(ctx: Contexto): Promise<string> {
   const linhas = [`Cliente cadastrado: ${p[0]?.nome ?? ''} (${p[0]?.tipo === 'cliente' ? 'cliente' : 'lead'}).`];
   if (c[0]) linhas.push(`Quem está conversando: ${c[0].nome}${c[0].cargo || c[0].departamento ? ` (${[c[0].cargo, c[0].departamento].filter(Boolean).join(', ')})` : ''}.`);
   for (const n of neg) linhas.push(`Negócio aberto: ${n.titulo} — etapa ${n.etapa ?? '-'}, vendedor ${n.vendedor ?? '-'}.`);
-  for (const x of prop) linhas.push(`Proposta nº ${x.numero_proposta} (${x.titulo ?? ''}): ${x.status}, valor ${Number(x.valor_total ?? 0).toFixed(2)}, válida até ${x.validade ?? '-'}.`);
+  for (const x of prop) linhas.push(`Proposta ${refProposta(x)} (${x.titulo ?? ''}): ${x.status}, valor ${Number(x.valor_total ?? 0).toFixed(2)}, válida até ${x.validade ?? '-'}.`);
   for (const x of ped) linhas.push(`Pedido nº ${x.numero_pedido}: ${x.status}, valor ${Number(x.valor_total ?? 0).toFixed(2)}, emitido em ${x.emissao ?? '-'}.`);
   return linhas.join('\n');
 }

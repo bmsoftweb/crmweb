@@ -13,6 +13,7 @@ import { lerConfig } from './config.js';
 import { recalcularContrato } from './contratos.js';
 import { linkAceite } from './aceite.js';
 import { somaParcelas } from '../src/utils/parcelas.js';
+import { refProposta, refPropostaArquivo } from '../src/utils/formatters.js';
 
 /** Envolve a rota: qualquer exceção vira 400 com mensagem legível */
 const rota =
@@ -91,9 +92,20 @@ function conferirParcelas(lista: any, total: number) {
   const soma = somaParcelas(parcelas.map((p) => p.valor));
   if (Math.round(soma * 100) !== Math.round(total * 100)) {
     const br = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    throw new Error(`A soma das parcelas (${br(soma)}) é diferente do total da proposta (${br(total)}). Use "Recalcular" ou "Refazer Parcelas".`);
+    throw new Error(`A soma das parcelas (${br(soma)}) é diferente do total (${br(total)}). Use "Recalcular" ou "Refazer Parcelas".`);
   }
   return parcelas;
+}
+
+/** Troca as parcelas do documento pelas conferidas (lista vazia = sem parcelas) */
+async function gravarParcelas(conn: any, tipo: TipoDoc, id: number | string, parcelas: ReturnType<typeof conferirParcelas>) {
+  const tabela = tipo === 'proposta' ? 'proposta_parcelas' : 'pedido_parcelas';
+  const fk = DOC[tipo].fk;
+  await conn.query(`DELETE FROM ${tabela} WHERE ${fk} = ?`, [id]);
+  if (!parcelas.length) return;
+  await conn.query(`INSERT INTO ${tabela} (${fk}, numero, vencimento, forma_pagamento, valor, ajustada) VALUES ?`, [
+    parcelas.map((p) => [id, p.numero, p.vencimento, p.forma_pagamento, p.valor, p.ajustada]),
+  ]);
 }
 
 /**
@@ -123,20 +135,15 @@ export async function lerDocumento(tipo: TipoDoc, id: string, empresaId: string)
   );
   // Pedido: número e versão da proposta de origem
   if (tipo === 'pedido' && cab[0].proposta_id) {
-    const [pr] = await pool.query<any[]>('SELECT numero_proposta, versao FROM propostas WHERE id = ?', [cab[0].proposta_id]);
-    Object.assign(cab[0], { proposta_numero: pr[0]?.numero_proposta, proposta_versao: pr[0]?.versao });
+    const [pr] = await pool.query<any[]>('SELECT numero_proposta, versao, controle FROM propostas WHERE id = ?', [cab[0].proposta_id]);
+    Object.assign(cab[0], { proposta_numero: pr[0]?.numero_proposta, proposta_versao: pr[0]?.versao, proposta_controle: pr[0]?.controle });
   }
-  // Proposta: parcelas da condição de pagamento (vencimento, forma e valor)
-  const parcelas =
-    tipo === 'proposta'
-      ? (
-          await pool.query<any[]>(
-            `SELECT numero, DATE_FORMAT(vencimento, '%Y-%m-%d') AS vencimento, forma_pagamento, valor, ajustada
-               FROM proposta_parcelas WHERE proposta_id = ? ORDER BY numero`,
-            [id],
-          )
-        )[0]
-      : [];
+  // Parcelas da condição de pagamento (vencimento, forma e valor); o pedido herda as da proposta ao aprovar
+  const [parcelas] = await pool.query<any[]>(
+    `SELECT numero, DATE_FORMAT(vencimento, '%Y-%m-%d') AS vencimento, forma_pagamento, valor, ajustada
+       FROM ${tipo === 'proposta' ? 'proposta_parcelas' : 'pedido_parcelas'} WHERE ${d.fk} = ? ORDER BY numero`,
+    [id],
+  );
   return { ...cab[0], itens, parcelas };
 }
 
@@ -247,10 +254,16 @@ export async function aprovarProposta(emp: string, id: string, como = 'aprovada 
          FROM proposta_itens WHERE proposta_id = ?`,
       [pedidoId, p.id],
     );
+    // As parcelas negociadas na proposta passam para o pedido
+    await conn.query(
+      `INSERT INTO pedido_parcelas (pedido_id, numero, vencimento, forma_pagamento, valor, ajustada)
+       SELECT ?, numero, vencimento, forma_pagamento, valor, ajustada FROM proposta_parcelas WHERE proposta_id = ? ORDER BY numero`,
+      [pedidoId, p.id],
+    );
     await registrarHistorico(conn, emp, {
       negocio_id: p.negocio_id, proposta_id: p.id, pedido_id: pedidoId, pessoa_id: p.pessoa_id,
       descricao:
-        `Proposta #${p.numero_proposta} v${p.versao} ${como}. Pedido #${numeroPedido} gerado.` +
+        `Proposta ${refProposta(p)} ${como}. Pedido #${numeroPedido} gerado.` +
         (fechadas.length ? ` Versões fechadas: ${fechadas.map((v) => `v${v}`).join(', ')}.` : ''),
     });
     await sincronizarNegocio(p.negocio_id, conn);
@@ -416,7 +429,7 @@ export function createCrmRouter() {
     if (ehProposta && p.status === 'fechada') throw erro(400, 'Proposta fechada: outra versão desta proposta foi aceita.');
     if (!ehProposta && p.status === 'cancelado') throw erro(400, 'Pedido cancelado não pode ser enviado.');
     // Como o documento aparece no assunto, no arquivo, no histórico e na tarefa de retorno
-    const doc = ehProposta ? `Proposta nº ${p.numero_proposta} v${p.versao}` : `Pedido nº ${p.numero_pedido}`;
+    const doc = ehProposta ? `Proposta ${refProposta(p)}` : `Pedido nº ${p.numero_pedido}`;
     const titulo = ehProposta ? p.titulo : p.negocio_titulo;
     const via = canal === 'email' ? 'e-mail' : 'WhatsApp';
 
@@ -428,12 +441,12 @@ Para aprovar e assinar a proposta, acesse:
 ${link}` : mensagem;
     // Resumida: produtos agrupados pelo grupo (o cliente não vê o detalhe). Proposta vai sempre resumida
     const pdf = await gerarPdf(htmlDocumento(p, req.params.tipo as 'propostas' | 'pedidos', ehProposta || req.body?.resumida === true));
-    const arquivo = ehProposta ? `Proposta ${p.numero_proposta}-v${p.versao}.pdf` : `Pedido ${p.numero_pedido}.pdf`;
+    const arquivo = ehProposta ? `Proposta ${refPropostaArquivo(p)}.pdf` : `Pedido ${p.numero_pedido}.pdf`;
     // Anexos da proposta vão junto: no e-mail, anexados (passando de 20 MB no total, vão como links no texto);
     // no WhatsApp, cada um numa mensagem logo depois do PDF
     const anexos = ehProposta ? await anexosDaProposta(emp, Number(p.numero_proposta)) : [];
     if (canal === 'email') {
-      const assunto = ehProposta ? `Proposta nº ${p.numero_proposta}` : `Pedido nº ${p.numero_pedido}`;
+      const assunto = ehProposta ? `Proposta ${refProposta(p)}` : `Pedido nº ${p.numero_pedido}`;
       const cabem = pdf.length + anexos.reduce((s, a) => s + a.tamanho, 0) <= 20 * 1024 * 1024;
       const arquivos = cabem ? await Promise.all(anexos.map(async (a) => ({ nome: a.nome, conteudo: await baixarAnexo(a.url) }))) : [];
       const texto = cabem || !anexos.length ? corpo : `${corpo}\n\nAnexos:\n${anexos.map((a) => `${a.nome}: ${a.url}`).join('\n')}`;
@@ -536,12 +549,7 @@ ${link}` : mensagem;
         propostaId = Number(nova.insertId);
       }
       await gravarItens(conn, 'proposta', propostaId!, tot.linhas);
-      await conn.query('DELETE FROM proposta_parcelas WHERE proposta_id = ?', [propostaId]);
-      if (parcelas.length) {
-        await conn.query('INSERT INTO proposta_parcelas (proposta_id, numero, vencimento, forma_pagamento, valor, ajustada) VALUES ?', [
-          parcelas.map((p) => [propostaId, p.numero, p.vencimento, p.forma_pagamento, p.valor, p.ajustada]),
-        ]);
-      }
+      await gravarParcelas(conn, 'proposta', propostaId!, parcelas);
       return propostaId!;
     });
     res.json({ success: true, id });
@@ -594,7 +602,7 @@ ${link}` : mensagem;
       if (origem.status === 'enviada') await conn.query("UPDATE propostas SET status = 'recusada' WHERE id = ?", [origem.id]);
       await registrarHistorico(conn, emp, {
         negocio_id: origem.negocio_id, proposta_id: novoId, pessoa_id: origem.pessoa_id,
-        descricao: `Renegociação: proposta #${origem.numero_proposta} v${origem.versao} gerou a versão v${v}.`,
+        descricao: `Renegociação: proposta ${refProposta(origem)} gerou a versão ${refProposta({ controle, numero_proposta: origem.numero_proposta, versao: v })}.`,
       });
       await sincronizarNegocio(origem.negocio_id, conn);
       return novoId;
@@ -631,7 +639,7 @@ ${link}` : mensagem;
       );
       await registrarHistorico(conn, emp, {
         negocio_id: origem.negocio_id, proposta_id: id, pessoa_id: origem.pessoa_id,
-        descricao: `Proposta #${origem.numero_proposta} v${origem.versao} clonada como proposta #${numero}.`,
+        descricao: `Proposta ${refProposta(origem)} clonada como proposta ${refProposta({ controle, numero_proposta: numero, versao: 1 })}.`,
       });
       return { id, numero };
     });
@@ -669,7 +677,7 @@ ${link}` : mensagem;
       await recalcularContrato(r.insertId, conn);
       await conn.query(
         `INSERT INTO historico_interacoes (empresa_id, negocio_id, proposta_id, pessoa_id, contrato_id, tipo, descricao) VALUES (?, ?, ?, ?, ?, 'nota', ?)`,
-        [emp, p.negocio_id, p.id, pessoaId, r.insertId, `Contrato nº ${n.n} gerado da proposta nº ${p.numero_proposta} v${p.versao}.`],
+        [emp, p.negocio_id, p.id, pessoaId, r.insertId, `Contrato nº ${n.n} gerado da proposta ${refProposta(p)}.`],
       );
       return { id: r.insertId, numero: n.n };
     });
@@ -716,6 +724,7 @@ ${link}` : mensagem;
 
     if (!Array.isArray(b.itens) || !b.itens.length) throw new Error('Inclua pelo menos um produto no pedido.');
     const tot = calcularTotais(b.itens, b.desconto_adicional);
+    const parcelas = conferirParcelas(b.parcelas, tot.total);
     const negocioId = texto(b.negocio_id);
     const vinc = await vinculosDoNegocio(negocioId, emp);
     await exigirDaEmpresa('pessoas', texto(b.pessoa_id), emp, 'O contato');
@@ -745,6 +754,7 @@ ${link}` : mensagem;
         pedidoId = Number(novo.insertId);
       }
       await gravarItens(conn, 'pedido', pedidoId!, tot.linhas);
+      await gravarParcelas(conn, 'pedido', pedidoId!, parcelas);
       return pedidoId!;
     });
     res.json({ success: true, id });
@@ -773,6 +783,11 @@ ${link}` : mensagem;
       await conn.query(
         `INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unitario, desconto, subtotal)
          SELECT ?, produto_id, quantidade, preco_unitario, desconto, subtotal FROM pedido_itens WHERE pedido_id = ? ORDER BY id`,
+        [id, origem.id],
+      );
+      await conn.query(
+        `INSERT INTO pedido_parcelas (pedido_id, numero, vencimento, forma_pagamento, valor, ajustada)
+         SELECT ?, numero, vencimento, forma_pagamento, valor, ajustada FROM pedido_parcelas WHERE pedido_id = ? ORDER BY numero`,
         [id, origem.id],
       );
       await registrarHistorico(conn, emp, {
@@ -834,7 +849,7 @@ ${link}` : mensagem;
       }
       await registrarHistorico(conn, emp, {
         negocio_id: p.negocio_id, proposta_id: p.id, pessoa_id: p.pessoa_id,
-        descricao: `Proposta #${p.numero_proposta} v${p.versao} revertida para Enviada (teste)${ped.length ? `; pedido #${ped.map((x) => x.numero_pedido).join(', #')} excluído` : ''}.`,
+        descricao: `Proposta ${refProposta(p)} revertida para Enviada (teste)${ped.length ? `; pedido #${ped.map((x) => x.numero_pedido).join(', #')} excluído` : ''}.`,
       });
       await sincronizarNegocio(p.negocio_id, conn);
     });

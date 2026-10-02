@@ -4,6 +4,7 @@ import { Undo2 } from 'lucide-react';
 import { BotaoAcao } from './MenuAcoes';
 import { RegistroCrud } from '../types';
 import { reverterProposta } from '../services/api';
+import { refProposta } from '../utils/formatters';
 import { ConfirmDialog } from './ConfirmDialog';
 
 /**
@@ -28,7 +29,7 @@ export const BotaoReverter: React.FC<{ registro: RegistroCrud; onRecarregar: () 
         createPortal(
           <span onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
             <ConfirmDialog
-              titulo={`Reverter a proposta #${registro.numero_proposta} v${registro.versao}?`}
+              titulo={`Reverter a proposta ${refProposta(registro)}?`}
               mensagem="A proposta volta para Enviada: a assinatura do cliente é apagada e o pedido em rascunho gerado por ela é excluído. As outras versões fechadas voltam a Recusada."
               confirmar="Reverter"
               onConfirmar={async () => {

@@ -26,7 +26,7 @@ import {
   salvarDocumento,
 } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
-import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoeda, hojeIso } from '../utils/formatters';
+import { STATUS_COLORS, STATUS_LABELS, formatDateBR, formatDateTimeBR, formatMoeda, hojeIso, refProposta } from '../utils/formatters';
 import { FORMAS_PAGAMENTO, gerarParcelas, redistribuir, somaParcelas } from '../utils/parcelas';
 import { DateField } from './DateField';
 import { AnexosProposta } from './AnexosProposta';
@@ -268,7 +268,6 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
   };
   const escolherCondicao = (nome: string) => {
     campo('condicao')(nome);
-    if (!ehProposta) return;
     setParcelas(parcelasDaCondicao(nome));
   };
   /** Recalcular: as ajustadas à mão ficam; o que falta para o total é dividido entre as outras */
@@ -281,7 +280,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
 
   // Total mudou (item, quantidade, desconto): recalcula as parcelas não ajustadas, mantendo vencimentos e formas
   useEffect(() => {
-    if (!ehProposta || !parcelas.length || diferencaParcelas === 0 || tot.total <= 0) return;
+    if (!parcelas.length || diferencaParcelas === 0 || tot.total <= 0) return;
     setParcelas((lista) => recalcularParcelas(lista, tot.total));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tot.total]);
@@ -314,13 +313,8 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
       validade_dias: cab.validade_dias,
       [ehProposta ? 'condicoes_pagamento' : 'condicao_pagamento']: cab.condicao,
       observacoes: cab.observacoes,
-      ...(ehProposta
-        ? {
-            controle: cab.controle,
-            impressao_resumida: cab.impressao_resumida === '1',
-            parcelas: parcelas.map(({ vencimento, forma_pagamento, valor, ajustada }) => ({ vencimento, forma_pagamento, valor, ajustada })),
-          }
-        : {}),
+      parcelas: parcelas.map(({ vencimento, forma_pagamento, valor, ajustada }) => ({ vencimento, forma_pagamento, valor, ajustada })),
+      ...(ehProposta ? { controle: cab.controle, impressao_resumida: cab.impressao_resumida === '1' } : {}),
       desconto_adicional: descontoAdicional || 0,
       itens: itens.map(({ produto_id, quantidade, preco_unitario, desconto }) => ({ produto_id, quantidade, preco_unitario, desconto: desconto || 0 })),
     };
@@ -396,7 +390,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
 
   const titulo = id
     ? ehProposta
-      ? `Proposta #${doc?.numero_proposta ?? '…'} v${doc?.versao ?? ''}`
+      ? `Proposta ${doc ? refProposta(doc) : '…'}`
       : `Pedido #${doc?.numero_pedido ?? '…'}`
     : ehProposta
     ? 'Nova proposta'
@@ -425,7 +419,7 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
           <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
             {ehProposta
               ? `Válida até ${formatDateBR(doc.data_validade)}`
-              : `Emissão ${formatDateTimeBR(doc.data_emissao)}${doc.proposta_numero ? ` • origem: proposta #${doc.proposta_numero} v${doc.proposta_versao}` : ''}`}
+              : `Emissão ${formatDateTimeBR(doc.data_emissao)}${doc.proposta_numero ? ` • origem: proposta ${refProposta({ controle: doc.proposta_controle, numero_proposta: doc.proposta_numero, versao: doc.proposta_versao })}` : ''}`}
           </span>
         )}
       </div>
@@ -635,8 +629,8 @@ export const DocumentoEditor: React.FC<DocumentoEditorProps> = ({
             </div>
           </div>
 
-          {/* Parcelas da condição de pagamento (proposta) */}
-          {ehProposta && (parcelas.length > 0 || cab.condicao) && (
+          {/* Parcelas da condição de pagamento (proposta e pedido) */}
+          {(parcelas.length > 0 || cab.condicao) && (
             <div className="border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 bg-stone-50 dark:bg-stone-950/60 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-3">
                 <span className="text-xs font-bold text-stone-700 dark:text-stone-200">

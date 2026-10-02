@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, Mail, MessageCircle, Send } from 'lucide-react';
 import { RegistroCrud } from '../types';
 import { enviarDocumento, fetchDocumento, TipoDocumento } from '../services/api';
-import { formatDateBR, formatMoeda } from '../utils/formatters';
+import { formatDateBR, formatMoeda, refProposta } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Toggle } from './Toggle';
@@ -23,7 +23,7 @@ function mensagemPadrao(d: RegistroCrud, tipo: TipoDocumento): string {
   const validade = d.data_validade ? `, válida até ${formatDateBR(d.data_validade)}` : '';
   const doc =
     tipo === 'propostas'
-      ? `a proposta nº ${d.numero_proposta} — ${d.titulo}, no valor de ${formatMoeda(d.valor_total)}${validade}`
+      ? `a proposta ${refProposta(d)} — ${d.titulo}, no valor de ${formatMoeda(d.valor_total)}${validade}`
       : `o pedido nº ${d.numero_pedido}${d.negocio_titulo ? ` — ${d.negocio_titulo}` : ''}, no valor de ${formatMoeda(d.valor_total)}`;
   return [
     `Olá${d.pessoa_nome ? ` ${d.pessoa_nome}` : ''},`,
@@ -43,7 +43,7 @@ function mensagemPadrao(d: RegistroCrud, tipo: TipoDocumento): string {
  */
 export const BotaoEnviar: React.FC<Props> = ({ tipo, registro, onRecarregar, onToast }) => {
   const ehProposta = tipo === 'propostas';
-  const nome = ehProposta ? `a proposta #${registro.numero_proposta} v${registro.versao}` : `o pedido #${registro.numero_pedido}`;
+  const nome = ehProposta ? `a proposta ${refProposta(registro)}` : `o pedido #${registro.numero_pedido}`;
   const botaoRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<{ top: number; right: number } | null>(null);
   const [carregando, setCarregando] = useState(false);
