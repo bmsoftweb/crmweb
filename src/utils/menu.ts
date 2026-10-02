@@ -30,6 +30,7 @@ import {
   Headset,
   Database,
   ClipboardCheck,
+  Radar,
   type LucideIcon,
 } from 'lucide-react';
 import { ResourceDef, ResourceGroup, Usuario } from '../types';
@@ -112,9 +113,13 @@ export function gruposDoMenu(resources: ResourceDef[]): { titulo: string; itens:
     },
     ...GROUP_ORDER.map((group) => ({
       titulo: GROUP_LABELS[group] || group,
-      itens: resources
-        .filter((r) => r.group === group && !r.oculto && r.name !== 'usuarios' && !NA_VISAO_GERAL.includes(r.name))
-        .map((r) => ({ id: r.name, label: r.label, descricao: r.description, icone: ICONS[r.icon] || Database })),
+      itens: [
+        // Prospecção abre o grupo Marketing, antes dos cadastros dele
+        ...(group === 'marketing' ? [{ id: 'prospeccao', label: 'Prospecção', descricao: 'Busca de leads no Google Maps', icone: Radar }] : []),
+        ...resources
+          .filter((r) => r.group === group && !r.oculto && r.name !== 'usuarios' && !NA_VISAO_GERAL.includes(r.name))
+          .map((r) => ({ id: r.name, label: r.label, descricao: r.description, icone: ICONS[r.icon] || Database })),
+      ],
     })),
     { titulo: 'Sistema', itens: [{ id: 'configuracoes', label: 'Configurações', descricao: 'Preferências da empresa', icone: Settings, somenteAdmin: true }] },
   ];

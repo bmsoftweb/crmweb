@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.83 — 2026-10-02
+
+- Marketing › Prospecção (nova tela): busca empresas no Google Maps pela Google Places API (oficial) por segmento e cidade/região, com filtros de nota mínima, avaliações mínimas, só com celular e só com site. Opção de ler o site de cada empresa para achar o link do WhatsApp (wa.me), o e-mail e o Instagram. Cada empresa ganha uma nota de qualificação (0 a 100: celular/WhatsApp, nota e avaliações no Google, site, e-mail); quem já está no CRM (pelo código do Google ou pelo telefone) aparece marcado. As escolhidas entram em Pessoas como **lead**, com WhatsApp, telefone, e-mail, endereço principal, segmento opcional e os dados do Google na observação (`cod_integracao` `GP-<id do Google>`).
+- Configurações › Prospecção: chave da Google Places API (gravada cifrada); sem ela, vale `GOOGLE_PLACES_API_KEY` do servidor.
+- Permissões: nova opção "Prospecção" (usuários com permissões restritas precisam recebê-la).
+
 ## 0.0.82 — 2026-10-01
 
 - Configurações › Vendas: "Departamento das propostas no WhatsApp" — a proposta e o pedido enviados pelo WhatsApp ficam privados desse departamento (ex.: Comercial), não importa quem envie; vazio, vale o departamento de quem envia.
