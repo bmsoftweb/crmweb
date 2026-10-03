@@ -12,6 +12,7 @@ import { ConfigAssinatura } from './ConfigAssinatura';
 import { ModelosContrato } from './ModelosContrato';
 import { ConfigAgendaGoogle } from './ConfigAgendaGoogle';
 import { ConfigProspeccao } from './ConfigProspeccao';
+import { AbasRolagem } from './AbasRolagem';
 
 /**
  * Configurações da empresa, no mesmo formato do meuConsultorioWeb: uma aba por
@@ -88,7 +89,7 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-stone-900">
       {/* Abas dos grupos de configuração */}
-      <div className="bg-stone-50 dark:bg-stone-950/60 border-b border-stone-200 dark:border-stone-800 flex overflow-x-auto shrink-0">
+      <AbasRolagem className="bg-stone-50 dark:bg-stone-950/60 border-b border-stone-200 dark:border-stone-800 shrink-0">
         {ABAS.map((a) => (
           <button
             key={a.id}
@@ -102,7 +103,7 @@ export const ConfiguracoesView: React.FC<Props> = ({ usuario, onToast }) => {
             {a.titulo}
           </button>
         ))}
-      </div>
+      </AbasRolagem>
 
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="px-4 py-4">

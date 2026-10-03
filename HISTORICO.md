@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.85 — 2026-10-03
+
+- Automação: botões Exportar e Importar. Exportar baixa o fluxo do quadro num arquivo JSON (com as imagens dentro, o departamento pelo nome e os cabeçalhos secretos das chamadas de API sem valor); Importar carrega o arquivo no quadro depois de confirmar (só grava ao Salvar), reenvia as imagens, acha o departamento pelo nome e avisa o que revisar.
+- Automação: o X do painel de propriedades do nó fecha o painel (antes ele reabria na hora, porque o nó continuava selecionado no quadro).
+- Configurações: as abas que não cabem na largura rolam pelas setas ‹ e › (sem a barra de rolagem horizontal).
+
 ## 0.0.84 — 2026-10-02
 
 - Prospecção: o código do Google Maps (Place ID) vai para a coluna nova `pessoas.google_place_id`, e o `cod_integracao` do lead fica `CRMWEB-<id>`, como nos cadastros feitos no CRM (livre para o bmsoft). O "Já no CRM" usa o Place ID ou o telefone. Em Pessoas, campo "Google Place ID" só leitura e pesquisável.

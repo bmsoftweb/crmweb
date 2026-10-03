@@ -17,7 +17,7 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { AlertTriangle, ImagePlus, Loader2, Plus, Save, X } from 'lucide-react';
+import { AlertTriangle, Download, ImagePlus, Loader2, Plus, Save, Upload, X } from 'lucide-react';
 import { enviarArquivoJornada, fetchArquivoJornada, fetchConfig, fetchOptions, salvarConfig } from '../services/api';
 import { OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
@@ -131,6 +131,71 @@ const doQuadro = (nodes: NoRF[], edges: Edge[]) => ({
 });
 
 // ------------------------------------------------------------
+// Exportar / importar (arquivo JSON para levar a automação a outra empresa)
+// ------------------------------------------------------------
+
+/** Marca do arquivo: a importação recusa JSON que não seja uma automação exportada */
+const FORMATO_ARQUIVO = 'crmweb-automacao';
+
+const base64DoBlob = (b: Blob) =>
+  new Promise<string>((ok, erro) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(',')[1] ?? '');
+    r.onerror = () => erro(r.error);
+    r.readAsDataURL(b);
+  });
+
+/**
+ * Quadro → arquivo: as imagens enviadas vão junto (base64), o departamento vai pelo nome (o id muda de uma
+ * empresa para outra) e os cabeçalhos secretos das chamadas de API vão sem valor
+ */
+async function paraArquivo(j: ReturnType<typeof doQuadro>, departamentos: OpcaoRef[]) {
+  const nos = await Promise.all(
+    j.nos.map(async (n) => {
+      const dados: Record<string, any> = { ...n.dados };
+      if (n.tipo === 'imagem' && dados.arquivo_id) {
+        const url = await fetchArquivoJornada(dados.arquivo_id);
+        const blob = await (await fetch(url)).blob();
+        URL.revokeObjectURL(url);
+        dados.arquivo_mimetype = blob.type;
+        dados.arquivo_base64 = await base64DoBlob(blob);
+        delete dados.arquivo_id;
+      }
+      if (n.tipo === 'departamento') dados.departamento_nome = departamentos.find((d) => d.value === String(dados.departamento_id))?.label ?? '';
+      if (n.tipo === 'api') dados.cabecalhos = (dados.cabecalhos ?? []).map((h: any) => (h.secreto ? { nome: h.nome, valor: '', secreto: true } : h));
+      return { ...n, dados };
+    }),
+  );
+  return { formato: FORMATO_ARQUIVO, versao: 1, exportado_em: new Date().toLocaleString('pt-BR'), nos, ligacoes: j.ligacoes };
+}
+
+/** Arquivo → quadro: reenvia as imagens e acha o departamento pelo nome; devolve o que precisa ser revisto */
+async function doArquivo(arq: any, departamentos: OpcaoRef[]): Promise<{ nos: NoJornada[]; ligacoes: Jornada['ligacoes']; revisar: string[] }> {
+  const revisar: string[] = [];
+  const nos: NoJornada[] = [];
+  for (const n of arq.nos) {
+    const dados: Record<string, any> = { ...(n.dados ?? {}) };
+    if (n.tipo === 'imagem' && dados.arquivo_base64) {
+      const r = await enviarArquivoJornada(dados.arquivo_nome || 'imagem', dados.arquivo_mimetype || 'image/png', dados.arquivo_base64);
+      dados.arquivo_id = r.id;
+      dados.arquivo_nome = r.nome;
+    }
+    delete dados.arquivo_base64;
+    delete dados.arquivo_mimetype;
+    if (n.tipo === 'departamento') {
+      const nome = String(dados.departamento_nome ?? '').trim();
+      const dep = departamentos.find((d) => d.label.replace(/ \(inativo\)$/, '').trim().toLowerCase() === nome.toLowerCase());
+      dados.departamento_id = dep ? Number(dep.value) : null;
+      if (!dep) revisar.push(`escolher o departamento${nome ? ` (no arquivo: ${nome})` : ''}`);
+      delete dados.departamento_nome;
+    }
+    if (n.tipo === 'api' && (dados.cabecalhos ?? []).some((h: any) => h.secreto)) revisar.push(`informar os cabeçalhos secretos de "${dados.titulo || 'Chamar API'}"`);
+    nos.push({ id: String(n.id), tipo: n.tipo, x: Number(n.x) || 0, y: Number(n.y) || 0, dados });
+  }
+  return { nos, ligacoes: arq.ligacoes, revisar };
+}
+
+// ------------------------------------------------------------
 // Editor
 // ------------------------------------------------------------
 
@@ -154,8 +219,10 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast, chave = 'jornada' })
   const [departamentos, setDepartamentos] = useState<OpcaoRef[]>([]);
   const [confirmacao, setConfirmacao] = useState<Confirmacao | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [transferindo, setTransferindo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const quadroRef = useRef<HTMLDivElement>(null);
+  const importarRef = useRef<HTMLInputElement>(null);
   const rf = useReactFlow();
   const escuro = useTemaEscuro();
 
@@ -251,6 +318,66 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast, chave = 'jornada' })
     }
   };
 
+  /** Baixa o quadro atual (como está na tela, mesmo sem salvar) num arquivo JSON */
+  const exportar = async () => {
+    setTransferindo(true);
+    setErro(null);
+    try {
+      const arquivo = await paraArquivo(jornadaAtual, departamentos);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(arquivo, null, 2)], { type: 'application/json' }));
+      a.download = `automacao-${chave === 'jornada_campanhas' ? 'campanhas' : 'atendimento'}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      onToast('Automação exportada.');
+    } catch (err: any) {
+      setErro(`Não foi possível exportar: ${err.message}`);
+    } finally {
+      setTransferindo(false);
+    }
+  };
+
+  /** Lê o arquivo escolhido e, confirmado, troca o quadro pelo dele (só grava no Salvar) */
+  const importar = async (f: File | undefined) => {
+    if (importarRef.current) importarRef.current.value = '';
+    if (!f) return;
+    setErro(null);
+    let arq: any;
+    try {
+      arq = JSON.parse(await f.text());
+    } catch {
+      return setErro('Arquivo inválido: não é um JSON.');
+    }
+    const valido =
+      arq?.formato === FORMATO_ARQUIVO &&
+      Array.isArray(arq.nos) &&
+      Array.isArray(arq.ligacoes) &&
+      arq.nos.every((n: any) => n && TIPOS_NO[n.tipo as TipoNo]) &&
+      arq.nos.filter((n: any) => n.tipo === 'inicio').length === 1;
+    if (!valido) return setErro('Este arquivo não é uma automação exportada pelo CRM.');
+    setConfirmacao({
+      titulo: 'Importar a automação?',
+      mensagem: `O quadro atual é substituído pelo do arquivo (${arq.nos.length} nós). Nada muda no WhatsApp até você clicar em Salvar automação.`,
+      confirmar: 'Importar',
+      acao: async () => {
+        setTransferindo(true);
+        try {
+          const { nos, ligacoes, revisar } = await doArquivo(arq, departamentos);
+          const j = { ativo, modo, numeros_teste: [], nos, ligacoes } as Jornada;
+          setNodes(paraNos(j));
+          setEdges(paraLigacoes(j));
+          setSelecionado(null);
+          setTimeout(() => rf.fitView({ padding: 0.2, maxZoom: 1 }), 50);
+          onToast(revisar.length ? `Automação importada. Antes de salvar: ${revisar.join('; ')}.` : 'Automação importada: confira e clique em Salvar automação.');
+        } catch (err: any) {
+          setErro(`Não foi possível importar: ${err.message}`);
+        } finally {
+          setTransferindo(false);
+        }
+      },
+    });
+  };
+
   if (!carregado) return erro ? <AvisoErro mensagem={erro} onFechar={() => setErro(null)} /> : <Loader2 className="w-4 h-4 animate-spin text-stone-400" />;
 
   return (
@@ -275,6 +402,25 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast, chave = 'jornada' })
           )}
           {!somenteLeitura && (
             <div className="flex gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={exportar}
+                disabled={transferindo}
+                title="Baixa a automação do quadro num arquivo, para importar em outra empresa"
+                className="flex items-center gap-2 border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" /> Exportar
+              </button>
+              <button
+                type="button"
+                onClick={() => importarRef.current?.click()}
+                disabled={transferindo}
+                title="Carrega no quadro uma automação exportada (só grava ao Salvar)"
+                className="flex items-center gap-2 border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 px-4 py-2.5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                {transferindo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Importar
+              </button>
+              <input ref={importarRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => importar(e.target.files?.[0])} />
               <button
                 type="button"
                 onClick={salvar}
@@ -368,7 +514,11 @@ const Editor: React.FC<Props> = ({ somenteLeitura, onToast, chave = 'jornada' })
                 variaveis={variaveis}
                 onAlterar={(dados) => alterarNo(atual.id, atual.data.tipo, dados)}
                 onExcluir={() => rf.deleteElements({ nodes: [{ id: atual.id }] })}
-                onFechar={() => setSelecionado(null)}
+                // Tira a seleção no quadro também: só limpar o estado não basta, o React Flow avisaria de novo o nó selecionado
+                onFechar={() => {
+                  setNodes((ns) => ns.map((n) => (n.selected ? { ...n, selected: false } : n)));
+                  setSelecionado(null);
+                }}
                 pedirConfirmacao={setConfirmacao}
                 onErro={setErro}
               />
