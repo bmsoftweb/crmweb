@@ -523,12 +523,17 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>, o
   }
   const pessoaId = ctx.dono.pessoa_id!;
 
-  // Negócio aberto da pessoa (no funil escolhido, se houver), ou um novo no funil, para o próximo vendedor do revezamento
+  // Lead de campanha: a do número das campanhas ou, pelo número padrão, a que a pessoa recebeu nos últimos 15 dias
+  const campanha = ctx.campanha ?? (await campanhaDaConversa(emp, ctx.telefone));
+  // Negócio aberto da pessoa (no funil escolhido, se houver), ou um novo no funil, para o próximo vendedor do revezamento.
+  // Prospecção vinda de campanha: só reaproveita o negócio aberto dessa campanha (o de outra venda fica de fora)
   const funilId = opcoes?.funil_id || null;
+  const daCampanha = opcoes && campanha ? campanha.id : null;
   const [abertos] = await pool.query<any[]>(
     `SELECT n.id, n.proprietario_id, u.nome AS vendedor FROM negocios n LEFT JOIN usuarios u ON u.id = n.proprietario_id
-      WHERE n.empresa_id = ? AND n.pessoa_id = ? AND n.status = 'aberto'${funilId ? ' AND n.funil_id = ?' : ''} ORDER BY n.id DESC LIMIT 1`,
-    funilId ? [emp, pessoaId, funilId] : [emp, pessoaId],
+      WHERE n.empresa_id = ? AND n.pessoa_id = ? AND n.status = 'aberto'${funilId ? ' AND n.funil_id = ?' : ''}${daCampanha ? ' AND n.campanha_id = ?' : ''}
+      ORDER BY n.id DESC LIMIT 1`,
+    [emp, pessoaId, ...(funilId ? [funilId] : []), ...(daCampanha ? [daCampanha] : [])],
   );
   let negocioId: number;
   let vendedor: string | null;
@@ -548,8 +553,6 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>, o
     );
     if (!f.length || !f[0].etapa_id) return { ok: false, erro: 'A empresa não tem funil de vendas com etapas.' };
     const v = await proximoVendedor(emp);
-    // Lead de campanha: a do número das campanhas ou, pelo número padrão, a que a pessoa recebeu nos últimos 15 dias
-    const campanha = ctx.campanha ?? (await campanhaDaConversa(emp, ctx.telefone));
     const [n] = await pool.query<any>(
       "INSERT INTO negocios (empresa_id, titulo, valor, funil_id, etapa_id, pessoa_id, proprietario_id, status, campanha_id) VALUES (?, ?, 0, ?, ?, ?, ?, 'aberto', ?)",
       [emp, `${campanha ? `Campanha ${campanha.nome}` : 'WhatsApp'}: ${interesse}`.slice(0, 255), f[0].funil_id, f[0].etapa_id, pessoaId, v?.id ?? null, campanha?.id ?? null],

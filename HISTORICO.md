@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.88 — 2026-10-03
+
+- Automação das campanhas: quem responde a uma campanha é a pessoa que a recebeu, mesmo quando o número está em outros cadastros (antes valia o cadastro de maior número entre as mensagens do telefone).
+- Registrar Prospecção vindo de campanha: só reaproveita o negócio aberto dessa mesma campanha; senão abre um novo ligado a ela (negócios de outras vendas ficam de fora).
+
 ## 0.0.87 — 2026-10-03
 
 - Campanhas: "Gerar disparos" só cria as mensagens (a campanha não muda de situação e nada é enviado); a nova ação "Iniciar envio campanha" passa a campanha a Em execução e libera os pendentes (recusa sem disparos pendentes ou com o envio já ligado; retoma a pausada).

@@ -476,8 +476,8 @@ async function contextoDaConversa(empresaId: number, telefone: string): Promise<
   );
   // Conversa no número das campanhas: a campanha que a pessoa recebeu vira contexto da IA
   const campanha = (await contaDaConversa(empresaId, telefone)) === 'campanhas' ? await campanhaDaConversa(empresaId, telefone) : null;
-  // Pessoa que recebeu a campanha: é ela, mesmo quando o número não bate com o cadastro
-  const donoFinal = !dono.pessoa_id && campanha?.pessoa_id ? { pessoa_id: campanha.pessoa_id, contato_id: null } : dono;
+  // Pessoa que recebeu a campanha: é ela, mesmo quando o número está em outros cadastros (ex.: o mesmo celular em duas empresas)
+  const donoFinal = campanha?.pessoa_id && campanha.pessoa_id !== dono.pessoa_id ? { pessoa_id: campanha.pessoa_id, contato_id: null } : dono;
   return { empresaId, telefone, dono: donoFinal, departamento: dep[0] ? { id: dep[0].id, nome: dep[0].nome } : null, jornada: { transferencia: null }, campanha };
 }
 
