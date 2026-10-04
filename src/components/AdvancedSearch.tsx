@@ -5,6 +5,7 @@ import { FieldDef, FiltroAvancado, OpcaoRef, ResourceDef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
 import { DateField } from './DateField';
 import { NumberField } from './NumberField';
+import { Toggle } from './Toggle';
 
 interface AdvancedSearchProps {
   resource: ResourceDef;
@@ -57,11 +58,14 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
   camposVisiveis,
   camposExtras = [],
 }) => {
+  /** Com a coluna "ativo", o interruptor decide se os desativados entram (no lugar do combo do campo) */
+  const temAtivo = resource.fields.some((f) => f.name === 'ativo' && f.type === 'boolean');
   const campos = useMemo(
-    () => [...resource.fields, ...camposExtras].filter((f) => camposVisiveis.includes(f.name)),
-    [resource, camposExtras, camposVisiveis],
+    () => [...resource.fields, ...camposExtras].filter((f) => camposVisiveis.includes(f.name) && !(temAtivo && f.name === 'ativo')),
+    [resource, camposExtras, camposVisiveis, temAtivo],
   );
   const [valores, setValores] = useState<Record<string, string>>(() => paraFormulario(aplicados));
+  const [comDesativados, setComDesativados] = useState(() => !aplicados.some((f) => f.field === 'ativo' && f.value === '1'));
 
   const setValor = (chave: string, valor: string) => {
     setValores((prev) => ({ ...prev, [chave]: valor }));
@@ -89,6 +93,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
       filtros.push({ field: f.name, op: isSelect(f) ? 'eq' : 'contains', value: valor });
     }
 
+    if (temAtivo && !comDesativados) filtros.push({ field: 'ativo', op: 'eq', value: '1' });
     return filtros;
   };
 
@@ -97,9 +102,11 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
     onAplicar(montarFiltros(), true);
   };
 
+  // Limpar volta ao padrão da tela: só os ativos
   const handleLimpar = () => {
     setValores({});
-    onAplicar([], false);
+    setComDesativados(false);
+    onAplicar(temAtivo ? [{ field: 'ativo', op: 'eq', value: '1' }] : [], false);
   };
 
   const inputClass = `${INPUT_CLASS} w-full`;
@@ -245,6 +252,11 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
         </div>
 
         <div className="flex items-center justify-end gap-2.5 mt-3">
+          {temAtivo && (
+            <div className="mr-auto">
+              <Toggle id="busca-com-desativados" checked={comDesativados} onChange={setComDesativados} label="Listar também os desativados" />
+            </div>
+          )}
           <button
             type="button"
             onClick={handleLimpar}

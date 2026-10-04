@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.90 — 2026-10-03
+
+- Busca avançada (telas com o campo Ativo, como Pessoas): interruptor "Listar também os desativados" no lugar do combo Ativo; desligado lista só os ativos. "Limpar filtros" volta ao padrão (só os ativos).
+
 ## 0.0.89 — 2026-10-03
 
 - Cadastros: a cor das etapas do funil e das categorias de chamado é escolhida numa tabela de cores (com "Sem cor"), sem digitar o código; na lista aparece o quadradinho da cor. O servidor só aceita cor no formato #RRGGBB.
