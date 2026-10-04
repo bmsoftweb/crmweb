@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
-import { ArquivoEnvio, chaveTelefone, CONTATO_RECENTE, donoDoTelefone, PESSOA_RECENTE, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
+import { ArquivoEnvio, chaveTelefone, citacaoDa, CONTATO_RECENTE, donoDoTelefone, PESSOA_RECENTE, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
 import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
@@ -582,12 +582,15 @@ export function createConversasRouter(): Router {
       await pool.query("UPDATE whatsapp_mensagens SET vista = 1 WHERE empresa_id = ? AND telefone = ? AND direcao = 'recebida' AND vista = 0", [emp, telefone]);
       const [mensagens] = await pool.query<any[]>(
         `SELECT * FROM (
-           SELECT w.id, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao, u.nome AS usuario_nome,
+           SELECT w.id, w.direcao, w.tipo, w.texto, w.arquivo_nome, w.situacao, u.nome AS usuario_nome, w.resposta_de,
+                  rq.direcao AS resposta_direcao, rq.tipo AS resposta_tipo, rq.texto AS resposta_texto, rq.arquivo_nome AS resposta_arquivo,
+                  rq.privado_departamento_id AS resposta_privado_id,
                   w.privado_departamento_id, dp.nome AS privado_departamento,
                   (w.disparo_id IS NOT NULL) AS campanha, (w.origem IS NOT NULL AND w.origem NOT LIKE 'bot:%') AS automatica,
                   (w.origem LIKE 'bot:%') AS bot, w.erro, DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora
              FROM whatsapp_mensagens w LEFT JOIN usuarios u ON u.id = w.usuario_id
              LEFT JOIN departamentos dp ON dp.id = w.privado_departamento_id
+             LEFT JOIN whatsapp_mensagens rq ON rq.id = w.resposta_de
             WHERE w.empresa_id = ? AND w.telefone = ?
             ORDER BY w.data_hora DESC, w.id DESC LIMIT 300) m
           ORDER BY m.data_hora, m.id`,
@@ -625,7 +628,24 @@ export function createConversasRouter(): Router {
         /** Número por onde a conversa entrou: as respostas saem por ele */
         conta,
         encerravel: Boolean(Number(c.encerravel)),
-        departamento: c.departamento ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map((m) => mascararPrivada(res, { ...m, campanha: Boolean(m.campanha), automatica: Boolean(m.automatica), bot: Boolean(m.bot) })) });
+        departamento: c.departamento ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map(({ resposta_de, resposta_direcao, resposta_tipo, resposta_texto, resposta_arquivo, resposta_privado_id, ...m }) =>
+          mascararPrivada(res, {
+            ...m,
+            campanha: Boolean(m.campanha),
+            automatica: Boolean(m.automatica),
+            bot: Boolean(m.bot),
+            // Mensagem citada (resposta): privada de outro departamento vai sem o conteúdo
+            resposta: resposta_de
+              ? {
+                  id: resposta_de,
+                  direcao: resposta_direcao ?? null,
+                  tipo: resposta_tipo ?? null,
+                  texto: resposta_privado_id && !podeVerPrivada(res, resposta_privado_id) ? null : (resposta_texto ?? null),
+                  arquivo_nome: resposta_privado_id && !podeVerPrivada(res, resposta_privado_id) ? null : (resposta_arquivo ?? null),
+                }
+              : null,
+          }),
+        ) });
     } catch (err: any) {
       falha(res, err);
     }
@@ -664,7 +684,11 @@ export function createConversasRouter(): Router {
       const reg = { pessoa_id: ult[0]?.pessoa_id ?? null, contato_id: ult[0]?.contato_id ?? null, usuario_id: res.locals.usuarioId };
       // Vários atendentes na mesma conversa: o cliente vê quem escreveu ("*Luis:* ...")
       const assinatura = String(res.locals.usuario?.nome ?? '').trim() || undefined;
-      const numero = arquivo ? await enviarMidiaWhatsApp(emp, telefone, arquivo, reg, assinatura) : await enviarWhatsApp(emp, telefone, texto, reg, assinatura);
+      // Responder: a mensagem escolhida aparece citada no WhatsApp do cliente
+      const citacao = await citacaoDa(emp, telefone, req.body?.resposta_de);
+      const numero = arquivo
+        ? await enviarMidiaWhatsApp(emp, telefone, arquivo, reg, assinatura, citacao)
+        : await enviarWhatsApp(emp, telefone, texto, reg, assinatura, citacao);
       // Conversa aberta pela atividade WhatsApp: a mensagem enviada conclui a atividade
       let concluida = false;
       const atividadeId = Number(req.body?.atividade_id) || null;

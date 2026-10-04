@@ -243,8 +243,37 @@ async function enviar(c: Credenciais, zapi: { rota: string; corpo: unknown }, ev
   return r.json().catch(() => ({}));
 }
 
-const textoPara = (c: Credenciais, telefone: string, texto: string) =>
-  enviar(c, { rota: 'send-text', corpo: { phone: telefone, message: texto } }, { rota: 'sendText', corpo: { number: telefone, text: texto } });
+/** Mensagem da conversa que a nova responde (aparece citada no WhatsApp do cliente) */
+export interface Citacao {
+  id: number;
+  wa_id: string;
+  enviada: boolean;
+  texto: string | null;
+}
+
+/** Campos da citação no corpo de cada provedor (Z-API: messageId; Evolution: quoted) */
+const citar = (telefone: string, q?: Citacao | null) => ({
+  zapi: q ? { messageId: q.wa_id } : {},
+  evolution: q ? { quoted: { key: { id: q.wa_id, remoteJid: `${telefone}@s.whatsapp.net`, fromMe: q.enviada }, message: { conversation: q.texto ?? '' } } } : {},
+});
+
+const textoPara = (c: Credenciais, telefone: string, texto: string, q?: Citacao | null) =>
+  enviar(
+    c,
+    { rota: 'send-text', corpo: { phone: telefone, message: texto, ...citar(telefone, q).zapi } },
+    { rota: 'sendText', corpo: { number: telefone, text: texto, ...citar(telefone, q).evolution } },
+  );
+
+/** A mensagem da conversa a responder: precisa ter o código do WhatsApp (as que falharam não têm) */
+export async function citacaoDa(empresaId: string | number, telefone: string, id: unknown): Promise<Citacao | null> {
+  if (id == null || id === '') return null;
+  const [r] = await pool.query<any[]>(
+    "SELECT id, wa_id, direcao, texto FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND telefone = ? AND tipo NOT IN ('evento', 'encerramento')",
+    [Number(id) || 0, empresaId, telefone],
+  );
+  if (!r[0]?.wa_id) throw Object.assign(new Error('Essa mensagem não pode ser respondida (não chegou ao WhatsApp).'), { status: 400 });
+  return { id: r[0].id, wa_id: r[0].wa_id, enviada: r[0].direcao === 'enviada', texto: r[0].texto };
+}
 
 /** Quem e o quê, para registrar a mensagem enviada na conversa */
 interface Registro {
@@ -254,15 +283,24 @@ interface Registro {
   disparo_id?: number | null;
   /** Mensagem privada: só este departamento (e o administrador) vê na tela */
   privado_departamento_id?: number | null;
+  /** Mensagem da conversa que esta responde (citação) */
+  resposta_de?: number | null;
 }
 
 /** "*Luis:* texto": o cliente vê quem da equipe escreveu (o registro no CRM fica sem, a tela já mostra o nome) */
 const assinado = (assinatura: string | undefined, texto: string) => (assinatura ? `*${assinatura}:* ${texto}` : texto);
 
 /** Envia texto; devolve o número da conversa (como o WhatsApp o conhece: às vezes sem o 9) */
-export async function enviarWhatsApp(empresaId: string | number, telefone: string, texto: string, reg: Registro = {}, assinatura?: string): Promise<string> {
-  const resposta = await textoPara(await credenciaisPara(empresaId, telefone), telefone, assinado(assinatura, texto));
-  return registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'texto', texto });
+export async function enviarWhatsApp(
+  empresaId: string | number,
+  telefone: string,
+  texto: string,
+  reg: Registro = {},
+  assinatura?: string,
+  citacao?: Citacao | null,
+): Promise<string> {
+  const resposta = await textoPara(await credenciaisPara(empresaId, telefone), telefone, assinado(assinatura, texto), citacao);
+  return registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'texto', texto, resposta_de: citacao?.id ?? null });
 }
 
 /** Mensagem de campanha (envio manual de um disparo): pelo WhatsApp das campanhas, ou o padrão sem ele */
@@ -330,11 +368,19 @@ export interface ArquivoEnvio {
  * Envia imagem, vídeo, documento ou áudio. Áudio vai como mensagem de voz (a Evolution converte
  * para o formato do WhatsApp); devolve o número da conversa, como enviarWhatsApp.
  */
-export async function enviarMidiaWhatsApp(empresaId: string | number, telefone: string, a: ArquivoEnvio, reg: Registro = {}, assinatura?: string): Promise<string> {
+export async function enviarMidiaWhatsApp(
+  empresaId: string | number,
+  telefone: string,
+  a: ArquivoEnvio,
+  reg: Registro = {},
+  assinatura?: string,
+  citacao?: Citacao | null,
+): Promise<string> {
   const legenda = a.legenda ? assinado(assinatura, a.legenda) : a.legenda;
-  const resposta = await midiaPara(await credenciaisPara(empresaId, telefone), telefone, { ...a, legenda });
+  const resposta = await midiaPara(await credenciaisPara(empresaId, telefone), telefone, { ...a, legenda }, citacao);
   return registrarEnviada(empresaId, telefone, resposta, {
     ...reg,
+    resposta_de: citacao?.id ?? null,
     tipo: a.tipo,
     texto: a.legenda,
     arquivo_nome: a.tipo === 'documento' ? a.nome : undefined,
@@ -342,21 +388,29 @@ export async function enviarMidiaWhatsApp(empresaId: string | number, telefone: 
 }
 
 /** Envio do arquivo no formato de cada provedor; devolve a resposta do provedor */
-async function midiaPara(c: Credenciais, telefone: string, a: ArquivoEnvio): Promise<any> {
+async function midiaPara(c: Credenciais, telefone: string, a: ArquivoEnvio, q?: Citacao | null): Promise<any> {
   const dataUrl = `data:${a.mimetype};base64,${a.base64}`;
   const legenda = a.legenda || undefined;
+  const cit = citar(telefone, q);
   let resposta: any;
   if (a.tipo === 'audio') {
-    resposta = await enviar(c, { rota: 'send-audio', corpo: { phone: telefone, audio: dataUrl } }, { rota: 'sendWhatsAppAudio', corpo: { number: telefone, audio: a.base64 } });
+    resposta = await enviar(
+      c,
+      { rota: 'send-audio', corpo: { phone: telefone, audio: dataUrl, ...cit.zapi } },
+      { rota: 'sendWhatsAppAudio', corpo: { number: telefone, audio: a.base64, ...cit.evolution } },
+    );
   } else {
     const extensao = a.nome.includes('.') ? a.nome.split('.').pop() : 'bin';
     const zapi = {
-      imagem: { rota: 'send-image', corpo: { phone: telefone, image: dataUrl, caption: legenda } },
-      video: { rota: 'send-video', corpo: { phone: telefone, video: dataUrl, caption: legenda } },
-      documento: { rota: `send-document/${extensao}`, corpo: { phone: telefone, document: dataUrl, fileName: a.nome, caption: legenda } },
+      imagem: { rota: 'send-image', corpo: { phone: telefone, image: dataUrl, caption: legenda, ...cit.zapi } },
+      video: { rota: 'send-video', corpo: { phone: telefone, video: dataUrl, caption: legenda, ...cit.zapi } },
+      documento: { rota: `send-document/${extensao}`, corpo: { phone: telefone, document: dataUrl, fileName: a.nome, caption: legenda, ...cit.zapi } },
     }[a.tipo];
     const mediatype = { imagem: 'image', video: 'video', documento: 'document' }[a.tipo];
-    resposta = await enviar(c, zapi, { rota: 'sendMedia', corpo: { number: telefone, mediatype, mimetype: a.mimetype, media: a.base64, fileName: a.nome, caption: legenda } });
+    resposta = await enviar(c, zapi, {
+      rota: 'sendMedia',
+      corpo: { number: telefone, mediatype, mimetype: a.mimetype, media: a.base64, fileName: a.nome, caption: legenda, ...cit.evolution },
+    });
   }
   return resposta;
 }
@@ -569,12 +623,26 @@ async function registrarEnviada(
     const dono = m.pessoa_id ? { pessoa_id: m.pessoa_id, contato_id: m.contato_id ?? null } : await donoDoTelefone(empresaId, numero);
     await pool.query(
       `INSERT INTO whatsapp_mensagens
-         (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, situacao, disparo_id, usuario_id, privado_departamento_id, vista, data_hora)
-       VALUES (?, ?, ?, ?, 'enviada', ?, ?, ?, ?, 'enviada', ?, ?, ?, 1, NOW())
+         (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, arquivo_nome, wa_id, resposta_de, situacao, disparo_id, usuario_id, privado_departamento_id, vista, data_hora)
+       VALUES (?, ?, ?, ?, 'enviada', ?, ?, ?, ?, ?, 'enviada', ?, ?, ?, 1, NOW())
        ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)), contato_id = COALESCE(contato_id, VALUES(contato_id)),
          disparo_id = COALESCE(disparo_id, VALUES(disparo_id)), usuario_id = COALESCE(usuario_id, VALUES(usuario_id)),
-         arquivo_nome = COALESCE(arquivo_nome, VALUES(arquivo_nome)), texto = COALESCE(VALUES(texto), texto)`,
-      [empresaId, dono.pessoa_id, dono.contato_id, numero, m.tipo, m.texto, m.arquivo_nome ?? null, waId, m.disparo_id ?? null, m.usuario_id ?? null, m.privado_departamento_id ?? null],
+         arquivo_nome = COALESCE(arquivo_nome, VALUES(arquivo_nome)), texto = COALESCE(VALUES(texto), texto),
+         resposta_de = COALESCE(resposta_de, VALUES(resposta_de))`,
+      [
+        empresaId,
+        dono.pessoa_id,
+        dono.contato_id,
+        numero,
+        m.tipo,
+        m.texto,
+        m.arquivo_nome ?? null,
+        waId,
+        m.resposta_de ?? null,
+        m.disparo_id ?? null,
+        m.usuario_id ?? null,
+        m.privado_departamento_id ?? null,
+      ],
     );
     // O aviso de entrega pode ter chegado antes deste registro
     if (waId && m.disparo_id) await repassarAoDisparo(empresaId, waId);
@@ -636,6 +704,13 @@ export interface MensagemNova {
 }
 
 /** Aviso de mensagem nova (recebida, ou enviada pelo celular/pelo CRM). Devolve a recebida nova, se for o caso */
+/** Código da mensagem citada: no contextInfo do aviso ou no do conteúdo (extendedTextMessage, imageMessage...) */
+export function citadaDe(d: any): string | null {
+  const doConteudo = Object.values(d?.message ?? {}).find((v: any) => v?.contextInfo?.stanzaId) as any;
+  const id = d?.contextInfo?.stanzaId ?? doConteudo?.contextInfo?.stanzaId;
+  return typeof id === 'string' && id ? id.slice(0, 100) : null;
+}
+
 async function gravarMensagem(empresaId: number, d: any): Promise<MensagemNova | null> {
   const key = d?.key ?? {};
   // Com o endereçamento novo (LID), o número vem no remoteJidAlt/senderPn
@@ -649,11 +724,30 @@ async function gravarMensagem(empresaId: number, d: any): Promise<MensagemNova |
   const ts = Number(d.messageTimestamp) || null;
   // Nome do perfil no WhatsApp de quem mandou: identifica quem ainda não está em Pessoas
   const nomeContato = recebida && typeof d.pushName === 'string' && d.pushName.trim() ? d.pushName.trim().slice(0, 150) : null;
+  // Respondendo a uma mensagem (citação): o código dela vem no contextInfo
+  const citada = citadaDe(d);
+  const [q] = citada ? await pool.query<any[]>('SELECT id FROM whatsapp_mensagens WHERE empresa_id = ? AND wa_id = ? LIMIT 1', [empresaId, citada]) : [[]];
   const [r] = await pool.query<any>(
-    `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, nome_contato, direcao, tipo, texto, arquivo_nome, wa_id, situacao, vista, data_hora)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(FROM_UNIXTIME(?), NOW()))
-     ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)), contato_id = COALESCE(contato_id, VALUES(contato_id))`,
-    [empresaId, dono.pessoa_id, dono.contato_id, telefone, nomeContato, recebida ? 'recebida' : 'enviada', c.tipo, c.texto, c.arquivo, key.id, recebida ? 'recebida' : 'enviada', recebida ? 0 : 1, ts],
+    `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, nome_contato, direcao, tipo, texto, arquivo_nome, wa_id, resposta_de, situacao, vista, data_hora)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(FROM_UNIXTIME(?), NOW()))
+     ON DUPLICATE KEY UPDATE pessoa_id = COALESCE(pessoa_id, VALUES(pessoa_id)), contato_id = COALESCE(contato_id, VALUES(contato_id)),
+       resposta_de = COALESCE(resposta_de, VALUES(resposta_de))`,
+    [
+      empresaId,
+      dono.pessoa_id,
+      dono.contato_id,
+      telefone,
+      nomeContato,
+      recebida ? 'recebida' : 'enviada',
+      c.tipo,
+      c.texto,
+      c.arquivo,
+      key.id,
+      q[0]?.id ?? null,
+      recebida ? 'recebida' : 'enviada',
+      recebida ? 0 : 1,
+      ts,
+    ],
   );
   // affectedRows 1 = linha nova (2/0 = aviso repetido de uma que já estava gravada)
   return recebida && r.affectedRows === 1 ? { empresaId, telefone, id: r.insertId } : null;

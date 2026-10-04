@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.92 — 2026-10-03
+
+- WhatsApp: "Responder" uma mensagem específica, como no WhatsApp (passar o mouse na mensagem; a citação aparece acima do campo, X ou Esc desiste). O cliente vê no celular qual mensagem está sendo respondida (texto e arquivos); no CRM a resposta mostra a citação, que leva à mensagem original. Quando o cliente responde citando uma mensagem, o CRM também mostra a citação.
+- Banco: `ALTER TABLE whatsapp_mensagens ADD COLUMN resposta_de INT NULL AFTER wa_id` (em extras/crmweb_schema.sql).
+
 ## 0.0.91 — 2026-10-03
 
 - WhatsApp: a conversa aberta (ex.: pelo negócio ou pela atividade) aparece na lista mesmo fora do filtro de estado.

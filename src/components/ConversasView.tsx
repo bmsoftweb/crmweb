@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
-import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, LockOpen, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, LockOpen, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Reply, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
 import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, limparConversa, atenderConversa, marcarMensagemPrivada, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
@@ -174,6 +174,10 @@ const resumo = (m: { tipo: string; texto: string | null; arquivo_nome: string | 
     ? `🔒 Mensagem privada (${m.privada.departamento})`
     : m.tipo === 'texto' ? m.texto || '' : `[${TIPOS[m.tipo] || m.tipo}] ${m.texto || m.arquivo_nome || ''}`.trim();
 
+/** Prévia da mensagem citada (Responder): privada de outro departamento vem sem o texto */
+const citado = (m: { tipo: string | null; texto: string | null; arquivo_nome: string | null; privada?: { departamento: string; oculta?: boolean } | null }) =>
+  m.privada?.oculta || (m.tipo === 'texto' && m.texto == null) ? '🔒 Mensagem privada' : resumo({ ...m, tipo: m.tipo ?? 'texto' }) || '[mensagem]';
+
 /** AAAA-MM-DD de ontem, no horário local (nunca toISOString) */
 function ontemIso(): string {
   const d = new Date();
@@ -213,6 +217,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [enviando, setEnviando] = useState(false);
   /** Arquivo escolhido para enviar (o texto vira a legenda) */
   const [anexo, setAnexo] = useState<(ArquivoConversa & { tamanho: number }) | null>(null);
+  /** Responder: a mensagem escolhida vai citada na próxima enviada (como no WhatsApp) */
+  const [respondendo, setRespondendo] = useState<MensagemWhatsApp | null>(null);
+  useEffect(() => setRespondendo(null), [aberta]);
   /** Segundos de gravação do áudio em andamento; null = não está gravando */
   const [gravando, setGravando] = useState<number | null>(null);
   const [descartar, setDescartar] = useState<'anexo' | 'gravacao' | null>(null);
@@ -338,7 +345,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
     setEnviando(true);
     try {
       const vinculada = atividade?.telefone === aberta ? atividade : null;
-      const r = await responderConversa(aberta, t, vinculada?.id, arquivo);
+      const r = await responderConversa(aberta, t, vinculada?.id, arquivo, respondendo?.id);
+      setRespondendo(null);
       if (!audio) setTexto('');
       if (arquivo === anexo) setAnexo(null);
       if (vinculada) {
@@ -902,7 +910,12 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                         );
                       }
                       return (
-                        <div key={m.id} title={m.erro ? `Não enviada: ${m.erro}` : undefined} className={`group flex mb-1.5 ${minha ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          key={m.id}
+                          id={`msg-${m.id}`}
+                          title={m.erro ? `Não enviada: ${m.erro}` : undefined}
+                          className={`group flex mb-1.5 ${minha ? 'justify-end' : 'justify-start'}`}
+                        >
                           <div
                             className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 py-1.5 text-[13px] leading-snug shadow-xs ${
                               minha
@@ -911,6 +924,19 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             }`}
                           >
                             {origem && <div className={`text-[10px] font-semibold mb-0.5 ${minha ? 'text-blue-100' : ''}`}>{origem}</div>}
+                            {m.resposta && (
+                              <button
+                                type="button"
+                                onClick={() => document.getElementById(`msg-${m.resposta!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                                title="Ir para a mensagem respondida"
+                                className={`block w-full text-left mb-1 px-2 py-1 rounded-md border-l-4 text-[11px] cursor-pointer ${
+                                  minha ? 'bg-blue-700/60 border-blue-200 text-blue-50' : 'bg-stone-100 dark:bg-stone-700/60 border-emerald-500 text-stone-600 dark:text-stone-300'
+                                }`}
+                              >
+                                <span className="block font-semibold">{m.resposta.direcao === 'recebida' ? nomeAberta || perfilAberta || 'Cliente' : 'Você'}</span>
+                                <span className="block line-clamp-2 break-words">{citado(m.resposta)}</span>
+                              </button>
+                            )}
                             {MIDIA.includes(m.tipo) && <MidiaMensagem id={m.id} tipo={m.tipo} />}
                             {m.tipo !== 'texto' && !MIDIA.includes(m.tipo) && (
                               <div className={`flex items-center gap-1.5 italic text-xs mb-0.5 ${minha ? 'text-blue-100' : 'text-stone-500 dark:text-stone-400'}`}>
@@ -919,6 +945,20 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             )}
                             {m.texto && <div className="whitespace-pre-wrap break-words">{m.texto}</div>}
                             <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${minha ? 'text-blue-100' : 'text-stone-400'}`}>
+                              {!travada && m.situacao !== 'falhou' && m.situacao !== 'pendente' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRespondendo(m);
+                                    setTimeout(() => campoRef.current?.focus());
+                                  }}
+                                  title="Responder esta mensagem (o cliente vê qual mensagem você está respondendo)"
+                                  className="flex items-center gap-0.5 cursor-pointer opacity-0 group-hover:opacity-100"
+                                >
+                                  <Reply className="w-3 h-3" />
+                                  Responder
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => setPrivando(m)}
@@ -966,6 +1006,20 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
             {conversa && conversa.estado !== 'atendimento' && (
               <div className="shrink-0 px-3 pt-2 text-[11px] text-stone-500 dark:text-stone-400">
                 Ao responder, você passa a atender esta conversa (o bot para e só você responde).
+              </div>
+            )}
+            {respondendo && (
+              <div className="shrink-0 mx-3 mt-2 flex items-center gap-2 px-3 py-2 rounded-lg border-l-4 border-emerald-500 bg-stone-100 dark:bg-stone-800 text-xs text-stone-700 dark:text-stone-200">
+                <Reply className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span className="min-w-0">
+                  <span className="block font-semibold">
+                    Respondendo a {respondendo.direcao === 'recebida' ? nomeAberta || perfilAberta || 'Cliente' : 'você'}
+                  </span>
+                  <span className="block truncate text-stone-500 dark:text-stone-400">{citado(respondendo)}</span>
+                </span>
+                <button onClick={() => setRespondendo(null)} title="Não responder esta mensagem (Esc)" className="ml-auto shrink-0 text-stone-400 hover:text-red-600 cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             )}
             {anexo && (
@@ -1023,6 +1077,12 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     disabled={enviando}
                     onChange={(e) => setTexto(e.target.value)}
                     onKeyDown={(e) => {
+                      // Esc desiste de responder a mensagem escolhida
+                      if (e.key === 'Escape' && respondendo) {
+                        e.preventDefault();
+                        setRespondendo(null);
+                        return;
+                      }
                       // Enter envia; Shift+Enter quebra a linha
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();

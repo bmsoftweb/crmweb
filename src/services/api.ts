@@ -646,6 +646,8 @@ export interface MensagemWhatsApp {
   data_hora: string;
   /** Privada de um departamento (oculta: o usuário não é de lá; vem sem o conteúdo) */
   privada?: { departamento: string; oculta?: boolean } | null;
+  /** Mensagem que esta responde (citação); texto null = privada de outro departamento */
+  resposta?: { id: number; direcao: 'enviada' | 'recebida' | null; tipo: string | null; texto: string | null; arquivo_nome: string | null } | null;
 }
 
 /** minhas: as sem departamento, as do meu departamento e as que eu assumi */
@@ -695,8 +697,15 @@ export const responderConversa = (
   texto: string,
   atividadeId?: number | null,
   arquivo?: ArquivoConversa | null,
+  /** Mensagem da conversa que esta responde (aparece citada no WhatsApp do cliente) */
+  respostaDe?: number | null,
 ): Promise<{ success: boolean; telefone: string; atividade_concluida: boolean }> =>
-  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, { texto, atividade_id: atividadeId ?? null, arquivo: arquivo ?? undefined });
+  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, {
+    texto,
+    atividade_id: atividadeId ?? null,
+    arquivo: arquivo ?? undefined,
+    resposta_de: respostaDe ?? null,
+  });
 /** Conversa de uma atividade WhatsApp: o número do cliente (pessoa da atividade ou do negócio) */
 export const fetchConversaDaAtividade = (
   id: Id,
