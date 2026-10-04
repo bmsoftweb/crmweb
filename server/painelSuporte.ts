@@ -72,11 +72,9 @@ async function resumo(empresa: string, f: Faixa) {
             AVG(CASE WHEN c.criado_em >= ? AND c.criado_em < ? AND c.assumido_em IS NOT NULL
                      THEN TIMESTAMPDIFF(MINUTE, c.criado_em, c.assumido_em) END) AS min_assumir,
             AVG(CASE WHEN c.status = 'encerrado' AND c.encerrado_em >= ? AND c.encerrado_em < ?
-                     THEN TIMESTAMPDIFF(MINUTE, c.criado_em, c.encerrado_em) END) AS min_resolver,
-            SUM(c.status = 'encerrado' AND c.encerrado_em >= ? AND c.encerrado_em < ? AND c.sla_prazo IS NOT NULL) AS sla_total,
-            SUM(c.status = 'encerrado' AND c.encerrado_em >= ? AND c.encerrado_em < ? AND c.sla_prazo IS NOT NULL AND c.encerrado_em <= c.sla_prazo) AS sla_ok
+                     THEN TIMESTAMPDIFF(MINUTE, c.criado_em, c.encerrado_em) END) AS min_resolver
        FROM chamados c WHERE c.empresa_id = ?`,
-    [a, b, a, b, a, b, a, b, a, b, a, b, empresa],
+    [a, b, a, b, a, b, a, b, empresa],
   );
   const [[wa]] = await pool.query<any[]>(
     `SELECT COUNT(*) AS total, SUM(atendente_id IS NULL) AS so_bot,
@@ -99,7 +97,6 @@ async function resumo(empresa: string, f: Faixa) {
       encerrados: n(ch.encerrados) ?? 0,
       min_assumir: n(ch.min_assumir),
       min_resolver: n(ch.min_resolver),
-      sla_pct: Number(ch.sla_total) ? (Number(ch.sla_ok) / Number(ch.sla_total)) * 100 : null,
     },
     whatsapp: {
       total: n(wa.total) ?? 0,
@@ -177,7 +174,10 @@ export function createPainelSuporteRouter(): Router {
                 SUM(status = 'aguardando' AND atendente_id IS NULL) AS na_fila,
                 SUM(status NOT IN ('encerrado','cancelado') AND sla_prazo IS NOT NULL AND sla_prazo < NOW()) AS sla_estourado,
                 SUM(status = 'pendente_cliente') AS pendente_cliente,
-                SUM(status = 'pausado') AS pausados
+                SUM(status = 'pausado') AS pausados,
+                -- Abertos hoje, e ontem o dia inteiro (para comparar)
+                SUM(criado_em >= CURDATE()) AS hoje,
+                SUM(criado_em >= CURDATE() - INTERVAL 1 DAY AND criado_em < CURDATE()) AS ontem
            FROM chamados WHERE empresa_id = ?`,
         [empresa],
       );

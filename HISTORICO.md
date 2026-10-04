@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.96 — 2026-10-04
+
+- Painel de Suporte: o card "SLA cumprido" deu lugar a "Chamados hoje" (abertos hoje, comparados com todos os abertos ontem; não depende do período escolhido). O "SLA estourado" do bloco "Agora" continua.
+
 ## 0.0.95 — 2026-10-04
 
 - Atividades: a conversa aberta pela atividade (dois cliques na lista ou clique na ficha do negócio) é a do número em que a pessoa conversou no WhatsApp, de preferência a de antes da atividade ser criada; o telefone do cadastro (ex.: o fixo da empresa) só quando não há conversa. Antes abria o telefone do cadastro, que podia não ter conversa e não aparecia na lista.

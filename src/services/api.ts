@@ -501,7 +501,7 @@ export const testarD4Sign = (): Promise<{ cofres: { uuid: string; nome: string }
 
 /** Painel de Suporte: indicadores do período e do anterior equivalente (server/painelSuporte.ts) */
 export interface ResumoSuporte {
-  chamados: { abertos: number; encerrados: number; min_assumir: number | null; min_resolver: number | null; sla_pct: number | null };
+  chamados: { abertos: number; encerrados: number; min_assumir: number | null; min_resolver: number | null };
   whatsapp: { total: number; so_bot_pct: number | null; min_duracao: number | null };
   satisfacao: { respondidas: number; media: number | null; resposta_pct: number | null };
 }
@@ -514,7 +514,8 @@ export interface PainelSuporteDados {
   periodo: { chave: string; atual: { de: string; ate: string }; anterior: { de: string; ate: string } };
   atual: ResumoSuporte;
   anterior: ResumoSuporte;
-  agora: { em_aberto: number; na_fila: number; sla_estourado: number; pendente_cliente: number; pausados: number };
+  /** hoje = chamados abertos hoje; ontem = abertos ontem (o dia inteiro) */
+  agora: { em_aberto: number; na_fila: number; sla_estourado: number; pendente_cliente: number; pausados: number; hoje: number; ontem: number };
   serie: { unidade: 'dia' | 'semana' | 'mes'; pontos: { k: string; abertos: number; encerrados: number; whatsapp: number }[] };
   canais: Contagem[];
   categorias: Contagem[];

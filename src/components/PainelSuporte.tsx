@@ -5,6 +5,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Bot,
+  CalendarDays,
   CheckCircle2,
   Clock,
   Hourglass,
@@ -12,7 +13,6 @@ import {
   Loader2,
   MessageCircle,
   PauseCircle,
-  ShieldCheck,
   Star,
   Ticket,
   UserRoundCheck,
@@ -403,8 +403,8 @@ export const PainelSuporte: React.FC<Props> = ({ refreshToken, onNavigate, onNav
         <Indicador titulo="Tempo de resolução" valor={duracao(a.chamados.min_resolver)} icone={Clock} detalhe="média, abertura ao encerramento">
           <Variacao atual={a.chamados.min_resolver} anterior={b.chamados.min_resolver} melhorSeMaior={false} />
         </Indicador>
-        <Indicador titulo="SLA cumprido" valor={pct(a.chamados.sla_pct)} icone={ShieldCheck} detalhe="dos encerrados com prazo">
-          <Variacao atual={a.chamados.sla_pct} anterior={b.chamados.sla_pct} melhorSeMaior pontos="pp" />
+        <Indicador titulo="Chamados hoje" valor={inteiro(agora.hoje)} icone={CalendarDays} detalhe="abertos hoje, comparado a ontem">
+          <Variacao atual={agora.hoje} anterior={agora.ontem} melhorSeMaior={false} />
         </Indicador>
         <Indicador titulo="Atendimentos WhatsApp" valor={inteiro(a.whatsapp.total)} icone={MessageCircle} detalhe={`duração média ${duracao(a.whatsapp.min_duracao)}`}>
           <Variacao atual={a.whatsapp.total} anterior={b.whatsapp.total} melhorSeMaior />
