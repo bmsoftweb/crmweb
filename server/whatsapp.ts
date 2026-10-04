@@ -393,11 +393,22 @@ export async function reservarEnvio(empresaId: string | number, origem: string, 
  * Envia a mensagem reservada (texto final). Provedor em falha desfaz a reserva (tenta de novo depois)
  * e lança ErroProvedor; destinatário recusado fica como "falhou", com o motivo.
  */
-export async function enviarReservada(empresaId: string | number, id: number, origem: string, telefone: string, texto: string, midia?: ArquivoEnvio): Promise<void> {
+export async function enviarReservada(
+  empresaId: string | number,
+  id: number,
+  origem: string,
+  telefone: string,
+  texto: string,
+  midia?: ArquivoEnvio,
+  /** Nome do bot: o cliente vê "*Eloisa:* ..." (o registro fica sem, como nas do atendente) */
+  assinatura?: string,
+): Promise<void> {
   let resposta: any;
   try {
     const c = await credenciaisPara(empresaId, telefone);
-    resposta = midia ? await midiaPara(c, telefone, midia) : await textoPara(c, telefone, texto);
+    resposta = midia
+      ? await midiaPara(c, telefone, midia.legenda ? { ...midia, legenda: assinado(assinatura, midia.legenda) } : midia)
+      : await textoPara(c, telefone, assinado(assinatura, texto));
     if (midia) await pool.query('UPDATE whatsapp_mensagens SET tipo = ? WHERE id = ?', [midia.tipo, id]);
   } catch (err: any) {
     if (err instanceof ErroProvedor) {
@@ -494,6 +505,14 @@ export function escolherDono(chave: string, candidatos: { de: 'p' | 'c'; pessoa_
 }
 
 /** De quem é o número (DDI + DDD + número): pessoa e, se for o caso, o contato dela */
+/**
+ * Dono da conversa nas consultas agrupadas por telefone: a pessoa (e o contato) da mensagem mais recente que tem
+ * cadastro. MAX(pessoa_id) pegava o cadastro de maior número quando o mesmo celular está em mais de um.
+ */
+export const PESSOA_RECENTE = (a = '') => `CAST(SUBSTRING_INDEX(GROUP_CONCAT(${a}pessoa_id ORDER BY ${a}id DESC), ',', 1) AS UNSIGNED)`;
+export const CONTATO_RECENTE = (a = '') =>
+  `NULLIF(CAST(SUBSTRING_INDEX(GROUP_CONCAT(IF(${a}pessoa_id IS NULL, NULL, IFNULL(${a}contato_id, 0)) ORDER BY ${a}id DESC), ',', 1) AS UNSIGNED), 0)`;
+
 export async function donoDoTelefone(empresaId: string | number, telefone: string): Promise<Dono> {
   const chave = chaveTelefone(telefone, true);
   if (!chave) return { pessoa_id: null, contato_id: null };

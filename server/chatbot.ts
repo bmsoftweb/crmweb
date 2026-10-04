@@ -4,7 +4,7 @@ import { pool } from './db.js';
 import { lerConfig } from './config.js';
 import { cifrar, decifrar, textoConfig } from './segredo.js';
 import { aposGravar, sincronizarNegocio } from './regras.js';
-import { chaveTelefone, contaDaConversa, donoDoTelefone, enviarAutomatica, enviarReservada, enviarWhatsApp, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type Dono, type MensagemNova } from './whatsapp.js';
+import { chaveTelefone, CONTATO_RECENTE, contaDaConversa, donoDoTelefone, PESSOA_RECENTE, enviarAutomatica, enviarReservada, enviarWhatsApp, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type Dono, type MensagemNova } from './whatsapp.js';
 import { refProposta } from '../src/utils/formatters.js';
 import { campanhaDaConversa, PEDIU_SAIR, type CampanhaDaConversa } from './campanhas.js';
 
@@ -314,7 +314,7 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
 export async function marcarEvento(empresaId: string | number, telefone: string, texto: string, usuarioId: number | null, quando: string | null = null) {
   await pool.query(
     `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, usuario_id, vista, data_hora)
-     SELECT ?, MAX(pessoa_id), MAX(contato_id), ?, 'enviada', 'evento', ?, 'enviada', ?, ?, 1, COALESCE(?, NOW())
+     SELECT ?, ${PESSOA_RECENTE()}, ${CONTATO_RECENTE()}, ?, 'enviada', 'evento', ?, 'enviada', ?, ?, 1, COALESCE(?, NOW())
        FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`,
     [empresaId, telefone, texto.slice(0, 250), `evento:${telefone}:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`, usuarioId, quando, empresaId, telefone],
   );
@@ -355,7 +355,7 @@ export async function avisarFalha(empresaId: string | number, telefone: string, 
 export async function marcarEncerramento(empresaId: string | number, telefone: string, usuarioId: number | null, quando: string | null = null, texto?: string) {
   await pool.query(
     `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, usuario_id, vista, data_hora)
-     SELECT ?, MAX(pessoa_id), MAX(contato_id), ?, 'enviada', 'encerramento', ?, 'enviada', ?, ?, 1, COALESCE(?, NOW())
+     SELECT ?, ${PESSOA_RECENTE()}, ${CONTATO_RECENTE()}, ?, 'enviada', 'encerramento', ?, 'enviada', ?, ?, 1, COALESCE(?, NOW())
        FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`,
     [
       empresaId,

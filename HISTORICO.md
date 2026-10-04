@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.91 — 2026-10-03
+
+- WhatsApp: a conversa aberta (ex.: pelo negócio ou pela atividade) aparece na lista mesmo fora do filtro de estado.
+- WhatsApp: o dono da conversa é o cadastro da mensagem mais recente que tem pessoa (antes, o de maior número quando o mesmo celular está em mais de um cadastro). Vale para a lista, o topo da conversa, as linhas de evento/encerramento, a Automação, a inatividade e as pesquisas.
+- WhatsApp: as mensagens do bot (Automação e bot das atividades) saem assinadas com o nome do bot ("*Eloisa:* ..."), como as do atendente; o registro no CRM fica sem a assinatura.
+
 ## 0.0.90 — 2026-10-03
 
 - Busca avançada (telas com o campo Ativo, como Pessoas): interruptor "Listar também os desativados" no lugar do combo Ativo; desligado lista só os ativos. "Limpar filtros" volta ao padrão (só os ativos).

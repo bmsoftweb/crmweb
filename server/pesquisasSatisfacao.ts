@@ -5,6 +5,7 @@ import { podeAcessar } from './permissoes.js';
 import { aposGravar } from './regras.js';
 import { enviarEmail, lerRespostas } from './email.js';
 import { conversarIa, lerChatbot, marcarEvento, temChave } from './chatbot.js';
+import { PESSOA_RECENTE } from './whatsapp.js';
 
 /**
  * Pesquisa de satisfação (Suporte › Pesquisa de Satisfação; tabelas pesquisas_satisfacao e pesquisas_satisfacao_itens).
@@ -438,7 +439,7 @@ export async function registrarAtendimentoWhatsApp(empresaId: number, telefone: 
   if (!e[0]) return;
   const faixa = [empresaId, telefone, e[1]?.id ?? 0, e[0].id];
   const [r] = await pool.query<any[]>(
-    `SELECT MIN(data_hora) AS inicio, MAX(pessoa_id) AS pessoa_id, SUM(direcao = 'recebida' AND (origem IS NULL OR origem NOT LIKE 'pesquisa%')) AS recebidas
+    `SELECT MIN(data_hora) AS inicio, ${PESSOA_RECENTE()} AS pessoa_id, SUM(direcao = 'recebida' AND (origem IS NULL OR origem NOT LIKE 'pesquisa%')) AS recebidas
        FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ? AND id > ? AND id < ? AND tipo NOT IN ('encerramento', 'evento')`,
     faixa,
   );

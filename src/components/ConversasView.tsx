@@ -226,7 +226,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [minhas, setMinhas] = useState(false);
   /** Filtro da lista pelo estado do atendimento ('' = todas; vírgula = mais de um estado) */
   const [filtroEstado, setFiltroEstado] = useState<'' | 'aguardando' | 'atendimento' | 'aguardando,atendimento' | 'encerrado'>('aguardando,atendimento');
-  const visiveis = filtroEstado ? conversas?.filter((c) => filtroEstado.split(',').includes(c.estado ?? '')) : conversas;
+  // A conversa aberta (ex.: vinda do negócio ou da atividade) fica na lista mesmo fora do filtro
+  const visiveis = filtroEstado ? conversas?.filter((c) => c.telefone === aberta || filtroEstado.split(',').includes(c.estado ?? '')) : conversas;
   /** Transferir: destino escolhido ("u:ID" atendente, "d:ID" departamento); null = janela fechada */
   const [transferir, setTransferir] = useState<string | null>(null);
   const [destinos, setDestinos] = useState<{ usuarios: OpcaoRef[]; departamentos: OpcaoRef[] }>({ usuarios: [], departamentos: [] });

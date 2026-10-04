@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
-import { ArquivoEnvio, chaveTelefone, donoDoTelefone, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
+import { ArquivoEnvio, chaveTelefone, CONTATO_RECENTE, donoDoTelefone, PESSOA_RECENTE, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
 import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
@@ -457,7 +457,7 @@ export function createConversasRouter(): Router {
                 DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde,
                 -- Pausada: o último evento é a pausa, e depois dela não começou outra espera
                 COALESCE(ev.texto LIKE 'Pausado por%' AND ev.data_hora >= COALESCE(wc.humano_desde, ev.data_hora), 0) AS pausada
-           FROM (SELECT telefone, MAX(IF(tipo NOT IN ('encerramento', 'evento'), id, NULL)) AS ultima, MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id,
+           FROM (SELECT telefone, MAX(IF(tipo NOT IN ('encerramento', 'evento'), id, NULL)) AS ultima, ${PESSOA_RECENTE()} AS pessoa_id, ${CONTATO_RECENTE()} AS contato_id,
                         MAX(IF(tipo = 'evento', id, NULL)) AS ultimo_evento,
                         SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas,
                         -- Encerrado (botão, tempo ou fim da automação) e o cliente ainda não escreveu de novo (a nota da pesquisa não conta)
@@ -566,7 +566,7 @@ export function createConversasRouter(): Router {
       const telefone = req.params.telefone;
       if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
       const [ult] = await pool.query<any[]>(
-        `SELECT MAX(w.pessoa_id) AS pessoa_id, MAX(w.contato_id) AS contato_id, ${NOME_CONTATO('w')} AS nome_contato
+        `SELECT ${PESSOA_RECENTE('w.')} AS pessoa_id, ${CONTATO_RECENTE('w.')} AS contato_id, ${NOME_CONTATO('w')} AS nome_contato
            FROM whatsapp_mensagens w WHERE w.empresa_id = ? AND w.telefone = ?
           GROUP BY w.empresa_id, w.telefone`,
         [emp, telefone],
@@ -655,7 +655,7 @@ export function createConversasRouter(): Router {
       if (!texto && !arquivo) return res.status(400).json({ error: 'Digite a mensagem.' });
       if (texto.length > 4000) return res.status(400).json({ error: 'Mensagem grande demais (máximo de 4.000 caracteres).' });
       const [ult] = await pool.query<any[]>(
-        'SELECT MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?',
+        `SELECT ${PESSOA_RECENTE()} AS pessoa_id, ${CONTATO_RECENTE()} AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`,
         [emp, telefone],
       );
       // Em atendimento com outro: recusa. Ninguém atendendo: quem responde pega a conversa (o bot para)

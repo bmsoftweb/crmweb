@@ -4,7 +4,7 @@ import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { lerConfig, somenteAdmin } from './config.js';
 import { cifrar, decifrar } from './segredo.js';
-import { chaveTelefone, contaDaConversa, donoDoTelefone, enviarReservada, mostrarDigitando, reservarEnvio, type ArquivoEnvio, type ContaWhats, type MensagemNova } from './whatsapp.js';
+import { chaveTelefone, CONTATO_RECENTE, contaDaConversa, donoDoTelefone, PESSOA_RECENTE, enviarReservada, mostrarDigitando, reservarEnvio, type ArquivoEnvio, type ContaWhats, type MensagemNova } from './whatsapp.js';
 import { campanhaDaConversa, contextoDeCampanha } from './campanhas.js';
 import {
   avisarDepartamento,
@@ -465,7 +465,7 @@ async function gravarEstado(empresaId: number, telefone: string, e: Estado) {
 }
 
 async function contextoDaConversa(empresaId: number, telefone: string): Promise<Contexto> {
-  const [d] = await pool.query<any[]>('SELECT MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?', [
+  const [d] = await pool.query<any[]>(`SELECT ${PESSOA_RECENTE()} AS pessoa_id, ${CONTATO_RECENTE()} AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`, [
     empresaId,
     telefone,
   ]);
@@ -546,7 +546,7 @@ class Execucao {
     this.estado.vars._seq = seq;
     const origem = `bot:j${this.estado.conversaId}:${seq}`;
     const id = await reservarEnvio(this.ctx.empresaId, origem, this.ctx.dono, this.ctx.telefone, t);
-    if (id) await enviarReservada(this.ctx.empresaId, id, origem, this.ctx.telefone, t.slice(0, 4000), midia);
+    if (id) await enviarReservada(this.ctx.empresaId, id, origem, this.ctx.telefone, t.slice(0, 4000), midia, this.bot?.nome || 'Assistente');
   }
 
   private async menu(no: No, prefixo = '') {

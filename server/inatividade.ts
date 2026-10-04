@@ -1,6 +1,6 @@
 import { pool } from './db.js';
 import { encerrarAtendimento, marcarEncerramento, minutosInatividade, type ConfigChatbot } from './chatbot.js';
-import { enviarReservada, reservarEnvio } from './whatsapp.js';
+import { CONTATO_RECENTE, enviarReservada, PESSOA_RECENTE, reservarEnvio } from './whatsapp.js';
 
 /**
  * Encerramento por falta de interação no WhatsApp. A última mensagem da conversa foi do bot ou do técnico, o
@@ -63,7 +63,7 @@ async function passe(empresaId: number, minutos: number): Promise<{ avisadas: nu
       } else if (idade >= minutos * 60) {
         // Origem com o id da última mensagem: o mesmo silêncio não gera dois avisos
         const origem = `inatividade:${c.telefone}:${c.id}`;
-        const [d] = await pool.query<any[]>('SELECT MAX(pessoa_id) AS pessoa_id, MAX(contato_id) AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?', [
+        const [d] = await pool.query<any[]>(`SELECT ${PESSOA_RECENTE()} AS pessoa_id, ${CONTATO_RECENTE()} AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`, [
           empresaId,
           c.telefone,
         ]);

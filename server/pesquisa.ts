@@ -1,7 +1,7 @@
 import { pool } from './db.js';
 import { lerConfig } from './config.js';
 import { textoConfig } from './segredo.js';
-import { enviarReservada, reservarEnvio, type MensagemNova } from './whatsapp.js';
+import { enviarReservada, PESSOA_RECENTE, reservarEnvio, type MensagemNova } from './whatsapp.js';
 import { marcarEvento } from './chatbot.js';
 
 /**
@@ -84,7 +84,7 @@ export async function enviarPesquisa(
     "UPDATE avaliacoes SET situacao = 'expirada' WHERE empresa_id = ? AND telefone = ? AND situacao IN ('aguardando_nota', 'aguardando_comentario')",
     [emp, telefone],
   );
-  const [p] = await pool.query<any[]>('SELECT MAX(pessoa_id) AS pessoa_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?', [emp, telefone]);
+  const [p] = await pool.query<any[]>(`SELECT ${PESSOA_RECENTE()} AS pessoa_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`, [emp, telefone]);
   const [a] = await pool.query<any>(
     `INSERT INTO avaliacoes (empresa_id, telefone, pessoa_id, atendente_id, departamento_id, origem, situacao, pedida_em)
      VALUES (?, ?, ?, ?, ?, ?, 'aguardando_nota', NOW())`,

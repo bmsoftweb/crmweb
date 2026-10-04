@@ -153,7 +153,7 @@ async function enviarNaConversa(empresaId: number, conv: any, texto: string) {
   const origem = `atividade-bot:${conv.id}:${Date.now()}`;
   const id = await reservarEnvio(empresaId, origem, { pessoa_id: conv.pessoa_id, contato_id: null }, conv.destino, texto);
   if (!id) return;
-  await enviarReservada(empresaId, id, origem, conv.destino, texto);
+  await enviarReservada(empresaId, id, origem, conv.destino, texto, undefined, (await lerChatbot(empresaId))?.nome || 'Assistente');
   const [w] = await pool.query<any[]>('SELECT telefone, situacao, erro FROM whatsapp_mensagens WHERE id = ?', [id]);
   if (w[0]?.situacao === 'falhou') throw new Error(`WhatsApp recusou a mensagem: ${w[0].erro ?? ''}`);
   if (w[0]?.telefone && w[0].telefone !== conv.destino) {
