@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.89 — 2026-10-03
+
+- Cadastros: a cor das etapas do funil e das categorias de chamado é escolhida numa tabela de cores (com "Sem cor"), sem digitar o código; na lista aparece o quadradinho da cor. O servidor só aceita cor no formato #RRGGBB.
+
 ## 0.0.88 — 2026-10-03
 
 - Automação das campanhas: quem responde a uma campanha é a pessoa que a recebeu, mesmo quando o número está em outros cadastros (antes valia o cadastro de maior número entre as mensagens do telefone).

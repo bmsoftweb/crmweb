@@ -32,7 +32,9 @@ export type FieldType =
   /** Regras de segmentação de campanha, gravadas como JSON (server/campanhas.ts) */
   | 'criterios'
   /** Até 4 fotos no Vercel Blob; a coluna guarda os endereços em JSON (server/fotos.ts) */
-  | 'fotos';
+  | 'fotos'
+  /** Cor #RRGGBB escolhida numa tabela de cores (src/components/CorField.tsx) */
+  | 'cor';
 
 export interface FieldDef {
   /** Nome da coluna no MySQL */
@@ -1284,7 +1286,7 @@ export const RESOURCES: ResourceDef[] = [
       ID,
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 80 },
       { name: 'sla_horas', label: 'SLA (horas)', type: 'number', required: true, listed: true, default: 24, width: 'xs', hint: 'Prazo para resolver, contado da abertura do chamado' },
-      { name: 'cor', label: 'Cor', type: 'text', maxLength: 7, listed: true, width: 'xs', hint: 'Ex.: #3B82F6 (etiqueta da categoria na fila)' },
+      { name: 'cor', label: 'Cor', type: 'cor', listed: true, width: 'xs', hint: 'Etiqueta da categoria na fila' },
       { name: 'ativo', label: 'Ativo', type: 'boolean', listed: true, filterable: true, default: true, width: 'xs' },
       { name: 'criado_em', label: 'Criado em', type: 'datetime', readOnly: true },
     ],
@@ -1473,7 +1475,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 100 },
       { name: 'ordem', label: 'Ordem', type: 'number', listed: true, width: 'xs' },
       { name: 'probabilidade', label: 'Probabilidade (%)', type: 'decimal', scale: 2, listed: true, default: '100.00' },
-      { name: 'cor', label: 'Cor', type: 'text', maxLength: 7, listed: true, width: 'xs', hint: 'Ex.: #3B82F6 (faixa no topo da coluna do Kanban)' },
+      { name: 'cor', label: 'Cor', type: 'cor', listed: true, width: 'xs', hint: 'Faixa no topo da coluna do Kanban' },
       ...CRIADO_ATUALIZADO,
     ],
   },

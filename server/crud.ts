@@ -69,6 +69,11 @@ function coerceValue(field: FieldDef, raw: any): any {
     }
     case 'fotos':
       return prepararFotos(raw, field.label);
+    case 'cor': {
+      const cor = String(raw).trim().toUpperCase();
+      if (!/^#[0-9A-F]{6}$/.test(cor)) throw new Error(`O campo "${field.label}" precisa ser uma cor (#RRGGBB).`);
+      return cor;
+    }
     case 'criterios':
       // Validado e normalizado em antesDeGravar (regras.ts)
       return typeof raw === 'string' ? raw : JSON.stringify(raw);

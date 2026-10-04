@@ -15,6 +15,7 @@ import { fetchCamposPersonalizados, fetchEnderecos, fetchParticipantes, travaCon
 import { EnderecosPessoa } from './EnderecosPessoa';
 import { ParticipantesNegocio } from './ParticipantesNegocio';
 import { CriteriosSegmento } from './CriteriosSegmento';
+import { CorField } from './CorField';
 
 interface RecordFormProps {
   resource: ResourceDef;
@@ -476,6 +477,9 @@ export const RecordForm: React.FC<RecordFormProps> = ({
       case 'fotos':
         return <FotosField id={inputId} produtoId={(record?.id as Id | undefined) ?? null} value={value} onChange={(v) => setValue(field.name, v)} />;
 
+      case 'cor':
+        return <CorField id={inputId} value={String(value ?? '')} onChange={(v) => setValue(field.name, v)} />;
+
       case 'criterios':
         return <CriteriosSegmento id={inputId} value={value} onChange={(v) => setValue(field.name, v)} />;
 
@@ -595,7 +599,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({
   };
 
   /** Campos longos ocupam a linha inteira do grid */
-  const isWide = (f: FieldDef) => f.type === 'textarea' || f.type === 'imagem' || f.type === 'criterios' || f.type === 'fotos' || f.maxLength === 255;
+  const isWide = (f: FieldDef) => f.type === 'textarea' || f.type === 'cor' || f.type === 'imagem' || f.type === 'criterios' || f.type === 'fotos' || f.maxLength === 255;
 
   // "Customizar layout": cada campo ganha borda e alças; a largura anda em colunas de um grid
   // de 4 (no desktop) e a altura é a do controle, em px.

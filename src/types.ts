@@ -17,7 +17,9 @@ export type FieldType =
   /** Regras de segmentação de campanha (JSON) */
   | 'criterios'
   /** Até 4 fotos no Vercel Blob (endereços em JSON) */
-  | 'fotos';
+  | 'fotos'
+  /** Cor #RRGGBB escolhida numa tabela de cores */
+  | 'cor';
 
 export interface FieldDef {
   name: string;

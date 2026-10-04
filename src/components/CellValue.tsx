@@ -56,6 +56,11 @@ export const CellValue: React.FC<CellValueProps> = ({ field, row, refOptions }) 
     );
   }
 
+  if (field.type === 'cor') {
+    if (!value) return <span className="text-stone-400">—</span>;
+    return <span className="inline-block w-4 h-4 rounded align-middle" style={{ background: String(value) }} title={String(value)} />;
+  }
+
   if (field.type === 'boolean') {
     const on = value === true || Number(value) === 1;
     return (
