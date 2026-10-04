@@ -1473,6 +1473,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'nome', label: 'Nome', type: 'text', required: true, listed: true, searchable: true, maxLength: 100 },
       { name: 'ordem', label: 'Ordem', type: 'number', listed: true, width: 'xs' },
       { name: 'probabilidade', label: 'Probabilidade (%)', type: 'decimal', scale: 2, listed: true, default: '100.00' },
+      { name: 'cor', label: 'Cor', type: 'text', maxLength: 7, listed: true, width: 'xs', hint: 'Ex.: #3B82F6 (faixa no topo da coluna do Kanban)' },
       ...CRIADO_ATUALIZADO,
     ],
   },

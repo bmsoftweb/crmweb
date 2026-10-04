@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, Loader2, Send, X } from 'lucide-react';
+import { Eye, ListPlus, Loader2, Play, Send, X } from 'lucide-react';
 import { RegistroCrud } from '../types';
-import { enviarDisparoAgora, gerarDisparos, previaCampanha, PreviaCampanha } from '../services/api';
+import { enviarDisparoAgora, gerarDisparos, iniciarEnvioCampanha, previaCampanha, PreviaCampanha } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BotaoAcao } from './MenuAcoes';
 
@@ -21,10 +21,10 @@ interface Props {
   onToast: (msg: string) => void;
 }
 
-/** Ações da linha da campanha: pré-visualizar a mensagem com o público e gerar os disparos */
+/** Ações da linha da campanha: pré-visualizar a mensagem com o público, gerar os disparos e iniciar o envio */
 export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast }) => {
   const [ocupado, setOcupado] = useState(false);
-  const [confirmando, setConfirmando] = useState(false);
+  const [confirmando, setConfirmando] = useState<'gerar' | 'iniciar' | null>(null);
   const [previa, setPrevia] = useState<PreviaCampanha | null>(null);
   const id = registro.id as number;
 
@@ -42,24 +42,41 @@ export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast 
   return (
     <>
       <BotaoAcao icone={Eye} titulo="Pré-visualizar" descricao="Mostra o tamanho do público e a mensagem pronta para as primeiras pessoas" carregando={ocupado} onClick={verPrevia} />
-      <BotaoAcao icone={Send} titulo="Gerar disparos" descricao="Cria uma mensagem por pessoa do público e começa o envio" onClick={() => setConfirmando(true)} />
-      {confirmando &&
+      <BotaoAcao icone={ListPlus} titulo="Gerar disparos" descricao="Cria uma mensagem por pessoa do público, sem enviar" onClick={() => setConfirmando('gerar')} />
+      <BotaoAcao icone={Play} titulo="Iniciar envio campanha" descricao="Liga o envio dos disparos pendentes" onClick={() => setConfirmando('iniciar')} />
+      {confirmando === 'gerar' &&
         noBody(
           <ConfirmDialog
             titulo={`Gerar os disparos de "${registro.nome}"?`}
-            mensagem="Cria uma mensagem por pessoa do público, já personalizada, com o celular ou e-mail de destino. Quem não tem o contato do canal fica de fora; quem já recebeu não recebe de novo; os pendentes são refeitos com o texto atual. A campanha passa a Em execução e o envio começa (ou na data de Enviar a partir de)."
+            mensagem="Cria uma mensagem por pessoa do público, já personalizada, com o celular ou e-mail de destino. Quem não tem o contato do canal fica de fora; quem já recebeu não recebe de novo; os pendentes são refeitos com o texto atual. Nada é enviado ainda: confira os disparos e use Iniciar envio campanha."
             confirmar="Gerar disparos"
             tom="normal"
             onConfirmar={async () => {
               const r = await gerarDisparos(id);
-              setConfirmando(false);
+              setConfirmando(null);
               const partes = [`${r.gerados} disparo(s) gerado(s) de ${r.publico} pessoa(s) do público`];
               if (r.sem_contato) partes.push(`${r.sem_contato} sem o contato do canal`);
               if (r.ja_enviados) partes.push(`${r.ja_enviados} já tinham recebido`);
-              onToast(`${partes.join('; ')}.${r.situacao === 'pausada' ? ' A campanha está pausada: o envio só começa quando voltar a Em execução.' : ''}`);
+              onToast(`${partes.join('; ')}.${r.situacao === 'em_execucao' ? ' O envio já está ligado: eles saem em seguida.' : ''}`);
               onRecarregar();
             }}
-            onCancelar={() => setConfirmando(false)}
+            onCancelar={() => setConfirmando(null)}
+          />,
+        )}
+      {confirmando === 'iniciar' &&
+        noBody(
+          <ConfirmDialog
+            titulo={`Iniciar o envio de "${registro.nome}"?`}
+            mensagem="A campanha passa a Em execução e os disparos pendentes começam a sair (ou na data de Enviar a partir de). Para parar, mude a situação para Pausada."
+            confirmar="Iniciar envio"
+            tom="normal"
+            onConfirmar={async () => {
+              const r = await iniciarEnvioCampanha(id);
+              setConfirmando(null);
+              onToast(`Envio iniciado: ${r.pendentes} disparo(s) pendente(s).`);
+              onRecarregar();
+            }}
+            onCancelar={() => setConfirmando(null)}
           />,
         )}
       {previa &&

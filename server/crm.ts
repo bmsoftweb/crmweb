@@ -282,7 +282,7 @@ export function createCrmRouter() {
     const emp = empresaDa(res);
     const [funis] = await pool.query<any[]>('SELECT id, nome FROM funis WHERE ativo = 1 AND empresa_id = ? ORDER BY ordem, nome', [emp]);
     const [etapas] = await pool.query<any[]>(
-      'SELECT id, funil_id, nome, ordem, probabilidade FROM etapas WHERE funil_id IN (SELECT id FROM funis WHERE empresa_id = ?) ORDER BY ordem, nome',
+      'SELECT id, funil_id, nome, ordem, probabilidade, cor FROM etapas WHERE funil_id IN (SELECT id FROM funis WHERE empresa_id = ?) ORDER BY ordem, nome',
       [emp],
     );
     res.json(funis.map((f) => ({ ...f, etapas: etapas.filter((e) => e.funil_id === f.id) })));
@@ -386,7 +386,7 @@ export function createCrmRouter() {
       [id, empresaDa(res)],
     );
     if (!neg.length) throw erro(404, 'Negócio não encontrado.');
-    const [etapas] = await pool.query<any[]>('SELECT id, nome, ordem, probabilidade FROM etapas WHERE funil_id = ? ORDER BY ordem, nome', [neg[0].funil_id]);
+    const [etapas] = await pool.query<any[]>('SELECT id, nome, ordem, probabilidade, cor FROM etapas WHERE funil_id = ? ORDER BY ordem, nome', [neg[0].funil_id]);
     const [atividades] = await pool.query<any[]>(
       `SELECT a.*, IF(a.executor_bot = 1, 'Bot', COALESCE(u.nome, d.nome)) AS quem_executa
          FROM atividades a LEFT JOIN usuarios u ON u.id = a.executor_id LEFT JOIN departamentos d ON d.id = a.departamento_id

@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.87 — 2026-10-03
+
+- Campanhas: "Gerar disparos" só cria as mensagens (a campanha não muda de situação e nada é enviado); a nova ação "Iniciar envio campanha" passa a campanha a Em execução e libera os pendentes (recusa sem disparos pendentes ou com o envio já ligado; retoma a pausada).
+- Automação: nó "Registrar Prospecção" (grupo CRM) abre um negócio no funil e na etapa escolhidos (vazios: o primeiro funil e a primeira etapa), cadastra a pessoa como lead se preciso, usa o negócio aberto do mesmo funil e cria a atividade "Prospecção pelo WhatsApp"; vindo de campanha, o negócio fica ligado a ela. Na importação, funil e etapa voltam a vazio.
+- Funil de Vendas: cor por etapa (campo Cor no cadastro das etapas), em faixa no topo da coluna do Kanban.
+- Banco: `ALTER TABLE etapas ADD COLUMN cor VARCHAR(7) NULL AFTER probabilidade` (em extras/crmweb_schema.sql).
+
 ## 0.0.86 — 2026-10-03
 
 - Prospecção: cada busca fica guardada (tabela `prospeccao_buscas`) e pode ser reaberta em "Buscas anteriores", com os filtros e as empresas encontradas, sem gastar a cota do Google.

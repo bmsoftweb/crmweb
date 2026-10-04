@@ -248,7 +248,7 @@ async function publicoDa(c: any, empresaId: string | number, db: Executor, limit
 /**
  * Gerar disparos: um registro por pessoa do público (nome, canal, destino, assunto e mensagem já personalizados),
  * agendado para agora ou para "Enviar a partir de". Pode ser repetido: os pendentes são refeitos com o texto e o
- * público atuais; quem já recebeu (ou falhou) não ganha outro. A campanha passa a "em execução" e o envio começa.
+ * público atuais; quem já recebeu (ou falhou) não ganha outro. Não libera o envio: ver iniciarEnvio.
  */
 export async function gerarDisparos(campanhaId: string | number, empresaId: string | number) {
   const conn = await pool.getConnection();
@@ -290,8 +290,7 @@ export async function gerarDisparos(campanhaId: string | number, empresaId: stri
       ]);
     }
     await conn.query(
-      `UPDATE campanhas SET situacao = IF(situacao IN ('rascunho', 'agendada'), 'em_execucao', situacao),
-              iniciada_em = COALESCE(iniciada_em, NOW()), publico_estimado = ? WHERE id = ?`,
+      'UPDATE campanhas SET publico_estimado = ? WHERE id = ?',
       [pessoas.length, c.id],
     );
     await conn.commit();
@@ -425,6 +424,17 @@ export async function enviarEmailsCampanha(limite = 50, prazoMs = Infinity): Pro
   }
 }
 
+/** Iniciar envio: a campanha passa a "em execução" e os disparos pendentes saem (ou na data de "Enviar a partir de") */
+export async function iniciarEnvio(campanhaId: string | number, empresaId: string | number) {
+  const c = await campanhaDa(campanhaId, empresaId);
+  if (c.situacao === 'concluida' || c.situacao === 'cancelada') throw new Error(`A campanha está ${c.situacao}: não envia mais.`);
+  if (c.situacao === 'em_execucao') throw new Error('O envio desta campanha já está ligado.');
+  const [[{ pendentes }]] = await pool.query<any>("SELECT COUNT(*) AS pendentes FROM campanha_disparos WHERE campanha_id = ? AND situacao = 'pendente'", [c.id]);
+  if (!Number(pendentes)) throw new Error('Não há disparos pendentes: gere os disparos antes.');
+  await pool.query("UPDATE campanhas SET situacao = 'em_execucao', iniciada_em = COALESCE(iniciada_em, NOW()) WHERE id = ?", [c.id]);
+  return { pendentes: Number(pendentes) };
+}
+
 /**
  * Enviar agora (botão no detalhe Disparos): manda um disparo pendente ou que falhou, sem esperar o agendamento
  * nem a situação da campanha. Usa a mesma trava do envio automático do canal: os dois juntos não mandam duas vezes.
@@ -535,6 +545,15 @@ export function createCampanhasRouter() {
       res.json({ success: true, ...(await enviarDisparoAgora(req.params.id, res.locals.empresaId)) });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: friendlyDbError(err, 'disparo') });
+    }
+  });
+
+  /** Iniciar envio (ver iniciarEnvio) */
+  router.post('/campanhas/:id/iniciar', async (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, ...(await iniciarEnvio(req.params.id, res.locals.empresaId)) });
+    } catch (err: any) {
+      res.status(err.status || 400).json({ error: friendlyDbError(err, 'campanha') });
     }
   });
 

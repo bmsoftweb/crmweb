@@ -195,6 +195,8 @@ export interface Etapa {
   nome: string;
   ordem: number;
   probabilidade: string | number;
+  /** #RRGGBB: faixa no topo da coluna do Kanban */
+  cor?: string | null;
 }
 
 export interface Funil {

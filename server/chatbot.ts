@@ -483,7 +483,15 @@ export function telefoneCadastro(t: string): string {
   return `(${m[1]}) ${n.slice(0, -4)}-${n.slice(-4)}`;
 }
 
-export async function registrarLead(ctx: Contexto, a: Record<string, unknown>) {
+/** Prospecção (nó Registrar Prospecção da Automação): negócio no funil e na etapa escolhidos, com o título e o assunto da atividade dele */
+interface OpcoesNegocio {
+  funil_id?: number | null;
+  etapa_id?: number | null;
+  assunto: string;
+  observacao?: string;
+}
+
+export async function registrarLead(ctx: Contexto, a: Record<string, unknown>, opcoes?: OpcoesNegocio) {
   const nome = String(a.nome ?? '').trim().slice(0, 150);
   const interesse = String(a.interesse ?? '').trim().slice(0, 200);
   const empresa = String(a.empresa ?? '').trim().slice(0, 255);
@@ -515,10 +523,12 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>) {
   }
   const pessoaId = ctx.dono.pessoa_id!;
 
-  // Negócio aberto da pessoa, ou um novo no primeiro funil, para o próximo vendedor do revezamento
+  // Negócio aberto da pessoa (no funil escolhido, se houver), ou um novo no funil, para o próximo vendedor do revezamento
+  const funilId = opcoes?.funil_id || null;
   const [abertos] = await pool.query<any[]>(
-    "SELECT n.id, n.proprietario_id, u.nome AS vendedor FROM negocios n LEFT JOIN usuarios u ON u.id = n.proprietario_id WHERE n.empresa_id = ? AND n.pessoa_id = ? AND n.status = 'aberto' ORDER BY n.id DESC LIMIT 1",
-    [emp, pessoaId],
+    `SELECT n.id, n.proprietario_id, u.nome AS vendedor FROM negocios n LEFT JOIN usuarios u ON u.id = n.proprietario_id
+      WHERE n.empresa_id = ? AND n.pessoa_id = ? AND n.status = 'aberto'${funilId ? ' AND n.funil_id = ?' : ''} ORDER BY n.id DESC LIMIT 1`,
+    funilId ? [emp, pessoaId, funilId] : [emp, pessoaId],
   );
   let negocioId: number;
   let vendedor: string | null;
@@ -529,10 +539,12 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>) {
     vendedor = abertos[0].vendedor;
     vendedorId = abertos[0].proprietario_id ?? null;
   } else {
+    // Etapa escolhida (se ainda for do funil) ou a primeira; sem funil escolhido (ou excluído), o primeiro
     const [f] = await pool.query<any[]>(
-      `SELECT f.id AS funil_id, (SELECT e.id FROM etapas e WHERE e.funil_id = f.id ORDER BY e.ordem, e.id LIMIT 1) AS etapa_id
-         FROM funis f WHERE f.empresa_id = ? ORDER BY f.ordem, f.id LIMIT 1`,
-      [emp],
+      `SELECT f.id AS funil_id, COALESCE((SELECT e.id FROM etapas e WHERE e.funil_id = f.id AND e.id = ?),
+              (SELECT e.id FROM etapas e WHERE e.funil_id = f.id ORDER BY e.ordem, e.id LIMIT 1)) AS etapa_id
+         FROM funis f WHERE f.empresa_id = ? ORDER BY f.id = ? DESC, f.ordem, f.id LIMIT 1`,
+      [opcoes?.etapa_id || 0, emp, funilId || 0],
     );
     if (!f.length || !f[0].etapa_id) return { ok: false, erro: 'A empresa não tem funil de vendas com etapas.' };
     const v = await proximoVendedor(emp);
@@ -549,8 +561,16 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>) {
   }
   await pool.query(
     `INSERT INTO atividades (empresa_id, negocio_id, pessoa_id, executor_id, assunto, tipo, data_vencimento, hora_vencimento, observacao, lembrete_para)
-     VALUES (?, ?, ?, ?, 'Lead do WhatsApp', 'whatsapp', CURDATE(), CURTIME(), ?, 'nenhum')`,
-    [emp, negocioId, pessoaId, vendedorId, `Atendido pelo chatbot. ${nome}${empresa ? ` (${empresa})` : ''} procura: ${interesse}.`],
+     VALUES (?, ?, ?, ?, ?, 'whatsapp', CURDATE(), CURTIME(), ?, 'nenhum')`,
+    [
+      emp,
+      negocioId,
+      pessoaId,
+      vendedorId,
+      opcoes?.assunto ?? 'Lead do WhatsApp',
+      `Atendido pelo chatbot. ${nome}${empresa ? ` (${empresa})` : ''} procura: ${interesse}.${opcoes?.observacao ? `
+${opcoes.observacao}` : ''}`,
+    ],
   );
   await sincronizarNegocio(String(negocioId));
   return { ok: true, vendedor_responsavel: vendedor ?? 'a equipe' };

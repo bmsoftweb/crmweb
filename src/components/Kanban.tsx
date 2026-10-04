@@ -301,6 +301,7 @@ export const Kanban: React.FC<KanbanProps> = ({ resourceNegocios, refreshToken, 
                     ? 'bg-blue-50 border-blue-300 dark:bg-blue-950/30 dark:border-blue-800'
                     : 'bg-stone-100/80 border-stone-200 dark:bg-stone-900/60 dark:border-stone-800'
                 }`}
+                style={etapa.cor ? { borderTopColor: etapa.cor, borderTopWidth: 4 } : undefined}
               >
                 <header className="px-3 py-2.5 border-b border-stone-200 dark:border-stone-800 shrink-0">
                   <div className="flex items-center justify-between gap-2">

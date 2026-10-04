@@ -43,7 +43,7 @@ const MAX_ARQUIVO = 3 * 1024 * 1024;
 /** Estado da conversa depois de um nó Fim (ou saída sem ligação) */
 const FIM = '__fim';
 
-export const TIPOS_NO = ['inicio', 'mensagem', 'imagem', 'menu', 'pergunta', 'condicao', 'case', 'esperar', 'api', 'ia', 'iaex', 'lead', 'departamento', 'fim'] as const;
+export const TIPOS_NO = ['inicio', 'mensagem', 'imagem', 'menu', 'pergunta', 'condicao', 'case', 'esperar', 'api', 'ia', 'iaex', 'lead', 'prospeccao', 'departamento', 'fim'] as const;
 export type TipoNo = (typeof TIPOS_NO)[number];
 
 export interface No {
@@ -254,6 +254,20 @@ function prepararDados(tipo: TipoNo, d: any, id: string, anterior: Jornada | nul
     }
     case 'lead':
       return { ...base, nome: texto(d.nome, 200), empresa: texto(d.empresa, 200), email: texto(d.email, 200), interesse: texto(d.interesse, 300) };
+    case 'prospeccao': {
+      // Funil e etapa vazios: o primeiro funil e a primeira etapa dele
+      const idOuNulo = (v: unknown) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : null);
+      return {
+        ...base,
+        funil_id: idOuNulo(d.funil_id),
+        etapa_id: idOuNulo(d.etapa_id),
+        negocio: texto(d.negocio, 200),
+        nome: texto(d.nome, 200),
+        empresa: texto(d.empresa, 200),
+        email: texto(d.email, 200),
+        observacao: texto(d.observacao, 1000),
+      };
+    }
     case 'departamento': {
       const departamento_id = Number(d.departamento_id);
       if (!Number.isInteger(departamento_id) || departamento_id < 1) throw erro('escolha o departamento.');
@@ -704,6 +718,23 @@ class Execucao {
             interesse: campo(d.interesse, '{{interesse}}') || 'Contato pelo WhatsApp',
           });
           if (!r?.ok) await this.falha(no, `registrar lead: ${r?.erro}`);
+          no = seguir();
+          break;
+        }
+        case 'prospeccao': {
+          const v = await this.vars();
+          const campo = (modelo: string, padrao: string) => preencher(modelo ?? padrao, v).trim();
+          const r: any = await registrarLead(
+            this.ctx,
+            {
+              nome: campo(d.nome, '{{nome}}') || 'Cliente do WhatsApp',
+              empresa: campo(d.empresa, '{{empresa}}'),
+              email: campo(d.email, '{{email}}'),
+              interesse: campo(d.negocio, 'Prospecção') || 'Prospecção',
+            },
+            { funil_id: d.funil_id, etapa_id: d.etapa_id, assunto: 'Prospecção pelo WhatsApp', observacao: campo(d.observacao, '') },
+          );
+          if (!r?.ok) await this.falha(no, `registrar prospecção: ${r?.erro}`);
           no = seguir();
           break;
         }

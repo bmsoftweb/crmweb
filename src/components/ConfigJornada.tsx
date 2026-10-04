@@ -18,8 +18,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { AlertTriangle, Download, ImagePlus, Loader2, Plus, Save, Upload, X } from 'lucide-react';
-import { enviarArquivoJornada, fetchArquivoJornada, fetchConfig, fetchOptions, salvarConfig } from '../services/api';
-import { OpcaoRef } from '../types';
+import { enviarArquivoJornada, fetchArquivoJornada, fetchConfig, fetchFunis, fetchOptions, salvarConfig } from '../services/api';
+import { Funil, OpcaoRef } from '../types';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import {
   CORES,
@@ -188,6 +188,12 @@ async function doArquivo(arq: any, departamentos: OpcaoRef[]): Promise<{ nos: No
       dados.departamento_id = dep ? Number(dep.value) : null;
       if (!dep) revisar.push(`escolher o departamento${nome ? ` (no arquivo: ${nome})` : ''}`);
       delete dados.departamento_nome;
+    }
+    // Funil e etapa são da outra empresa: volta para o primeiro funil até escolher
+    if (n.tipo === 'prospeccao' && dados.funil_id) {
+      dados.funil_id = null;
+      dados.etapa_id = null;
+      revisar.push(`escolher o funil e a etapa de "${dados.titulo || 'Registrar Prospecção'}"`);
     }
     if (n.tipo === 'api' && (dados.cabecalhos ?? []).some((h: any) => h.secreto)) revisar.push(`informar os cabeçalhos secretos de "${dados.titulo || 'Chamar API'}"`);
     nos.push({ id: String(n.id), tipo: n.tipo, x: Number(n.x) || 0, y: Number(n.y) || 0, dados });
@@ -580,6 +586,48 @@ interface PainelProps {
 
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+/** Funil e etapa do nó Registrar Prospecção (vazios: o primeiro funil e a primeira etapa) */
+const FunilEtapa: React.FC<{ funilId: number | null; etapaId: number | null; idCampo: (c: string) => string; onChange: (m: Record<string, any>) => void }> = ({
+  funilId,
+  etapaId,
+  idCampo,
+  onChange,
+}) => {
+  const [funis, setFunis] = useState<Funil[]>([]);
+  useEffect(() => {
+    fetchFunis()
+      .then(setFunis)
+      .catch(() => {});
+  }, []);
+  const etapas = funis.find((f) => f.id === funilId)?.etapas ?? [];
+  return (
+    <>
+      <div className={FIELD_CLASS}>
+        <label htmlFor={idCampo('funil')} className={LABEL_CLASS}>Funil</label>
+        <select id={idCampo('funil')} value={funilId ?? ''} onChange={(e) => onChange({ funil_id: Number(e.target.value) || null, etapa_id: null })} className={`${campo} cursor-pointer`}>
+          <option value="">O primeiro funil</option>
+          {funis.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={FIELD_CLASS}>
+        <label htmlFor={idCampo('etapa')} className={LABEL_CLASS}>Etapa</label>
+        <select id={idCampo('etapa')} value={etapaId ?? ''} onChange={(e) => onChange({ etapa_id: Number(e.target.value) || null })} disabled={!funilId} className={`${campo} cursor-pointer`}>
+          <option value="">A primeira etapa</option>
+          {etapas.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
+};
+
 const PainelNo: React.FC<PainelProps> = ({ no, somenteLeitura, departamentos, variaveis, onAlterar, onExcluir, onFechar, pedirConfirmacao, onErro }) => {
   const { tipo, dados: d } = no.data;
   const info = TIPOS_NO[tipo];
@@ -790,6 +838,21 @@ const PainelNo: React.FC<PainelProps> = ({ no, somenteLeitura, departamentos, va
           {linha('email', 'E-mail', '{{email}}')}
           {linha('interesse', 'Interesse', '{{interesse}}')}
           <span className={HINT_CLASS}>Cliente já cadastrado: só abre o negócio (se não houver um aberto) e a atividade para o vendedor do revezamento.</span>
+        </>
+      )}
+
+      {tipo === 'prospeccao' && (
+        <>
+          <FunilEtapa funilId={d.funil_id} etapaId={d.etapa_id} idCampo={id} onChange={set} />
+          {linha('negocio', 'Título do negócio', 'Prospecção')}
+          {linha('nome', 'Nome', '{{nome}}')}
+          {linha('empresa', 'Empresa', '{{empresa}}')}
+          {linha('email', 'E-mail', '{{email}}')}
+          {textoCom('observacao', 'Observação da atividade (opcional)', 3)}
+          <span className={HINT_CLASS}>
+            Sem cadastro, a pessoa entra como lead. Já tendo negócio aberto nesse funil, usa ele; senão abre um novo para o vendedor do revezamento, com a atividade
+            "Prospecção pelo WhatsApp". Vindo de uma campanha, o negócio fica ligado a ela.
+          </span>
         </>
       )}
 
