@@ -1,7 +1,7 @@
 import { pool } from './db.js';
 import { lerConfig } from './config.js';
 import { textoConfig } from './segredo.js';
-import { enviarReservada, PESSOA_RECENTE, reservarEnvio, type MensagemNova } from './whatsapp.js';
+import { contaDaConversa, enviarReservada, PESSOA_RECENTE, reservarEnvio, type MensagemNova } from './whatsapp.js';
 import { marcarEvento } from './chatbot.js';
 
 /**
@@ -63,7 +63,8 @@ export function lerNota(texto: string): number | null {
 /** Texto da mensagem da equipe/bot, reservado antes (aviso repetido da Evolution não duplica) */
 async function mandar(empresaId: number, telefone: string, origem: string, texto: string) {
   const id = await reservarEnvio(empresaId, origem, { pessoa_id: null, contato_id: null }, telefone, texto);
-  if (id) await enviarReservada(empresaId, id, origem, telefone, texto);
+  // Parte da conversa: sai pelo número por onde o cliente escreveu
+  if (id) await enviarReservada(empresaId, id, origem, telefone, texto, undefined, undefined, await contaDaConversa(empresaId, telefone));
 }
 
 /**

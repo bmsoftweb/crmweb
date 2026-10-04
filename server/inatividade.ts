@@ -1,6 +1,6 @@
 import { pool } from './db.js';
 import { encerrarAtendimento, marcarEncerramento, minutosInatividade, type ConfigChatbot } from './chatbot.js';
-import { CONTATO_RECENTE, enviarReservada, PESSOA_RECENTE, reservarEnvio } from './whatsapp.js';
+import { contaDaConversa, CONTATO_RECENTE, enviarReservada, PESSOA_RECENTE, reservarEnvio } from './whatsapp.js';
 
 /**
  * Encerramento por falta de interação no WhatsApp. A última mensagem da conversa foi do bot ou do técnico, o
@@ -69,7 +69,8 @@ async function passe(empresaId: number, minutos: number): Promise<{ avisadas: nu
         ]);
         const id = await reservarEnvio(empresaId, origem, { pessoa_id: d[0]?.pessoa_id ?? null, contato_id: d[0]?.contato_id ?? null }, c.telefone, AVISO_INATIVIDADE);
         if (!id) continue;
-        await enviarReservada(empresaId, id, origem, c.telefone, AVISO_INATIVIDADE);
+        // Parte da conversa: sai pelo número por onde o cliente escreveu
+        await enviarReservada(empresaId, id, origem, c.telefone, AVISO_INATIVIDADE, undefined, undefined, await contaDaConversa(empresaId, c.telefone));
         avisadas++;
       }
     } catch (err: any) {

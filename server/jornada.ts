@@ -307,12 +307,38 @@ function ehNumeroDeTeste(j: Jornada, telefone: string): boolean {
 /** A jornada (já lida) atende este número: ligada, e no modo teste só os números de teste */
 export const jornadaAtende = (j: Jornada | null, telefone: string): boolean => Boolean(j?.ativo) && (j!.modo === 'todos' || ehNumeroDeTeste(j!, telefone));
 
+/**
+ * Qual Automação atende a conversa. Pelo número padrão, a do atendimento. Pelo número das campanhas, a das campanhas
+ * só enquanto a conversa responde a uma campanha: a que já está rodando continua; recomeçando, só se chegou uma
+ * campanha depois do último encerramento (atendente ou fim da automação). Fora isso, a do atendimento.
+ */
+export async function contaDaJornada(empresaId: number, telefone: string): Promise<ContaWhats> {
+  if ((await contaDaConversa(empresaId, telefone)) !== 'campanhas') return 'provedor';
+  const [c] = await pool.query<any[]>('SELECT no_atual, variaveis FROM whatsapp_conversas WHERE empresa_id = ? AND telefone = ?', [empresaId, telefone]);
+  if (c[0]?.no_atual && c[0].no_atual !== FIM) {
+    let vars: any = {};
+    try {
+      vars = typeof c[0].variaveis === 'string' ? JSON.parse(c[0].variaveis) : (c[0].variaveis ?? {});
+    } catch {
+      vars = {};
+    }
+    return vars?._jornada === 'provedor' ? 'provedor' : 'campanhas';
+  }
+  const [r] = await pool.query<any[]>(
+    `SELECT MAX(IF(disparo_id IS NOT NULL, id, NULL)) AS campanha, MAX(IF(tipo = 'encerramento', id, NULL)) AS encerrou
+       FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`,
+    [empresaId, telefone],
+  );
+  const { campanha, encerrou } = r[0] ?? {};
+  return campanha && (!encerrou || Number(campanha) > Number(encerrou)) ? 'campanhas' : 'provedor';
+}
+
 /** A jornada que atende este número (ligada, e no modo teste só para os números de teste) */
-export async function jornadaDoNumero(empresaId: number, telefone: string): Promise<{ jornada: Jornada; numeroDeTeste: boolean } | null> {
-  // A do número por onde a conversa entrou (a das campanhas para quem responde a uma campanha)
-  const j = await lerJornada(empresaId, await contaDaConversa(empresaId, telefone));
+export async function jornadaDoNumero(empresaId: number, telefone: string): Promise<{ jornada: Jornada; numeroDeTeste: boolean; conta: ContaWhats } | null> {
+  const conta = await contaDaJornada(empresaId, telefone);
+  const j = await lerJornada(empresaId, conta);
   if (!j || !jornadaAtende(j, telefone)) return null;
-  return { jornada: j, numeroDeTeste: ehNumeroDeTeste(j, telefone) };
+  return { jornada: j, numeroDeTeste: ehNumeroDeTeste(j, telefone), conta };
 }
 
 // ------------------------------------------------------------
@@ -464,7 +490,7 @@ async function gravarEstado(empresaId: number, telefone: string, e: Estado) {
   ]);
 }
 
-async function contextoDaConversa(empresaId: number, telefone: string): Promise<Contexto> {
+async function contextoDaConversa(empresaId: number, telefone: string, conta: ContaWhats): Promise<Contexto> {
   const [d] = await pool.query<any[]>(`SELECT ${PESSOA_RECENTE()} AS pessoa_id, ${CONTATO_RECENTE()} AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`, [
     empresaId,
     telefone,
@@ -474,11 +500,19 @@ async function contextoDaConversa(empresaId: number, telefone: string): Promise<
     'SELECT d.id, d.nome FROM whatsapp_conversas c JOIN departamentos d ON d.id = c.departamento_id WHERE c.empresa_id = ? AND c.telefone = ?',
     [empresaId, telefone],
   );
-  // Conversa no número das campanhas: a campanha que a pessoa recebeu vira contexto da IA
-  const campanha = (await contaDaConversa(empresaId, telefone)) === 'campanhas' ? await campanhaDaConversa(empresaId, telefone) : null;
+  // Automação das campanhas: a campanha que a pessoa recebeu vira contexto da IA (na do atendimento, não)
+  const campanha = conta === 'campanhas' ? await campanhaDaConversa(empresaId, telefone) : null;
   // Pessoa que recebeu a campanha: é ela, mesmo quando o número está em outros cadastros (ex.: o mesmo celular em duas empresas)
   const donoFinal = campanha?.pessoa_id && campanha.pessoa_id !== dono.pessoa_id ? { pessoa_id: campanha.pessoa_id, contato_id: null } : dono;
-  return { empresaId, telefone, dono: donoFinal, departamento: dep[0] ? { id: dep[0].id, nome: dep[0].nome } : null, jornada: { transferencia: null }, campanha };
+  return {
+    empresaId,
+    telefone,
+    dono: donoFinal,
+    departamento: dep[0] ? { id: dep[0].id, nome: dep[0].nome } : null,
+    jornada: { transferencia: null },
+    campanha,
+    numero: await contaDaConversa(empresaId, telefone),
+  };
 }
 
 /** Variáveis prontas: as coletadas, mais nome (cadastro ou perfil do WhatsApp) e telefone */
@@ -539,14 +573,14 @@ class Execucao {
     const t = textoMsg.trim();
     if (!t && !midia) return;
     if (this.enviadas) {
-      await mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 1000 + Math.random() * 2000);
+      await mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 1000 + Math.random() * 2000, this.ctx.numero);
     }
     this.enviadas++;
     const seq = (Number(this.estado.vars._seq) || 0) + 1;
     this.estado.vars._seq = seq;
     const origem = `bot:j${this.estado.conversaId}:${seq}`;
     const id = await reservarEnvio(this.ctx.empresaId, origem, this.ctx.dono, this.ctx.telefone, t);
-    if (id) await enviarReservada(this.ctx.empresaId, id, origem, this.ctx.telefone, t.slice(0, 4000), midia, this.bot?.nome || 'Assistente');
+    if (id) await enviarReservada(this.ctx.empresaId, id, origem, this.ctx.telefone, t.slice(0, 4000), midia, this.bot?.nome || 'Assistente', this.ctx.numero);
   }
 
   private async menu(no: No, prefixo = '') {
@@ -598,7 +632,7 @@ class Execucao {
       return this.destino(no, 'humano') ?? 'fim';
     }
     this.ctx.jornada = { transferencia: null };
-    void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000);
+    void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000, this.ctx.numero);
     let resposta: string;
     try {
       resposta = await gerarRespostaIa(this.ctx, this.bot, textoBase);
@@ -634,7 +668,7 @@ class Execucao {
     if (!abertura) this.estado.vars._iaex = (Number(this.estado.vars._iaex) || 0) + 1;
     let r: { opcao: number; mensagem: string };
     try {
-      void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000);
+      void mostrarDigitando(this.ctx.empresaId, this.ctx.telefone, 3000, this.ctx.numero);
       r = await iaComOpcoes(this.ctx, this.bot, preencher(no.dados.texto ?? '', await this.vars()) + contextoDeCampanha(this.ctx.campanha), opcoes, abertura);
     } catch (err: any) {
       return this.iaFalhou(no, err.message);
@@ -846,7 +880,7 @@ async function comTrava(empresaId: number, telefone: string, fn: () => Promise<v
 }
 
 /** Mensagem recebida numa conversa atendida pela jornada (chamada pelo responderComBot) */
-export async function executarJornada(nova: MensagemNova, jornada: Jornada, bot: ConfigChatbot | null): Promise<void> {
+export async function executarJornada(nova: MensagemNova, jornada: Jornada, bot: ConfigChatbot | null, conta: ContaWhats = 'provedor'): Promise<void> {
   await comTrava(nova.empresaId, nova.telefone, async () => {
     const estado = await lerEstado(nova.empresaId, nova.telefone);
     // Aviso repetido da Evolution, ou mensagem mais antiga que a última tratada
@@ -856,12 +890,17 @@ export async function executarJornada(nova: MensagemNova, jornada: Jornada, bot:
     const entrada = m[0]?.tipo === 'texto' ? String(m[0].texto ?? '').trim() : '';
     estado.vars.mensagem = entrada;
 
-    const ctx = await contextoDaConversa(nova.empresaId, nova.telefone);
-    const exec = new Execucao(ctx, jornada, bot, estado);
     const inicio = jornada.nos.find((n) => n.tipo === 'inicio')!;
+    const recomeca = !estado.no || estado.no === FIM || !jornada.nos.some((n) => n.id === estado.no);
+    if (recomeca) {
+      // Nova rodada: as respostas da anterior (nome, e-mail...) não valem mais; _seq continua (origem única das mensagens)
+      estado.vars = { _msg: estado.vars._msg, _seq: estado.vars._seq, mensagem: entrada, _jornada: conta };
+    }
+    const ctx = await contextoDaConversa(nova.empresaId, nova.telefone, conta);
+    const exec = new Execucao(ctx, jornada, bot, estado);
     const atual = exec.no(estado.no);
     try {
-      if (!atual || estado.no === FIM) {
+      if (recomeca || !atual) {
         // Sem ponto na jornada, ou depois do Fim (ou de uma saída sem ligação): recomeça do Início
         estado.retomar = 'limpar';
         await exec.percorrer(inicio);
@@ -895,7 +934,7 @@ export async function retomarJornadas(prazoMs = Infinity): Promise<number> {
       try {
         const j = await jornadaDoNumero(r.empresa_id, r.telefone);
         if (!j) return; // jornada desligada (ou número saiu do teste): só limpa a espera
-        const ctx = await contextoDaConversa(r.empresa_id, r.telefone);
+        const ctx = await contextoDaConversa(r.empresa_id, r.telefone, j.conta);
         const exec = new Execucao(ctx, j.jornada, await lerChatbot(r.empresa_id), estado);
         const esperando = exec.no(estado.no);
         await exec.percorrer(esperando?.tipo === 'esperar' ? (exec.destino(esperando, 'proximo') ?? 'fim') : null);

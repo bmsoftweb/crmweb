@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.93 — 2026-10-03
+
+- WhatsApp: número de envio. Chamados, mensagens automáticas, avisos para a equipe, aceite, bot das atividades e PDFs saem sempre pelo WhatsApp principal; as respostas das Automações, a pesquisa e o aviso de inatividade saem pelo número por onde o cliente escreveu; na tela, o seletor "Sai pelo" (só com o WhatsApp das campanhas configurado) vem no número do cliente e avisa quando a mensagem vai cair em outro chat.
+- Automação das campanhas: só recomeça se chegou uma campanha depois do último encerramento (atendente ou fim da automação); fora isso responde a Automação principal, sem o contexto da campanha. A que está em andamento continua na mesma.
+- Automação: ao recomeçar do Início, as respostas da rodada anterior (nome, empresa, e-mail...) são descartadas.
+
 ## 0.0.92 — 2026-10-03
 
 - WhatsApp: "Responder" uma mensagem específica, como no WhatsApp (passar o mouse na mensagem; a citação aparece acima do campo, X ou Esc desiste). O cliente vê no celular qual mensagem está sendo respondida (texto e arquivos); no CRM a resposta mostra a citação, que leva à mensagem original. Quando o cliente responde citando uma mensagem, o CRM também mostra a citação.

@@ -4,7 +4,7 @@ import { pool } from './db.js';
 import { lerConfig } from './config.js';
 import { cifrar, decifrar, textoConfig } from './segredo.js';
 import { aposGravar, sincronizarNegocio } from './regras.js';
-import { chaveTelefone, CONTATO_RECENTE, contaDaConversa, donoDoTelefone, PESSOA_RECENTE, enviarAutomatica, enviarReservada, enviarWhatsApp, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type Dono, type MensagemNova } from './whatsapp.js';
+import { chaveTelefone, CONTATO_RECENTE, contaDaConversa, donoDoTelefone, PESSOA_RECENTE, enviarAutomatica, enviarReservada, enviarWhatsApp, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type ContaWhats, type Dono, type MensagemNova } from './whatsapp.js';
 import { refProposta } from '../src/utils/formatters.js';
 import { campanhaDaConversa, PEDIU_SAIR, type CampanhaDaConversa } from './campanhas.js';
 
@@ -473,6 +473,8 @@ export interface Contexto {
   jornada?: { transferencia: string | null };
   /** Conversa no WhatsApp das campanhas: a campanha que a pessoa recebeu (contexto da IA e título do lead) */
   campanha?: CampanhaDaConversa | null;
+  /** Número por onde o cliente escreveu: as respostas do bot saem por ele */
+  numero?: ContaWhats;
 }
 
 /** Número da conversa → telefone para o cadastro: (47) 98843-8552 (celular de 8 dígitos ganha o 9) */
@@ -1027,6 +1029,9 @@ async function tratarDescadastro(nova: MensagemNova): Promise<boolean> {
     nova.telefone,
     'Pronto! Você não vai mais receber nossas campanhas por aqui. Se precisar de alguma coisa, é só chamar.',
     { pessoa_id: pessoas[0] ?? null },
+    undefined,
+    null,
+    await contaDaConversa(nova.empresaId, nova.telefone),
   ).catch((err) => console.error(`Campanhas: confirmação do descadastro (${nova.telefone}): ${err.message}`));
   return true;
 }
@@ -1051,5 +1056,5 @@ export async function responderComBot(nova: MensagemNova): Promise<void> {
   await esperar(Math.max(0, atrasoMs - 3000));
   if ((await ultimaRecebida(nova.empresaId, nova.telefone)) !== nova.id) return;
   if ((await atendimentoAtual(nova.empresaId, nova.telefone, minutosDevolver(cfg))) !== 'bot') return;
-  return executarJornada(nova, jornada.jornada, cfg);
+  return executarJornada(nova, jornada.jornada, cfg, jornada.conta);
 }

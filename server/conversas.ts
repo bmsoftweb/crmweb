@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
-import { ArquivoEnvio, chaveTelefone, citacaoDa, CONTATO_RECENTE, donoDoTelefone, PESSOA_RECENTE, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
+import { ArquivoEnvio, chaveTelefone, citacaoDa, contaWhats, CONTATO_RECENTE, donoDoTelefone, PESSOA_RECENTE, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
 import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
@@ -625,8 +625,10 @@ export function createConversasRouter(): Router {
         eu_atendo: Boolean(c.atendente_id) && Number(c.atendente_id) === Number(res.locals.usuarioId),
         sou_admin: res.locals.usuario?.tipo === 'admin',
         com_bot: comBot,
-        /** Número por onde a conversa entrou: as respostas saem por ele */
+        /** Número por onde o cliente escreveu por último: a tela já vem com ele escolhido para responder */
         conta,
+        /** Há WhatsApp das campanhas configurado: a tela mostra a escolha do número */
+        tem_campanhas: Boolean(((await lerConfig(String(emp), 'whatsapp', 'campanhas')) as any)?.provedor),
         encerravel: Boolean(Number(c.encerravel)),
         departamento: c.departamento ?? null, bot_nome: chatbot?.nome || null, nome_contato: ult[0]?.nome_contato ?? null, mensagens: mensagens.map(({ resposta_de, resposta_direcao, resposta_tipo, resposta_texto, resposta_arquivo, resposta_privado_id, ...m }) =>
           mascararPrivada(res, {
@@ -686,9 +688,11 @@ export function createConversasRouter(): Router {
       const assinatura = String(res.locals.usuario?.nome ?? '').trim() || undefined;
       // Responder: a mensagem escolhida aparece citada no WhatsApp do cliente
       const citacao = await citacaoDa(emp, telefone, req.body?.resposta_de);
+      // Número escolhido na tela (padrão: por onde o cliente escreveu por último)
+      const conta = req.body?.conta ? contaWhats(req.body.conta) : await contaDaConversa(emp, telefone);
       const numero = arquivo
-        ? await enviarMidiaWhatsApp(emp, telefone, arquivo, reg, assinatura, citacao)
-        : await enviarWhatsApp(emp, telefone, texto, reg, assinatura, citacao);
+        ? await enviarMidiaWhatsApp(emp, telefone, arquivo, reg, assinatura, citacao, conta)
+        : await enviarWhatsApp(emp, telefone, texto, reg, assinatura, citacao, conta);
       // Conversa aberta pela atividade WhatsApp: a mensagem enviada conclui a atividade
       let concluida = false;
       const atividadeId = Number(req.body?.atividade_id) || null;

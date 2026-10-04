@@ -183,9 +183,17 @@ export async function contaDaConversa(empresaId: string | number, telefone: stri
   return contaWhats(r[0]?.conta);
 }
 
-/** Para falar com o telefone: pelo número por onde a conversa entrou (o das campanhas, ou o padrão sem ele configurado) */
+/**
+ * Número que envia: o principal, ou o das campanhas (o padrão quando ele não foi configurado). Sai pelo das campanhas
+ * só quem pede: a tela (o técnico escolhe), as Automações, a pesquisa e a inatividade (seguem a conversa). Chamados,
+ * automáticas e avisos saem sempre pelo principal.
+ */
+const credenciaisDaConta = (empresaId: string | number, conta: ContaWhats = 'provedor'): Promise<Credenciais> =>
+  conta === 'campanhas' ? credenciaisDeCampanha(empresaId) : credenciais(empresaId);
+
+/** Instância do número da conversa (por onde o cliente escreveu por último) */
 async function credenciaisPara(empresaId: string | number, telefone: string): Promise<Credenciais> {
-  return (await contaDaConversa(empresaId, telefone)) === 'campanhas' ? credenciaisDeCampanha(empresaId) : credenciais(empresaId);
+  return credenciaisDaConta(empresaId, await contaDaConversa(empresaId, telefone));
 }
 
 /**
@@ -298,8 +306,9 @@ export async function enviarWhatsApp(
   reg: Registro = {},
   assinatura?: string,
   citacao?: Citacao | null,
+  conta: ContaWhats = 'provedor',
 ): Promise<string> {
-  const resposta = await textoPara(await credenciaisPara(empresaId, telefone), telefone, assinado(assinatura, texto), citacao);
+  const resposta = await textoPara(await credenciaisDaConta(empresaId, conta), telefone, assinado(assinatura, texto), citacao);
   return registrarEnviada(empresaId, telefone, resposta, { ...reg, tipo: 'texto', texto, resposta_de: citacao?.id ?? null });
 }
 
@@ -375,9 +384,10 @@ export async function enviarMidiaWhatsApp(
   reg: Registro = {},
   assinatura?: string,
   citacao?: Citacao | null,
+  conta: ContaWhats = 'provedor',
 ): Promise<string> {
   const legenda = a.legenda ? assinado(assinatura, a.legenda) : a.legenda;
-  const resposta = await midiaPara(await credenciaisPara(empresaId, telefone), telefone, { ...a, legenda }, citacao);
+  const resposta = await midiaPara(await credenciaisDaConta(empresaId, conta), telefone, { ...a, legenda }, citacao);
   return registrarEnviada(empresaId, telefone, resposta, {
     ...reg,
     resposta_de: citacao?.id ?? null,
@@ -456,10 +466,12 @@ export async function enviarReservada(
   midia?: ArquivoEnvio,
   /** Nome do bot: o cliente vê "*Eloisa:* ..." (o registro fica sem, como nas do atendente) */
   assinatura?: string,
+  /** Número que envia (padrão: o principal) */
+  conta: ContaWhats = 'provedor',
 ): Promise<void> {
   let resposta: any;
   try {
-    const c = await credenciaisPara(empresaId, telefone);
+    const c = await credenciaisDaConta(empresaId, conta);
     resposta = midia
       ? await midiaPara(c, telefone, midia.legenda ? { ...midia, legenda: assinado(assinatura, midia.legenda) } : midia)
       : await textoPara(c, telefone, assinado(assinatura, texto));
@@ -486,9 +498,9 @@ export async function enviarReservada(
 }
 
 /** Mostra "digitando..." para o cliente por alguns segundos (só Evolution; falha é ignorada) */
-export async function mostrarDigitando(empresaId: string | number, telefone: string, ms: number): Promise<void> {
+export async function mostrarDigitando(empresaId: string | number, telefone: string, ms: number, conta: ContaWhats = 'provedor'): Promise<void> {
   try {
-    const c = await credenciaisPara(empresaId, telefone);
+    const c = await credenciaisDaConta(empresaId, conta);
     if (c.provedor !== 'evolution') return;
     await fetch(`${c.url}/chat/sendPresence/${encodeURIComponent(c.instancia)}`, {
       method: 'POST',

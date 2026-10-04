@@ -219,7 +219,12 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [anexo, setAnexo] = useState<(ArquivoConversa & { tamanho: number }) | null>(null);
   /** Responder: a mensagem escolhida vai citada na próxima enviada (como no WhatsApp) */
   const [respondendo, setRespondendo] = useState<MensagemWhatsApp | null>(null);
-  useEffect(() => setRespondendo(null), [aberta]);
+  /** Número que envia, escolhido na tela; null = por onde o cliente escreveu por último */
+  const [saiPor, setSaiPor] = useState<'provedor' | 'campanhas' | null>(null);
+  useEffect(() => {
+    setRespondendo(null);
+    setSaiPor(null);
+  }, [aberta]);
   /** Segundos de gravação do áudio em andamento; null = não está gravando */
   const [gravando, setGravando] = useState<number | null>(null);
   const [descartar, setDescartar] = useState<'anexo' | 'gravacao' | null>(null);
@@ -345,7 +350,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
     setEnviando(true);
     try {
       const vinculada = atividade?.telefone === aberta ? atividade : null;
-      const r = await responderConversa(aberta, t, vinculada?.id, arquivo, respondendo?.id);
+      const r = await responderConversa(aberta, t, vinculada?.id, arquivo, respondendo?.id, conversa?.tem_campanhas ? numeroEnvio : 'provedor');
       setRespondendo(null);
       if (!audio) setTexto('');
       if (arquivo === anexo) setAnexo(null);
@@ -457,6 +462,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const linhas = Math.min(5, texto.split('\n').length);
   /** Em atendimento com outro usuário: só vê (o administrador pode assumir) */
   const travada = conversa?.estado === 'atendimento' && !conversa.eu_atendo;
+  const numeroEnvio = saiPor ?? conversa?.conta ?? 'provedor';
   const podeMexer = Boolean(conversa) && (!travada || Boolean(conversa?.sou_admin));
   /** Pode transferir: quem está atendendo, ou o administrador numa conversa de outro */
   const podeTransferir = conversa?.estado === 'atendimento' && (conversa.eu_atendo || conversa.sou_admin);
@@ -1006,6 +1012,26 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
             {conversa && conversa.estado !== 'atendimento' && (
               <div className="shrink-0 px-3 pt-2 text-[11px] text-stone-500 dark:text-stone-400">
                 Ao responder, você passa a atender esta conversa (o bot para e só você responde).
+              </div>
+            )}
+            {conversa?.tem_campanhas && (
+              <div className="shrink-0 px-3 pt-2 flex flex-wrap items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400">
+                <label htmlFor="cv-sai-por" className="font-semibold">Sai pelo</label>
+                <select
+                  id="cv-sai-por"
+                  value={numeroEnvio}
+                  onChange={(e) => setSaiPor(e.target.value as 'provedor' | 'campanhas')}
+                  title="Número do WhatsApp por onde a mensagem sai"
+                  className="h-6 px-1.5 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-[11px] text-stone-700 dark:text-stone-200 cursor-pointer"
+                >
+                  <option value="provedor">WhatsApp principal</option>
+                  <option value="campanhas">WhatsApp das campanhas</option>
+                </select>
+                {numeroEnvio !== conversa.conta && (
+                  <span className="text-amber-700 dark:text-amber-400">
+                    O cliente escreveu pelo {conversa.conta === 'campanhas' ? 'número das campanhas' : 'número principal'}: no celular dele, esta mensagem cai em outro chat.
+                  </span>
+                )}
               </div>
             )}
             {respondendo && (

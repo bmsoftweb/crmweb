@@ -675,8 +675,10 @@ export const fetchConversa = (
   sou_admin: boolean;
   /** Bot ou jornada atendem este número (há para onde devolver) */
   com_bot: boolean;
-  /** Número por onde a conversa entrou: as respostas saem por ele */
+  /** Número por onde o cliente escreveu por último: a resposta já vem com ele escolhido */
   conta: 'provedor' | 'campanhas';
+  /** Há WhatsApp das campanhas configurado (a tela mostra a escolha do número) */
+  tem_campanhas: boolean;
   /** Há atendimento em andamento (o botão Encerrar aparece) */
   encerravel: boolean;
   nome_contato: string | null;
@@ -699,12 +701,15 @@ export const responderConversa = (
   arquivo?: ArquivoConversa | null,
   /** Mensagem da conversa que esta responde (aparece citada no WhatsApp do cliente) */
   respostaDe?: number | null,
+  /** Número que envia: o principal ou o das campanhas */
+  conta?: 'provedor' | 'campanhas',
 ): Promise<{ success: boolean; telefone: string; atividade_concluida: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}`, {
     texto,
     atividade_id: atividadeId ?? null,
     arquivo: arquivo ?? undefined,
     resposta_de: respostaDe ?? null,
+    conta,
   });
 /** Conversa de uma atividade WhatsApp: o número do cliente (pessoa da atividade ou do negócio) */
 export const fetchConversaDaAtividade = (
