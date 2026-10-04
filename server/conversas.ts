@@ -104,14 +104,15 @@ export function createConversasRouter(): Router {
   });
 
   /**
-   * Conversa de uma atividade do tipo WhatsApp (clique na ficha do negócio): o telefone da pessoa
-   * da atividade, ou o da pessoa do negócio
+   * Conversa de uma atividade (clique na ficha do negócio, duplo clique na lista): o número em que a pessoa
+   * da atividade (ou a do negócio) conversou no WhatsApp, de preferência a conversa de antes da atividade
+   * ter sido criada (a que gerou a pendência); sem conversa, o telefone do cadastro
    */
   router.get('/whatsapp/atividades/:id/conversa', async (req: Request, res: Response) => {
     try {
       const emp = res.locals.empresaId;
       const [rows] = await pool.query<any[]>(
-        `SELECT a.id, a.assunto, a.concluida,
+        `SELECT a.id, a.assunto, a.concluida, COALESCE(pa.id, pn.id) AS pessoa_id,
                 COALESCE(NULLIF(pa.whatsapp, ''), NULLIF(pa.telefone, ''), NULLIF(pn.whatsapp, ''), pn.telefone) AS telefone,
                 IF(COALESCE(NULLIF(pa.whatsapp, ''), NULLIF(pa.telefone, '')) IS NULL, pn.nome, pa.nome) AS nome
            FROM atividades a
@@ -123,6 +124,17 @@ export function createConversasRouter(): Router {
       );
       const a = rows[0];
       if (!a) return res.status(404).json({ error: 'Atividade não encontrada.' });
+      const [conv] = a.pessoa_id
+        ? await pool.query<any[]>(
+            `SELECT w.telefone FROM whatsapp_mensagens w JOIN atividades a ON a.id = ?
+              WHERE w.empresa_id = ? AND w.pessoa_id = ?
+              ORDER BY (w.data_hora <= a.criado_em + INTERVAL 5 MINUTE) DESC, w.id DESC LIMIT 1`,
+            [a.id, emp, a.pessoa_id],
+          )
+        : [[]];
+      if (conv[0]) {
+        return res.json({ telefone: conv[0].telefone, nome: a.nome, atividade: { id: a.id, assunto: a.assunto, concluida: Boolean(Number(a.concluida)) } });
+      }
       if (!a.telefone) return res.status(400).json({ error: `${a.nome ? `${a.nome} não tem` : 'A atividade não tem pessoa com'} telefone cadastrado.` });
       const telefone = await numeroDaConversa(emp, telefoneWhatsApp(a.telefone));
       res.json({ telefone, nome: a.nome, atividade: { id: a.id, assunto: a.assunto, concluida: Boolean(Number(a.concluida)) } });

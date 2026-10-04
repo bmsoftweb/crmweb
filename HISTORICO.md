@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.95 — 2026-10-04
+
+- Atividades: a conversa aberta pela atividade (dois cliques na lista ou clique na ficha do negócio) é a do número em que a pessoa conversou no WhatsApp, de preferência a de antes da atividade ser criada; o telefone do cadastro (ex.: o fixo da empresa) só quando não há conversa. Antes abria o telefone do cadastro, que podia não ter conversa e não aparecia na lista.
+
 ## 0.0.94 — 2026-10-04
 
 - Templates de mensagem (WhatsApp e Chamados): `{{nome}}` e `{{primeiro_nome}}` usam o nome da pessoa que está conversando (contato da empresa, perfil do WhatsApp ou quem abriu o chamado pelo site), e não mais o nome da empresa.
