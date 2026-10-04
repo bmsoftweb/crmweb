@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.94 — 2026-10-04
+
+- Templates de mensagem (WhatsApp e Chamados): `{{nome}}` e `{{primeiro_nome}}` usam o nome da pessoa que está conversando (contato da empresa, perfil do WhatsApp ou quem abriu o chamado pelo site), e não mais o nome da empresa.
+- Atividades: dois cliques (na lista ou no calendário) abrem a origem da atividade: o chamado, a Conversa do Bot, a conversa do WhatsApp (atividade WhatsApp ou pendência da conversa), o contrato (Renovar contrato) ou a ficha do negócio (Retorno Envio e as manuais). Sem origem, ou sem acesso à tela de destino, abre a edição como antes.
+
 ## 0.0.93 — 2026-10-03
 
 - WhatsApp: número de envio. Chamados, mensagens automáticas, avisos para a equipe, aceite, bot das atividades e PDFs saem sempre pelo WhatsApp principal; as respostas das Automações, a pesquisa e o aviso de inatividade saem pelo número por onde o cliente escreveu; na tela, o seletor "Sai pelo" (só com o WhatsApp das campanhas configurado) vem no número do cliente e avisa quando a mensagem vai cair em outro chat.

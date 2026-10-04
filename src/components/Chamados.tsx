@@ -929,7 +929,7 @@ const ChamadoAberto: React.FC<{
             <div className="flex flex-wrap items-center gap-2">
               <BotaoTemplates
                 canal="suporte"
-                vars={{ nome: c.pessoa_nome, atendente: lerSessao()?.usuario.nome }}
+                vars={{ nome: c.contato_nome || c.pessoa_nome, atendente: lerSessao()?.usuario.nome }}
                 onEscolher={(t) => {
                   setTexto((atual) => (atual.trim() ? `${atual.trimEnd()}\n${t}` : t));
                   setTimeout(() => campoResposta.current?.focus(), 0);

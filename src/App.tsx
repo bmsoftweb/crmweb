@@ -31,7 +31,7 @@ import { AcaoCampanha, BotaoEnviarDisparo } from './components/AcoesCampanha';
 import { BotaoEnviar } from './components/BotaoEnviar';
 import { BotaoLinkAceite } from './components/BotaoLinkAceite';
 import { BotaoNovaVersao } from './components/BotaoNovaVersao';
-import { AcaoConversaBot } from './components/ConversaBot';
+import { AcaoConversaBot, ConversaBot } from './components/ConversaBot';
 import { AcaoConcluir, BotaoConcluirRapido } from './components/ConcluirAtividade';
 import { BotaoAcao } from './components/MenuAcoes';
 import { Headset } from 'lucide-react';
@@ -268,6 +268,7 @@ export default function App() {
   const navegar = useCallback((tab: string) => {
     setCreateToken(0);
     setFiltroInicial(null);
+    setRegistroInicial(null);
     setActiveTab(tab);
   }, []);
 
@@ -278,6 +279,18 @@ export default function App() {
     },
     [navegar],
   );
+
+  /** Registro que um cadastro abre em edição quando outra tela leva até ele (ex.: atividade → contrato ou negócio) */
+  const [registroInicial, setRegistroInicial] = useState<{ tela: string; id: string | number; seq: number } | null>(null);
+  const navegarRegistro = useCallback(
+    (tab: string, id: string | number) => {
+      navegar(tab);
+      setRegistroInicial({ tela: tab, id, seq: Date.now() });
+    },
+    [navegar],
+  );
+  /** Conversa do Bot aberta pelo duplo clique na atividade */
+  const [conversaBotId, setConversaBotId] = useState<string | null>(null);
 
   /** Abre a tela Conversas no número de uma atividade WhatsApp, de uma pessoa ou de um contato */
   const pedirConversa = useCallback(
@@ -430,6 +443,7 @@ export default function App() {
 
   return (
     <div className="h-screen overflow-hidden bg-stone-100/70 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex font-sans antialiased selection:bg-blue-600 selection:text-white">
+      {conversaBotId && <ConversaBot atividadeId={conversaBotId} onFechar={() => setConversaBotId(null)} />}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-[70] bg-stone-900 text-white text-xs font-semibold py-3 px-4 rounded-xl shadow-2xl border border-stone-800 flex items-center gap-2.5">
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -540,6 +554,7 @@ export default function App() {
               onNavigate={navegar}
               usuario={usuario}
               filtrosIniciais={filtroInicial?.tela === activeResource.name ? filtroInicial : null}
+              registroInicial={registroInicial?.tela === activeResource.name ? registroInicial : null}
               renderEditor={renderEditor(activeResource.name)}
               acoesLista={
                 activeResource.name === 'pessoas'
@@ -554,6 +569,36 @@ export default function App() {
                     : undefined
               }
               acoesEmMenu={['propostas', 'pedidos', 'campanhas', 'atividades'].includes(activeResource.name)}
+              aoDuploClique={
+                activeResource.name === 'atividades'
+                  ? (row) => {
+                      // Abre a rotina que gerou a atividade: chamado, conversa do Bot, conversa do WhatsApp, contrato
+                      // ou negócio (Retorno Envio e as manuais); sem nenhum deles, abre a edição
+                      if (row.chamado_id && podeAcessar(usuario, 'chamados_ativos')) {
+                        setChamadoAbrir(Number(row.chamado_id));
+                        navegar('chamados_ativos');
+                        return true;
+                      }
+                      if (Number(row.executor_bot) === 1) {
+                        setConversaBotId(String(row.id));
+                        return true;
+                      }
+                      if ((row.tipo === 'whatsapp' || row.origem === 'pendencia') && podeAcessar(usuario, 'conversas')) {
+                        pedirConversa({ atividadeId: row.id as string });
+                        return true;
+                      }
+                      if (row.contrato_id && podeAcessar(usuario, 'contratos')) {
+                        navegarRegistro('contratos', row.contrato_id as string);
+                        return true;
+                      }
+                      if (row.negocio_id && podeAcessar(usuario, 'negocios')) {
+                        navegarRegistro('negocios', row.negocio_id as string);
+                        return true;
+                      }
+                      return false;
+                    }
+                  : undefined
+              }
               colunaInicial={
                 activeResource.name === 'atividades'
                   ? {

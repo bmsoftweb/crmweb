@@ -1089,7 +1089,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   </button>
                   <BotaoTemplates
                     canal="whatsapp"
-                    vars={{ nome: nomeAberta || perfilAberta, atendente: lerSessao()?.usuario.nome }}
+                    vars={{ nome: conversa?.contato?.nome || resumoAberta?.contato_nome || perfilAberta || nomeAberta, atendente: lerSessao()?.usuario.nome }}
                     onEscolher={(t) => {
                       setTexto((atual) => (atual.trim() ? `${atual.trimEnd()}\n${t}` : t));
                       setTimeout(() => campoRef.current?.focus());

@@ -30,6 +30,7 @@ import {
   fetchOptions,
   invalidateOptions,
   fetchCamposPersonalizados,
+  getRecord,
 } from '../services/api';
 import { RecordForm } from './RecordForm';
 import { Toggle } from './Toggle';
@@ -69,12 +70,16 @@ interface CrudViewProps {
   acoesEmMenu?: boolean;
   /** Coluna estreita logo depois do indicador, com um botão rápido por linha (ex.: Concluir atividade) */
   colunaInicial?: { titulo: string; render: (row: RegistroCrud, ctx: { recarregar: () => void }) => React.ReactNode };
+  /** Duplo clique na linha: devolve true se tratou (ex.: atividade abre a conversa que a gerou); senão abre a edição */
+  aoDuploClique?: (row: RegistroCrud) => boolean;
   /** Botões extras nas linhas do painel de detalhes (ex.: WhatsApp do contato), por recurso filho */
   acoesDetalhe?: (recurso: string, row: RegistroCrud, ctx: { recarregar: () => void }) => React.ReactNode;
   /** Usuário logado (regras por usuário, ex.: quem pode excluir a atividade) */
   usuario?: { id: string; tipo: string } | null;
   /** Busca avançada com que a tela abre quando outra tela leva até ela; `seq` novo = aplicar de novo */
   filtrosIniciais?: { filtros: FiltroAvancado[]; seq: number } | null;
+  /** Registro que abre numa aba de edição quando outra tela leva até ele (ex.: atividade → contrato); `seq` novo = abrir de novo */
+  registroInicial?: { id: string | number; seq: number } | null;
 }
 
 /** Uma aba aberta sobre um registro (inclusão ou edição) */
@@ -121,9 +126,11 @@ export const CrudView: React.FC<CrudViewProps> = ({
   acoesLinha,
   acoesEmMenu,
   colunaInicial,
+  aoDuploClique,
   acoesDetalhe,
   usuario,
   filtrosIniciais,
+  registroInicial,
 }) => {
   /**
    * Campos personalizados marcados como "na lista" viram colunas virtuais: o valor
@@ -750,6 +757,14 @@ export const CrudView: React.FC<CrudViewProps> = ({
     [],
   );
 
+  // Chegou de outra tela para um registro: busca e abre na aba de edição
+  useEffect(() => {
+    if (!registroInicial) return;
+    getRecord(resource.name, registroInicial.id)
+      .then(abrirAbaEdicao)
+      .catch((err) => onToast(err.message || `${resource.labelSingular} não encontrado.`));
+  }, [registroInicial?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Abertura da aba de inclusão solicitada pelo Header
   useEffect(() => {
     if (createToken > 0 && resource.canCreate) abrirAbaNovo();
@@ -889,7 +904,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
                           }
                         : undefined
                     }
-                    onDoubleClick={() => resource.canUpdate && abrirAbaEdicao(row)}
+                    onDoubleClick={() => !aoDuploClique?.(row) && resource.canUpdate && abrirAbaEdicao(row)}
                     className={`group transition-colors ${temDetalhe ? 'cursor-pointer' : ''} ${
                       estaSelecionada
                         ? 'bg-blue-100 dark:bg-blue-950'
@@ -1222,7 +1237,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
             painelFechado.current = false;
             setSelecionado(row);
           }}
-          onAbrir={(row) => resource.canUpdate && abrirAbaEdicao(row)}
+          onAbrir={(row) => !aoDuploClique?.(row) && resource.canUpdate && abrirAbaEdicao(row)}
           podeMover={resource.canUpdate}
           podeExcluir={(row) => resource.canDelete && podeExcluirAtividade(row, usuario)}
           onExcluir={setDeleting}

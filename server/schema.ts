@@ -574,6 +574,9 @@ export const RESOURCES: ResourceDef[] = [
         searchable: true,
         sql: `(SELECT CONCAT('Nº ', c.numero, ' • ', c.titulo) FROM chamados c WHERE c.id = t.chamado_id)`,
       },
+      // Para o duplo clique abrir o chamado em Chamados Ativos ou o contrato que gerou a atividade (App.tsx)
+      { name: 'chamado_id', label: 'Chamado (id)', type: 'text', readOnly: true, foraDaFicha: true, sql: 't.chamado_id' },
+      { name: 'contrato_id', label: 'Contrato (id)', type: 'text', readOnly: true, foraDaFicha: true, sql: 't.contrato_id' },
       { name: 'concluida', label: 'Concluída', type: 'boolean', listed: true, filterable: true },
       { name: 'concluida_em', label: 'Concluída em', type: 'datetime', readOnly: true },
       {
