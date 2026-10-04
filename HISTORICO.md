@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.86 — 2026-10-03
+
+- Prospecção: cada busca fica guardada (tabela `prospeccao_buscas`) e pode ser reaberta em "Buscas anteriores", com os filtros e as empresas encontradas, sem gastar a cota do Google.
+- Prospecção: a marcação separa "Incluído pela Prospecção" (lead criado por uma busca) de "Já no CRM" (já estava em Pessoas, achado pelo telefone).
+- Configurações › WhatsApp das campanhas: o texto do recebimento diz que as respostas seguem a Automação das campanhas, se ligada.
+- Banco: `CREATE TABLE prospeccao_buscas` (em extras/crmweb_schema.sql).
+
 ## 0.0.85 — 2026-10-03
 
 - Automação: botões Exportar e Importar. Exportar baixa o fluxo do quadro num arquivo JSON (com as imagens dentro, o departamento pelo nome e os cabeçalhos secretos das chamadas de API sem valor); Importar carrega o arquivo no quadro depois de confirmar (só grava ao Salvar), reenvia as imagens, acha o departamento pelo nome e avisa o que revisar.

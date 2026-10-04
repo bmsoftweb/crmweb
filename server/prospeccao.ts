@@ -17,7 +17,9 @@ import { chaveTelefone, telefoneWhatsApp } from './whatsapp.js';
  * achar o link do WhatsApp (wa.me), o e-mail e o Instagram publicados lá.
  *
  * A chave da API fica em Configurações › Prospecção (config prospeccao.google, cifrada) ou no
- * GOOGLE_PLACES_API_KEY do .env. A busca não grava nada: a tela escolhe e manda incluir.
+ * GOOGLE_PLACES_API_KEY do .env. Cada busca fica guardada em prospeccao_buscas (filtros e as empresas
+ * que passaram nos filtros, em JSON), para reabrir depois sem pagar o Google de novo; nada vai para
+ * Pessoas até a tela mandar incluir.
  *
  * Chave da inclusão: pessoas.google_place_id (o cod_integracao fica livre para o bmsoft, "CRMWEB-<id>"
  * como os cadastros feitos aqui). Quem já está no CRM (pelo place id ou pelo telefone) aparece
@@ -333,6 +335,8 @@ export interface Lead {
   motivos: string[];
   /** Id da pessoa quando já está no CRM */
   pessoa_id: number | null;
+  /** Está no CRM porque foi incluída pela Prospecção (achada pelo google_place_id, não só pelo telefone) */
+  pela_prospeccao?: boolean;
 }
 
 function numero(v: unknown, padrao: number, min: number, max: number) {
@@ -340,7 +344,12 @@ function numero(v: unknown, padrao: number, min: number, max: number) {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : padrao;
 }
 
-async function buscar(empresaId: string, corpo: any): Promise<{ leads: Lead[]; encontrados: number; descartados: number }> {
+type Resultado = { leads: Lead[]; encontrados: number; descartados: number };
+
+/** Quem não está no CRM primeiro, e entre eles a maior nota de qualificação */
+const ordenar = (leads: Lead[]) => leads.sort((a, b) => Number(Boolean(a.pessoa_id)) - Number(Boolean(b.pessoa_id)) || b.pontos - a.pontos);
+
+async function buscar(empresaId: string, usuarioId: number | null, corpo: any): Promise<Resultado & { busca_id: number | null }> {
   const termo = String(corpo?.termo ?? '').trim().slice(0, 150);
   const local = String(corpo?.local ?? '').trim().slice(0, 150);
   if (termo.length < 2) throw erro(400, 'Informe o que procurar (ex.: clínica odontológica).');
@@ -395,9 +404,44 @@ async function buscar(empresaId: string, corpo: any): Promise<{ leads: Lead[]; e
   });
   if (criterios.somente_celular) leads = leads.filter((l) => l.celular || l.whatsapp_site);
 
+  // Guarda a busca (sem o "já no CRM", recalculado ao reabrir); se a gravação falhar, a busca paga não se perde
+  let buscaId: number | null = null;
+  try {
+    const [g] = await pool.query<any>(
+      'INSERT INTO prospeccao_buscas (empresa_id, usuario_id, termo, local, filtros, encontrados, descartados, leads) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [empresaId, usuarioId, termo, local, JSON.stringify({ maximo, ...criterios, ler_sites: lerSites }), lugares.length, lugares.length - leads.length,
+        JSON.stringify(leads.map(({ pessoa_id, pela_prospeccao, ...l }) => l))],
+    );
+    buscaId = g.insertId;
+  } catch (err: any) {
+    console.error('Prospecção: não gravou a busca:', err.message);
+  }
+
   await marcarQuemJaExiste(empresaId, leads);
-  leads.sort((a, b) => Number(Boolean(a.pessoa_id)) - Number(Boolean(b.pessoa_id)) || b.pontos - a.pontos);
-  return { leads, encontrados: lugares.length, descartados: lugares.length - leads.length };
+  ordenar(leads);
+  return { leads, encontrados: lugares.length, descartados: lugares.length - leads.length, busca_id: buscaId };
+}
+
+/** Buscas guardadas, da mais recente para a mais antiga */
+async function listarBuscas(empresaId: string) {
+  const [r] = await pool.query<any[]>(
+    `SELECT b.id, b.termo, b.local, b.encontrados, JSON_LENGTH(b.leads) AS qtd, DATE_FORMAT(b.criado_em, '%d/%m/%Y %H:%i') AS quando, u.nome AS usuario
+       FROM prospeccao_buscas b LEFT JOIN usuarios u ON u.id = b.usuario_id
+      WHERE b.empresa_id = ? ORDER BY b.id DESC LIMIT 100`,
+    [empresaId],
+  );
+  return r.map((b) => ({ ...b, qtd: Number(b.qtd) || 0 }));
+}
+
+/** Reabre uma busca guardada, conferindo de novo quem já foi incluído no CRM */
+async function abrirBusca(empresaId: string, id: string): Promise<Resultado & { termo: string; local: string; filtros: Record<string, unknown> }> {
+  const [r] = await pool.query<any[]>('SELECT termo, local, filtros, encontrados, descartados, leads FROM prospeccao_buscas WHERE id = ? AND empresa_id = ?', [id, empresaId]);
+  if (!r[0]) throw erro(404, 'Busca não encontrada.');
+  const b = r[0];
+  const leads: Lead[] = (JSON.parse(b.leads || '[]') as Lead[]).map((l) => ({ ...l, pessoa_id: null }));
+  await marcarQuemJaExiste(empresaId, leads);
+  ordenar(leads);
+  return { leads, encontrados: Number(b.encontrados), descartados: Number(b.descartados), termo: b.termo, local: b.local, filtros: JSON.parse(b.filtros || '{}') };
 }
 
 /** Quem já está no CRM: pelo código do Google ou por algum dos telefones */
@@ -428,6 +472,7 @@ async function marcarQuemJaExiste(empresaId: string, leads: Lead[]) {
   }
   for (const l of leads) {
     l.pessoa_id = mapaPlace.get(l.place_id) ?? chaves(l).map((c) => mapaFone.get(c)).find(Boolean) ?? null;
+    l.pela_prospeccao = mapaPlace.has(l.place_id);
   }
 }
 
@@ -536,7 +581,25 @@ export function createProspeccaoRouter(): Router {
   router.post('/prospeccao/buscar', async (req: Request, res: Response) => {
     try {
       exigirAcesso(res, 'prospeccao', 'a Prospecção');
-      res.json(await buscar(String(res.locals.empresaId), req.body));
+      res.json(await buscar(String(res.locals.empresaId), Number(res.locals.usuarioId) || null, req.body));
+    } catch (err: any) {
+      res.status(err.status || 500).json({ error: err.message });
+    }
+  });
+
+  router.get('/prospeccao/buscas', async (_req: Request, res: Response) => {
+    try {
+      exigirAcesso(res, 'prospeccao', 'a Prospecção');
+      res.json(await listarBuscas(String(res.locals.empresaId)));
+    } catch (err: any) {
+      res.status(err.status || 500).json({ error: err.message });
+    }
+  });
+
+  router.get('/prospeccao/buscas/:id', async (req: Request, res: Response) => {
+    try {
+      exigirAcesso(res, 'prospeccao', 'a Prospecção');
+      res.json(await abrirBusca(String(res.locals.empresaId), req.params.id));
     } catch (err: any) {
       res.status(err.status || 500).json({ error: err.message });
     }

@@ -245,7 +245,7 @@ export const ConfigWhatsApp: React.FC<Props> = ({ somenteLeitura, onToast, conta
               <div className="sm:col-span-4 flex flex-wrap items-center gap-3 p-3 rounded-lg bg-stone-50 dark:bg-stone-950/60 border border-stone-200 dark:border-stone-800">
                 <div className="flex-1 min-w-64 text-xs text-stone-600 dark:text-stone-300">
                   <b>Recebimento de mensagens</b>: a Evolution avisa o CRM das mensagens recebidas e da entrega e leitura das enviadas
-                  {campanhas ? ' (respostas às campanhas entram na conversa, sem o bot responder)' : ''}. Ative pelo endereço público do CRM
+                  {campanhas ? ' (respostas às campanhas entram na conversa e seguem a Automação das campanhas, se ligada)' : ''}. Ative pelo endereço público do CRM
                   (o da Vercel): a Evolution não alcança o computador local.
                   <div className={`mt-1 font-semibold ${recebimento ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-500'}`}>
                     {recebimento

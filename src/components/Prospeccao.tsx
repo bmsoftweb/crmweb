@@ -1,6 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, ExternalLink, Globe, Instagram, Loader2, MapPin, MessageCircle, Plus, Search, Star, UserPlus, X } from 'lucide-react';
-import { buscarProspeccao, createRecord, fetchOptions, FiltroProspeccao, incluirProspeccao, LeadProspeccao } from '../services/api';
+import {
+  abrirBuscaProspeccao,
+  buscarProspeccao,
+  BuscaProspeccao,
+  createRecord,
+  fetchBuscasProspeccao,
+  fetchOptions,
+  FiltroProspeccao,
+  incluirProspeccao,
+  LeadProspeccao,
+} from '../services/api';
 import { OpcaoRef } from '../types';
 import { FIELD_CLASS, HINT_CLASS, INPUT_CLASS, LABEL_CLASS } from '../utils/formStyles';
 import { SelectBusca } from './SelectBusca';
@@ -10,7 +20,8 @@ import { AvisoErro } from './AvisoErro';
 /**
  * Marketing › Prospecção (server/prospeccao.ts): busca empresas no Google Maps (Places API) por
  * segmento e região, mostra as com celular ordenadas pela nota de qualificação e inclui as
- * escolhidas em Pessoas como lead. A busca não grava nada; cada busca é cobrada pelo Google.
+ * escolhidas em Pessoas como lead. Cada busca é cobrada pelo Google e fica guardada: "Buscas anteriores"
+ * reabre o resultado sem chamar o Google de novo.
  */
 
 const FILTRO_INICIAL: FiltroProspeccao = {
@@ -61,10 +72,39 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
   const [novoSegmento, setNovoSegmento] = useState<string | null>(null);
   const [incluindo, setIncluindo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [buscas, setBuscas] = useState<BuscaProspeccao[]>([]);
+  /** Busca guardada que está na tela ('' = nenhuma) */
+  const [buscaAberta, setBuscaAberta] = useState('');
 
+  const carregarBuscas = () => fetchBuscasProspeccao().then(setBuscas).catch(() => {});
   useEffect(() => {
     fetchOptions('segmentos', 'nome').then(setSegmentos).catch(() => {});
+    carregarBuscas();
   }, []);
+
+  const mostrar = (r: { leads: LeadProspeccao[]; encontrados: number; descartados: number }) => {
+    setResultado(r);
+    setIncluidos(new Set());
+    // Já vem marcado quem tem nota boa e não está no CRM
+    setMarcados(new Set(r.leads.filter((l) => !l.pessoa_id && l.pontos >= 45).map((l) => l.place_id)));
+  };
+
+  /** Reabre uma busca guardada (sem chamar o Google), com os filtros que ela usou */
+  const reabrir = async (id: string) => {
+    setBuscaAberta(id);
+    if (!id) return;
+    setBuscando(true);
+    setErro(null);
+    try {
+      const r = await abrirBuscaProspeccao(Number(id));
+      setFiltro({ ...FILTRO_INICIAL, ...r.filtros, termo: r.termo, local: r.local });
+      mostrar(r);
+    } catch (err: any) {
+      setErro(err.message);
+    } finally {
+      setBuscando(false);
+    }
+  };
 
   const mudar = <K extends keyof FiltroProspeccao>(campo: K, valor: FiltroProspeccao[K]) => setFiltro((f) => ({ ...f, [campo]: valor }));
   const disponivel = (l: LeadProspeccao) => !l.pessoa_id && !incluidos.has(l.place_id);
@@ -76,10 +116,9 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
     setErro(null);
     try {
       const r = await buscarProspeccao(filtro);
-      setResultado(r);
-      setIncluidos(new Set());
-      // Já vem marcado quem tem nota boa e não está no CRM
-      setMarcados(new Set(r.leads.filter((l) => !l.pessoa_id && l.pontos >= 45).map((l) => l.place_id)));
+      mostrar(r);
+      await carregarBuscas();
+      setBuscaAberta(r.busca_id ? String(r.busca_id) : '');
     } catch (err: any) {
       setErro(err.message);
     } finally {
@@ -180,14 +219,32 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
             title="Procura no site de cada empresa o link do WhatsApp, o e-mail e o Instagram (a busca fica mais lenta)"
             label={<span className="text-xs font-semibold text-stone-700 dark:text-stone-200">Ler os sites (WhatsApp, e-mail, Instagram)</span>}
           />
-          <button type="submit" disabled={buscando} className={`${botaoPrimario} ml-auto`}>
+          <div className="flex items-center gap-2 ml-auto">
+            <label htmlFor="pr-anteriores" className={LABEL_CLASS}>Buscas anteriores</label>
+            <select
+              id="pr-anteriores"
+              value={buscaAberta}
+              onChange={(e) => reabrir(e.target.value)}
+              disabled={buscando || !buscas.length}
+              title="Reabre o resultado de uma busca já feita, sem chamar o Google de novo (sem custo)"
+              className={`${INPUT_CLASS} w-64 cursor-pointer`}
+            >
+              <option value="">{buscas.length ? `— ${buscas.length} guardada(s) —` : '— Nenhuma ainda —'}</option>
+              {buscas.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.quando} • {b.termo} em {b.local} ({b.qtd})
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" disabled={buscando} className={botaoPrimario}>
             {buscando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
             {buscando ? 'Buscando...' : 'Buscar'}
           </button>
         </div>
         <span className={HINT_CLASS}>
-          Empresas do Google Maps (Google Places API). Cada busca é cobrada pelo Google na conta da chave de Configurações › Prospecção. Faça o
-          primeiro contato por template aprovado e respeite quem pedir para sair.
+          Empresas do Google Maps (Google Places API). Cada busca é cobrada pelo Google na conta da chave de Configurações › Prospecção e fica
+          guardada em Buscas anteriores, para reabrir sem custo. Faça o primeiro contato por template aprovado e respeite quem pedir para sair.
         </span>
       </form>
 
@@ -237,8 +294,20 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
                     <td className="px-3 py-2">
                       <div className="font-semibold text-stone-800 dark:text-stone-100 flex items-center gap-2">
                         {l.nome}
-                        {l.pessoa_id ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300">Já no CRM</span>
+                        {l.pessoa_id && l.pela_prospeccao ? (
+                          <span
+                            title="Incluída como lead por uma busca da Prospecção"
+                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          >
+                            Incluído pela Prospecção
+                          </span>
+                        ) : l.pessoa_id ? (
+                          <span
+                            title="Já estava em Pessoas (cadastrado à mão, importado do bmsoft...): achado pelo telefone"
+                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                          >
+                            Já no CRM
+                          </span>
                         ) : incluidos.has(l.place_id) ? (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Incluído</span>
                         ) : null}

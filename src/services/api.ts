@@ -1061,6 +1061,8 @@ export interface LeadProspeccao {
   pontos: number;
   motivos: string[];
   pessoa_id: number | null;
+  /** No CRM porque foi incluída pela Prospecção (pelo código do Google), e não só achada pelo telefone */
+  pela_prospeccao?: boolean;
 }
 export interface FiltroProspeccao {
   termo: string;
@@ -1072,7 +1074,22 @@ export interface FiltroProspeccao {
   somente_celular: boolean;
   ler_sites: boolean;
 }
-export const buscarProspeccao = (f: FiltroProspeccao): Promise<{ leads: LeadProspeccao[]; encontrados: number; descartados: number }> =>
+export const buscarProspeccao = (f: FiltroProspeccao): Promise<{ leads: LeadProspeccao[]; encontrados: number; descartados: number; busca_id: number | null }> =>
   enviar('POST', '/api/prospeccao/buscar', f);
 export const incluirProspeccao = (leads: LeadProspeccao[], segmentoId: string | null): Promise<{ incluidos: number; existentes: number }> =>
   enviar('POST', '/api/prospeccao/incluir', { leads, segmento_id: segmentoId ? Number(segmentoId) : null });
+export interface BuscaProspeccao {
+  id: number;
+  termo: string;
+  local: string;
+  encontrados: number;
+  /** Empresas que passaram nos filtros */
+  qtd: number;
+  quando: string;
+  usuario: string | null;
+}
+export const fetchBuscasProspeccao = (): Promise<BuscaProspeccao[]> => get('/api/prospeccao/buscas');
+export const abrirBuscaProspeccao = (
+  id: number,
+): Promise<{ leads: LeadProspeccao[]; encontrados: number; descartados: number; termo: string; local: string; filtros: Partial<FiltroProspeccao> }> =>
+  get(`/api/prospeccao/buscas/${id}`);
