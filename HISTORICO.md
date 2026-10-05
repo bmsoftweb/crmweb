@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.99 — 2026-10-05
+
+- WhatsApp: a linha "Sai pelo" fica centralizada entre a conversa e o campo de texto (espaço igual em cima e embaixo).
+
 ## 0.0.98 — 2026-10-05
 
 - Prospecção: cada lead incluído guarda a busca de onde veio. Botão "Ver leads em Pessoas" ao abrir uma busca anterior; em Pessoas, campo "Busca da prospecção" (filtro da busca avançada). Os leads já incluídos foram ligados às buscas guardadas pelo código do Google.

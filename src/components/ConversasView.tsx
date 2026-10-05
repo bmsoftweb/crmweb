@@ -1015,7 +1015,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
               </div>
             )}
             {conversa?.tem_campanhas && (
-              <div className="shrink-0 px-3 pt-2 flex flex-wrap items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400">
+              <div className="shrink-0 px-3 py-2 flex flex-wrap items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400">
                 <label htmlFor="cv-sai-por" className="font-semibold">Sai pelo</label>
                 <select
                   id="cv-sai-por"
