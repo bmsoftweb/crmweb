@@ -747,6 +747,9 @@ export const fetchNaoVistas = (): Promise<{
 /** Encerrar a sessão da conversa: como se o tempo de devolver ao bot tivesse passado */
 export const encerrarConversa = (telefone: string): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/encerrar`);
+/** Tira de Aguardando a mensagem que não pedia atendimento (sem pesquisa, não conta como atendimento) */
+export const descartarConversa = (telefone: string): Promise<{ success: boolean }> =>
+  enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/descartar`);
 /** Template de mensagem (Cadastros › Templates) */
 export interface TemplateMensagem {
   id: number;

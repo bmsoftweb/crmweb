@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
-import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, Hand, Lock, LockOpen, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Reply, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
-import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, limparConversa, atenderConversa, marcarMensagemPrivada, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, CircleSlash, Hand, Lock, LockOpen, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Reply, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
+import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, descartarConversa, limparConversa, atenderConversa, marcarMensagemPrivada, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -230,6 +230,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [descartar, setDescartar] = useState<'anexo' | 'gravacao' | null>(null);
   /** Diálogo "Limpar a conversa" aberto (só administrador) */
   const [limpando, setLimpando] = useState(false);
+  /** Diálogo "Descartar" aberto (conversa em Aguardando que não pedia atendimento) */
+  const [descartandoConversa, setDescartandoConversa] = useState(false);
   const gravadorRef = useRef<{ rec: MediaRecorder; partes: Blob[]; enviar: boolean; timer: number } | null>(null);
   const arquivoRef = useRef<HTMLInputElement>(null);
   const campoRef = useRef<HTMLTextAreaElement>(null);
@@ -771,6 +773,18 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                       {conversa.estado === 'atendimento' ? 'Assumir' : 'Atender'}
                     </button>
                   )}
+                  {/* Pela lista: ela já sabe quando a conversa foi encerrada e o cliente não escreveu de novo */}
+                  {resumoAberta?.estado === 'aguardando' && (
+                    <button
+                      disabled={ocupadoAtendimento}
+                      onClick={() => setDescartandoConversa(true)}
+                      title="Não é um pedido de atendimento (ex.: o bot de outra empresa respondendo): tira da fila sem atender, sem pesquisa"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                    >
+                      <CircleSlash className="w-4 h-4" />
+                      Descartar
+                    </button>
+                  )}
                   {podeTransferir && (
                     <button
                       disabled={ocupadoAtendimento}
@@ -1191,6 +1205,22 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   </div>
                 </div>
               </div>
+            )}
+            {descartandoConversa && (
+              <ConfirmDialog
+                titulo="Descartar esta conversa?"
+                mensagem="Ela sai de Aguardando sem atendimento: não conta como atendimento e não vai pesquisa de satisfação. Se o cliente escrever de novo, volta para a fila."
+                confirmar="Descartar"
+                tom="normal"
+                onConfirmar={async () => {
+                  await descartarConversa(aberta);
+                  setDescartandoConversa(false);
+                  onToast('Conversa descartada: saiu de Aguardando.');
+                  await carregarConversa(aberta);
+                  await carregarLista();
+                }}
+                onCancelar={() => setDescartandoConversa(false)}
+              />
             )}
             {limpando && (
               <ConfirmDialog

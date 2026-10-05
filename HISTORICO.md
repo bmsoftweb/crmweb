@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.100 — 2026-10-05
+
+- WhatsApp: botão "Descartar" nas conversas em Aguardando que não pedem atendimento (ex.: o bot de outra empresa respondendo). A conversa sai da fila como encerrada ("Descartada por ..."), sem pesquisa de satisfação, sem contar como atendimento e sem procurar pendências; uma mensagem nova do cliente volta a abrir atendimento.
+
 ## 0.0.99 — 2026-10-05
 
 - WhatsApp: a linha "Sai pelo" fica centralizada entre a conversa e o campo de texto (espaço igual em cima e embaixo).

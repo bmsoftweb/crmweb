@@ -272,6 +272,27 @@ export function createConversasRouter(): Router {
   });
 
   /**
+   * Descartar: a mensagem que caiu em Aguardando não pedia atendimento (ex.: o bot de outra empresa respondendo).
+   * A conversa sai da fila como encerrada, sem pesquisa de satisfação e sem contar como atendimento; uma mensagem
+   * nova do cliente volta a abrir um atendimento.
+   */
+  router.post('/whatsapp/conversas/:telefone/descartar', async (req: Request, res: Response) => {
+    try {
+      const telefone = req.params.telefone;
+      if (!TELEFONE.test(telefone)) return res.status(400).json({ error: 'Telefone inválido.' });
+      const emp = res.locals.empresaId;
+      const [c] = await pool.query<any[]>('SELECT atendente_id FROM whatsapp_conversas WHERE empresa_id = ? AND telefone = ?', [emp, telefone]);
+      if (c[0]?.atendente_id) return res.status(400).json({ error: 'Esta conversa está em atendimento: encerre em vez de descartar.' });
+      await encerrarAtendimento(emp, telefone);
+      await marcarEncerramento(emp, telefone, res.locals.usuarioId, null, 'Descartada', false);
+      await pool.query("UPDATE whatsapp_mensagens SET vista = 1 WHERE empresa_id = ? AND telefone = ? AND direcao = 'recebida' AND vista = 0", [emp, telefone]);
+      res.json({ success: true });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
+  /**
    * Limpar (só administrador): apaga o histórico do número no CRM (mensagens e situação do atendimento, com a
    * automação); a conversa sai da lista e a próxima mensagem do cliente começa do zero. No WhatsApp do cliente nada muda.
    * Chamados que citavam uma resposta enviada perdem só a ligação; pesquisa pendente expira.

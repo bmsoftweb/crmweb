@@ -352,7 +352,15 @@ export async function avisarFalha(empresaId: string | number, telefone: string, 
  * preenchida impede que conte como resposta de atendente. Botão Encerrar: com quem encerrou, agora;
  * tempo esgotado: sem usuário, no momento em que o tempo acabou
  */
-export async function marcarEncerramento(empresaId: string | number, telefone: string, usuarioId: number | null, quando: string | null = null, texto?: string) {
+export async function marcarEncerramento(
+  empresaId: string | number,
+  telefone: string,
+  usuarioId: number | null,
+  quando: string | null = null,
+  texto?: string,
+  /** false = Descartar (mensagem que não pedia atendimento): não conta como atendimento nem procura pendências */
+  atendimento = true,
+) {
   await pool.query(
     `INSERT INTO whatsapp_mensagens (empresa_id, pessoa_id, contato_id, telefone, direcao, tipo, texto, situacao, origem, usuario_id, vista, data_hora)
      SELECT ?, ${PESSOA_RECENTE()}, ${CONTATO_RECENTE()}, ?, 'enviada', 'encerramento', ?, 'enviada', ?, ?, 1, COALESCE(?, NOW())
@@ -361,13 +369,14 @@ export async function marcarEncerramento(empresaId: string | number, telefone: s
       empresaId,
       telefone,
       texto ?? (usuarioId ? 'Atendimento encerrado' : 'Atendimento encerrado pelo tempo, sem resposta de atendente'),
-      `${usuarioId ? 'encerrado' : texto ? 'encerrado-jornada' : 'encerrado-tempo'}:${telefone}:${Date.now()}`,
+      `${!atendimento ? 'descartado' : usuarioId ? 'encerrado' : texto ? 'encerrado-jornada' : 'encerrado-tempo'}:${telefone}:${Date.now()}`,
       usuarioId,
       quando,
       empresaId,
       telefone,
     ],
   );
+  if (!atendimento) return;
   // O atendimento vira um registro (a pesquisa de satisfação sorteia entre eles). Import dinâmico: os módulos usam este
   const motivo = usuarioId ? 'botao' : texto?.includes('falta de interação') ? 'inatividade' : texto ? 'automacao' : 'tempo';
   await (await import('./pesquisasSatisfacao.js'))
