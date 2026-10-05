@@ -13,7 +13,7 @@ import { contaDaConversa, CONTATO_RECENTE, enviarReservada, PESSOA_RECENTE, rese
 
 export const AVISO_INATIVIDADE =
   'Como não tivemos resposta, este atendimento será encerrado em 30 segundos. Se ainda precisar de ajuda, é só responder por aqui.';
-const TEXTO_ENCERRAMENTO = 'Atendimento encerrado por falta de interação do cliente';
+export const TEXTO_ENCERRAMENTO = 'Atendimento encerrado por falta de interação do cliente';
 /** Espera depois do aviso */
 const ESPERA_S = 30;
 /** Mensagem mais velha que o prazo + esta janela não é avisada (servidor parado, conversa antiga) */

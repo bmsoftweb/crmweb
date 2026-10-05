@@ -24,6 +24,7 @@ import {
   type OpcaoMenu,
 } from './chatbot.js';
 import { enviarPesquisa } from './pesquisa.js';
+import { TEXTO_ENCERRAMENTO as ENCERRADA_POR_INATIVIDADE } from './inatividade.js';
 
 /**
  * Jornada de atendimento do WhatsApp (Configurações › Jornada): um fluxo de nós ligados, desenhado
@@ -310,7 +311,8 @@ export const jornadaAtende = (j: Jornada | null, telefone: string): boolean => B
 /**
  * Qual Automação atende a conversa. Pelo número padrão, a do atendimento. Pelo número das campanhas, a das campanhas
  * só enquanto a conversa responde a uma campanha: a que já está rodando continua; recomeçando, só se chegou uma
- * campanha depois do último encerramento (atendente ou fim da automação). Fora isso, a do atendimento.
+ * campanha depois do último encerramento (atendente ou fim da automação). Exceção: encerrada só por falta de interação
+ * e o cliente respondeu atrasado (até 24 h): continua na das campanhas, recomeçando dela. Fora isso, a do atendimento.
  */
 export async function contaDaJornada(empresaId: number, telefone: string): Promise<ContaWhats> {
   if ((await contaDaConversa(empresaId, telefone)) !== 'campanhas') return 'provedor';
@@ -330,7 +332,18 @@ export async function contaDaJornada(empresaId: number, telefone: string): Promi
     [empresaId, telefone],
   );
   const { campanha, encerrou } = r[0] ?? {};
-  return campanha && (!encerrou || Number(campanha) > Number(encerrou)) ? 'campanhas' : 'provedor';
+  if (!campanha) return 'provedor';
+  if (!encerrou || Number(campanha) > Number(encerrou)) return 'campanhas';
+  // Resposta atrasada: o último encerramento foi por falta de interação, há até 24 h, e a campanha veio depois do anterior
+  const [e] = await pool.query<any[]>(
+    `SELECT e.texto, e.data_hora > NOW() - INTERVAL 24 HOUR AS recente,
+            (SELECT MAX(a.id) FROM whatsapp_mensagens a
+              WHERE a.empresa_id = e.empresa_id AND a.telefone = e.telefone AND a.tipo = 'encerramento' AND a.id < e.id) AS anterior
+       FROM whatsapp_mensagens e WHERE e.id = ?`,
+    [encerrou],
+  );
+  const atrasada = e[0]?.texto === ENCERRADA_POR_INATIVIDADE && Number(e[0].recente) && Number(campanha) > Number(e[0].anterior ?? 0);
+  return atrasada ? 'campanhas' : 'provedor';
 }
 
 /** A jornada que atende este número (ligada, e no modo teste só para os números de teste) */

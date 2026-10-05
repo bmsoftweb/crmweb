@@ -1045,6 +1045,18 @@ async function tratarDescadastro(nova: MensagemNova): Promise<boolean> {
   return true;
 }
 
+/**
+ * Rede de segurança: nenhuma Automação atende este número (desligada, em teste, ou a conversa caiu na Automação
+ * errada). Em vez de o cliente ficar sem resposta, a conversa vai para a Fila de Chamados (Aguardando).
+ * Não mexe em conversa já com atendente nem em número de usuário da empresa.
+ */
+async function paraFilaSemAutomacao(nova: MensagemNova, cfg: ConfigChatbot | null): Promise<void> {
+  if (await ehUsuario(nova.empresaId, nova.telefone)) return;
+  if ((await atendimentoAtual(nova.empresaId, nova.telefone, minutosDevolver(cfg))) !== 'bot') return;
+  await mudarAtendimento(nova.empresaId, nova.telefone, 'humano');
+  await marcarEvento(nova.empresaId, nova.telefone, 'Nenhuma automação atende esta conversa: foi para a fila', null);
+}
+
 export async function responderComBot(nova: MensagemNova): Promise<void> {
   if (await tratarDescadastro(nova)) return;
   // Número numa conversa do bot de uma atividade: quem responde é ele, não a Automação (import dinâmico: ele usa este módulo)
@@ -1055,7 +1067,7 @@ export async function responderComBot(nova: MensagemNova): Promise<void> {
   // Import dinâmico: jornada.ts usa este módulo
   const { jornadaDoNumero, executarJornada } = await import('./jornada.js');
   const jornada = await jornadaDoNumero(nova.empresaId, nova.telefone);
-  if (!jornada) return;
+  if (!jornada) return paraFilaSemAutomacao(nova, cfg);
   // Número de teste da Automação pode ser de um usuário (quem testa é da empresa)
   if (!jornada.numeroDeTeste && (await ehUsuario(nova.empresaId, nova.telefone))) return;
   if ((await atendimentoAtual(nova.empresaId, nova.telefone, minutosDevolver(cfg))) !== 'bot') return;

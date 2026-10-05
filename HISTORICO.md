@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.105 — 2026-10-05
+
+- WhatsApp: cliente que responde até 24 h depois de um atendimento encerrado por falta de interação continua na Automação das campanhas (recomeça dela), em vez de cair na do atendimento.
+- WhatsApp: rede de segurança — mensagem que nenhuma Automação atende (desligada, em teste) vai para a Fila de Chamados (Aguardando), com a linha "Nenhuma automação atende esta conversa: foi para a fila", em vez de ficar sem resposta.
+
 ## 0.0.104 — 2026-10-05
 
 - Listas: os filtros rápidos (Só as minhas, Do bot e o Sim/Não, ex.: Concluída) voltam como estavam da última vez, por tela (lembrados no navegador).
