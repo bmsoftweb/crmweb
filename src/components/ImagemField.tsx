@@ -8,17 +8,33 @@ interface ImagemFieldProps {
   value: string;
   onChange: (dataUri: string) => void;
   rotulo: string;
+  /** Guarda o arquivo como veio (ex.: imagem da campanha); sem isto, reduz para 400×200 (logo) */
+  original?: boolean;
 }
 
 const LARGURA_MAX = 400;
 const ALTURA_MAX = 200;
+/** Original: até este tamanho vai como veio (o data URI cresce 1/3 e a requisição aceita 2 MB) */
+const ORIGINAL_MAX_BYTES = 1_300_000;
+/** Original grande demais: reduz para este lado maior, a resolução com que o WhatsApp manda fotos */
+const ORIGINAL_LADO = 1600;
+
+const lerDataUri = (arquivo: File) =>
+  new Promise<string>((ok, falha) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result));
+    r.onerror = () => falha(new Error('Não foi possível ler o arquivo.'));
+    r.readAsDataURL(arquivo);
+  });
 
 /**
- * Reduz a imagem para caber em 400×200 (nunca amplia) e devolve um data URI.
+ * Reduz a imagem para caber em 400×200 (nunca amplia) e devolve um data URI. Com `original`, devolve o arquivo
+ * como veio; só o que passa de ~1,3 MB é reduzido para 1600 px no lado maior.
  * PNG preserva a transparência do logo; se ficar grande (foto), vira JPEG com fundo branco.
  */
-async function prepararImagem(arquivo: File): Promise<string> {
+async function prepararImagem(arquivo: File, original = false): Promise<string> {
   if (!arquivo.type.startsWith('image/')) throw new Error('Escolha um arquivo de imagem (PNG, JPG, WebP…).');
+  if (original && arquivo.size <= ORIGINAL_MAX_BYTES) return lerDataUri(arquivo);
   const url = URL.createObjectURL(arquivo);
   try {
     const img = await new Promise<HTMLImageElement>((ok, falha) => {
@@ -27,7 +43,8 @@ async function prepararImagem(arquivo: File): Promise<string> {
       i.onerror = () => falha(new Error('O navegador não conseguiu abrir esta imagem.'));
       i.src = url;
     });
-    const fator = Math.min(1, LARGURA_MAX / img.naturalWidth, ALTURA_MAX / img.naturalHeight);
+    const [largMax, altMax] = original ? [ORIGINAL_LADO, ORIGINAL_LADO] : [LARGURA_MAX, ALTURA_MAX];
+    const fator = Math.min(1, largMax / img.naturalWidth, altMax / img.naturalHeight);
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(img.naturalWidth * fator));
     canvas.height = Math.max(1, Math.round(img.naturalHeight * fator));
@@ -35,18 +52,18 @@ async function prepararImagem(arquivo: File): Promise<string> {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     const png = canvas.toDataURL('image/png');
-    if (png.length <= 300_000) return png;
+    if (png.length <= (original ? ORIGINAL_MAX_BYTES : 300_000)) return png;
     ctx.globalCompositeOperation = 'destination-over';
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.9);
+    return canvas.toDataURL('image/jpeg', original ? 0.85 : 0.9);
   } finally {
     URL.revokeObjectURL(url);
   }
 }
 
 /** Campo de imagem (ex.: logo da empresa): prévia, envio de arquivo e remoção */
-export const ImagemField: React.FC<ImagemFieldProps> = ({ id, value, onChange, rotulo }) => {
+export const ImagemField: React.FC<ImagemFieldProps> = ({ id, value, onChange, rotulo, original }) => {
   const [erro, setErro] = useState<string | null>(null);
   const [removendo, setRemovendo] = useState(false);
 
@@ -76,7 +93,7 @@ export const ImagemField: React.FC<ImagemFieldProps> = ({ id, value, onChange, r
               if (!arquivo) return;
               setErro(null);
               try {
-                onChange(await prepararImagem(arquivo));
+                onChange(await prepararImagem(arquivo, original));
               } catch (err: any) {
                 setErro(err.message);
               }

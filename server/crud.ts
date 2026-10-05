@@ -64,7 +64,9 @@ function coerceValue(field: FieldDef, raw: any): any {
       if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(img)) {
         throw new Error(`O campo "${field.label}" precisa ser uma imagem PNG, JPEG ou WebP.`);
       }
-      if (img.length > 1_000_000) throw new Error(`A imagem de "${field.label}" é grande demais (máx. ~700 KB).`);
+      // Original (imagem da campanha): até ~1,3 MB de arquivo, dentro do limite de 2 MB da requisição
+      const max = field.imagemOriginal ? 1_800_000 : 1_000_000;
+      if (img.length > max) throw new Error(`A imagem de "${field.label}" é grande demais (máx. ~${field.imagemOriginal ? '1,3 MB' : '700 KB'}).`);
       return img;
     }
     case 'fotos':

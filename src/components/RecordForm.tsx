@@ -476,7 +476,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({
         );
 
       case 'imagem':
-        return <ImagemField id={inputId} value={String(value ?? '')} onChange={(v) => setValue(field.name, v)} rotulo={field.label} />;
+        return <ImagemField id={inputId} value={String(value ?? '')} onChange={(v) => setValue(field.name, v)} rotulo={field.label} original={field.imagemOriginal} />;
 
       case 'fotos':
         return <FotosField id={inputId} produtoId={(record?.id as Id | undefined) ?? null} value={value} onChange={(v) => setValue(field.name, v)} />;

@@ -478,20 +478,28 @@ export const CrudView: React.FC<CrudViewProps> = ({
   // Busca avançada: painel aberto e filtros aplicados
   const [buscaAvancadaAberta, setBuscaAvancadaAberta] = useState(false);
   const [filtros, setFiltros] = useState<FiltroAvancado[]>(filtroPadrao);
-  /** Só as do usuário logado (recursos com o filtro "minhas", ex.: atividades) */
-  const [minhas, setMinhas] = useState(false);
-  /** Filtro rápido Sim/Não do recurso ('' = todas, '1' = sim, '0' = não) */
-  const [rapido, setRapido] = useState<string>(resource.filtroRapidoPadrao ?? '');
-  const campoRapido = resource.filtroRapido ? resource.fields.find((f) => f.name === resource.filtroRapido) : undefined;
-  /** Toggle "mostrar" do recurso (ex.: atividades do bot); a escolha fica lembrada neste navegador */
-  const chaveMostrar = `crmweb.mostrar.${resource.name}`;
-  const [mostrar, setMostrar] = useState(() => {
+  /** Filtros rápidos (Só as minhas, Sim/Não, toggle "mostrar"): a última escolha fica lembrada neste navegador */
+  const lerLocal = (chave: string, padrao: string): string => {
     try {
-      return localStorage.getItem(chaveMostrar) !== '0';
+      return localStorage.getItem(`crmweb.${chave}.${resource.name}`) ?? padrao;
     } catch {
-      return true;
+      return padrao;
     }
-  });
+  };
+  const gravarLocal = (chave: string, valor: string) => {
+    try {
+      localStorage.setItem(`crmweb.${chave}.${resource.name}`, valor);
+    } catch {
+      /* sem armazenamento: vale só nesta tela */
+    }
+  };
+  /** Só as do usuário logado (recursos com o filtro "minhas", ex.: atividades) */
+  const [minhas, setMinhas] = useState(() => lerLocal('minhas', '0') === '1');
+  /** Filtro rápido Sim/Não do recurso ('' = todas, '1' = sim, '0' = não) */
+  const [rapido, setRapido] = useState<string>(() => lerLocal('rapido', resource.filtroRapidoPadrao ?? ''));
+  const campoRapido = resource.filtroRapido ? resource.fields.find((f) => f.name === resource.filtroRapido) : undefined;
+  /** Toggle "mostrar" do recurso (ex.: atividades do bot) */
+  const [mostrar, setMostrar] = useState(() => lerLocal('mostrar', '1') !== '0');
 
   /** Lista ou calendário (resource.calendario); a escolha fica lembrada neste navegador */
   const chaveVisao = `crmweb.visao.${resource.name}`;
@@ -560,7 +568,9 @@ export const CrudView: React.FC<CrudViewProps> = ({
     setAbaAtiva(LIST_TAB);
     setSelecionado(null);
     setFiltros(filtroPadrao);
-    setRapido(resource.filtroRapidoPadrao ?? '');
+    setRapido(lerLocal('rapido', resource.filtroRapidoPadrao ?? ''));
+    setMinhas(lerLocal('minhas', '0') === '1');
+    setMostrar(lerLocal('mostrar', '1') !== '0');
     setBuscaAvancadaAberta(false);
     setVisao(lerVisao());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1104,6 +1114,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
                 value={rapido}
                 onChange={(e) => {
                   setRapido(e.target.value);
+                  gravarLocal('rapido', e.target.value);
                   setPage(1);
                 }}
                 className={`${INPUT_CLASS} py-1 cursor-pointer`}
@@ -1122,6 +1133,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
                 checked={minhas}
                 onChange={(v) => {
                   setMinhas(v);
+                  gravarLocal('minhas', v ? '1' : '0');
                   setPage(1);
                 }}
                 label="Só as minhas"
@@ -1137,11 +1149,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
                 onChange={(v) => {
                   setMostrar(v);
                   setPage(1);
-                  try {
-                    localStorage.setItem(chaveMostrar, v ? '1' : '0');
-                  } catch {
-                    /* sem armazenamento: vale só nesta tela */
-                  }
+                  gravarLocal('mostrar', v ? '1' : '0');
                 }}
                 label={resource.toggleMostrar.label}
               />

@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.104 — 2026-10-05
+
+- Listas: os filtros rápidos (Só as minhas, Do bot e o Sim/Não, ex.: Concluída) voltam como estavam da última vez, por tela (lembrados no navegador).
+- Campanhas: a imagem vai no tamanho original até ~1,3 MB; maior que isso, é reduzida para 1600 px (antes era reduzida para 400×200).
+
 ## 0.0.103 — 2026-10-05
 
 - WhatsApp: corrige o erro "Row N was cut by GROUP_CONCAT()" ao assumir (ou encerrar) conversas longas. Cada conexão do banco sobe o `group_concat_max_len` para 4 MB.

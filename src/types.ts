@@ -30,6 +30,8 @@ export interface FieldDef {
   /** Na exibição, o valor de outro campo vai antes deste ("Luis : Implementar..."); não é gravado */
   prefixo?: { campo: string; exceto?: string };
   hint?: string;
+  /** Campo imagem: guarda o arquivo como veio (até ~1,3 MB; maior, reduz para 1600 px) em vez de reduzir para 400×200 */
+  imagemOriginal?: boolean;
   placeholder?: string;
   required?: boolean;
   readOnly?: boolean;

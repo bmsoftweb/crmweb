@@ -48,6 +48,8 @@ export interface FieldDef {
   prefixo?: { campo: string; exceto?: string };
   /** Texto auxiliar exibido abaixo do campo no formulário */
   hint?: string;
+  /** Campo imagem: guarda o arquivo como veio (até ~1,3 MB; maior, reduz para 1600 px) em vez de reduzir para 400×200 */
+  imagemOriginal?: boolean;
   placeholder?: string;
   required?: boolean;
   /** Campo apenas leitura (gerado pelo banco ou pelo sistema): nunca vai em INSERT/UPDATE */
@@ -1593,7 +1595,8 @@ export const RESOURCES: ResourceDef[] = [
         name: 'imagem',
         label: 'Imagem',
         type: 'imagem',
-        hint: 'Opcional (PNG, JPEG ou WebP, até ~700 KB): no WhatsApp vai com a mensagem de legenda; no e-mail, como anexo',
+        imagemOriginal: true,
+        hint: 'Opcional (PNG, JPEG ou WebP): vai no tamanho original até ~1,3 MB; maior que isso, é reduzida para 1600 px. No WhatsApp vai com a mensagem de legenda; no e-mail, como anexo',
       },
       {
         name: 'enviar_a_partir_de',
