@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.106 — 2026-10-05
+
+- WhatsApp: botão "Apagar" na mensagem enviada pela tela, só para quem enviou e até 1 minuto depois (com confirmação). Apaga para todos no WhatsApp do cliente (Evolution e Z-API) e no CRM fica "Mensagem apagada", sem o conteúdo.
+- WhatsApp: cliente que responde a uma mensagem de técnico das últimas 48 h (a citada ou, sem citação, a última enviada) vai direto para a Fila de Chamados (Aguardando), sem passar pelo bot. Resposta ao bot, à campanha ou a uma automática segue o fluxo normal.
+- WhatsApp: a etiqueta "Campanha" na lista de conversas passa a se chamar "WhatsApp Campanha".
+
 ## 0.0.105 — 2026-10-05
 
 - WhatsApp: cliente que responde até 24 h depois de um atendimento encerrado por falta de interação continua na Automação das campanhas (recomeça dela), em vez de cair na do atendimento.

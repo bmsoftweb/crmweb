@@ -1046,15 +1046,32 @@ async function tratarDescadastro(nova: MensagemNova): Promise<boolean> {
 }
 
 /**
- * Rede de segurança: nenhuma Automação atende este número (desligada, em teste, ou a conversa caiu na Automação
- * errada). Em vez de o cliente ficar sem resposta, a conversa vai para a Fila de Chamados (Aguardando).
+ * Conversa com o bot vai direto para a Fila de Chamados (Aguardando), com uma linha dizendo o motivo.
  * Não mexe em conversa já com atendente nem em número de usuário da empresa.
  */
-async function paraFilaSemAutomacao(nova: MensagemNova, cfg: ConfigChatbot | null): Promise<void> {
+async function paraFila(nova: MensagemNova, cfg: ConfigChatbot | null, motivo: string): Promise<void> {
   if (await ehUsuario(nova.empresaId, nova.telefone)) return;
   if ((await atendimentoAtual(nova.empresaId, nova.telefone, minutosDevolver(cfg))) !== 'bot') return;
   await mudarAtendimento(nova.empresaId, nova.telefone, 'humano');
-  await marcarEvento(nova.empresaId, nova.telefone, 'Nenhuma automação atende esta conversa: foi para a fila', null);
+  await marcarEvento(nova.empresaId, nova.telefone, motivo, null);
+}
+
+/**
+ * O cliente respondeu a uma mensagem de técnico: a citada ou, sem citação, a última enviada a ele (sem contar o
+ * aviso de inatividade e as linhas de evento/encerramento). Técnico = sem origem (não é bot, automática nem
+ * campanha) e das últimas 48 h. Resposta ao bot, à campanha, a uma automática ou a técnico mais antigo segue o fluxo normal.
+ */
+async function respondeTecnico(nova: MensagemNova): Promise<boolean> {
+  const [r] = await pool.query<any[]>(
+    `SELECT m.id FROM whatsapp_mensagens m
+      WHERE m.id = COALESCE((SELECT n.resposta_de FROM whatsapp_mensagens n WHERE n.id = ?),
+                            (SELECT MAX(z.id) FROM whatsapp_mensagens z
+                              WHERE z.empresa_id = ? AND z.telefone = ? AND z.id < ? AND z.direcao = 'enviada'
+                                AND z.tipo NOT IN ('evento', 'encerramento') AND (z.origem IS NULL OR z.origem NOT LIKE 'inatividade:%')))
+        AND m.direcao = 'enviada' AND m.origem IS NULL AND m.disparo_id IS NULL AND m.data_hora > NOW() - INTERVAL 48 HOUR`,
+    [nova.id, nova.empresaId, nova.telefone, nova.id],
+  );
+  return r.length > 0;
 }
 
 export async function responderComBot(nova: MensagemNova): Promise<void> {
@@ -1063,11 +1080,13 @@ export async function responderComBot(nova: MensagemNova): Promise<void> {
   const { responderAtividade } = await import('./atividadeBot.js');
   if (await responderAtividade(nova)) return;
   const cfg = await lerChatbot(nova.empresaId);
+  // Resposta a uma mensagem de técnico não passa pelo bot: vai direto para a fila
+  if (await respondeTecnico(nova)) return paraFila(nova, cfg, 'Cliente respondeu a uma mensagem do técnico: foi para a fila');
   // Quem atende é a Automação (Configurações › Automação) ligada para este número.
   // Import dinâmico: jornada.ts usa este módulo
   const { jornadaDoNumero, executarJornada } = await import('./jornada.js');
   const jornada = await jornadaDoNumero(nova.empresaId, nova.telefone);
-  if (!jornada) return paraFilaSemAutomacao(nova, cfg);
+  if (!jornada) return paraFila(nova, cfg, 'Nenhuma automação atende esta conversa: foi para a fila');
   // Número de teste da Automação pode ser de um usuário (quem testa é da empresa)
   if (!jornada.numeroDeTeste && (await ehUsuario(nova.empresaId, nova.telefone))) return;
   if ((await atendimentoAtual(nova.empresaId, nova.telefone, minutosDevolver(cfg))) !== 'bot') return;

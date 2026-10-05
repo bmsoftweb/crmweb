@@ -657,6 +657,8 @@ export interface MensagemWhatsApp {
   privada?: { departamento: string; oculta?: boolean } | null;
   /** Mensagem que esta responde (citação); texto null = privada de outro departamento */
   resposta?: { id: number; direcao: 'enviada' | 'recebida' | null; tipo: string | null; texto: string | null; arquivo_nome: string | null } | null;
+  /** Segundos que faltam para quem enviou poder apagar (1 minuto); null = não pode */
+  apagar_seg?: number | null;
 }
 
 /** minhas: as sem departamento, as do meu departamento e as que eu assumi */
@@ -768,6 +770,8 @@ export const mudarAtendimentoConversa = (telefone: string, atendimento: 'bot' | 
 /** Mensagem privada: privada=false torna pública; sem departamento, vale o do usuário (o administrador escolhe) */
 export const marcarMensagemPrivada = (id: number, privada: boolean, departamentoId?: string | number | null): Promise<{ success: boolean }> =>
   enviar('POST', `/api/whatsapp/mensagens/${id}/privada`, { privada, departamento_id: departamentoId ?? null });
+/** Apagar para todos: só quem enviou, até 1 minuto depois */
+export const apagarMensagem = (id: number): Promise<{ success: boolean }> => enviar('DELETE', `/api/whatsapp/mensagens/${id}`);
 export const atenderConversa = (telefone: string): Promise<{ success: boolean }> => enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/atender`);
 /** Pausar: a conversa sai de quem atende e volta para a Fila de Chamados */
 export const pausarConversa = (telefone: string): Promise<{ success: boolean }> => enviar('POST', `/api/whatsapp/conversas/${encodeURIComponent(telefone)}/pausar`);

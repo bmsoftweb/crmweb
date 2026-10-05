@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
-import { ArquivoEnvio, chaveTelefone, citacaoDa, contaWhats, CONTATO_RECENTE, donoDoTelefone, PESSOA_RECENTE, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
+import { apagarParaTodos, ArquivoEnvio, chaveTelefone, citacaoDa, contaWhats, CONTATO_RECENTE, donoDoTelefone, PESSOA_RECENTE, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
 import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
@@ -571,6 +571,26 @@ export function createConversasRouter(): Router {
     }
   });
 
+  /** Apagar para todos: só quem enviou pela tela, até 1 minuto depois (o cliente vê "Mensagem apagada") */
+  router.delete('/whatsapp/mensagens/:id', async (req: Request, res: Response) => {
+    try {
+      const [r] = await pool.query<any[]>(
+        `SELECT id, telefone, wa_id, TIMESTAMPDIFF(SECOND, data_hora, NOW()) AS idade FROM whatsapp_mensagens
+          WHERE id = ? AND empresa_id = ? AND direcao = 'enviada' AND usuario_id = ? AND tipo NOT IN ('evento', 'encerramento', 'apagada')`,
+        [Number(req.params.id) || 0, res.locals.empresaId, res.locals.usuarioId],
+      );
+      if (!r[0]) return res.status(404).json({ error: 'Mensagem não encontrada, ou não foi você quem enviou.' });
+      if (!r[0].wa_id) return res.status(400).json({ error: 'Essa mensagem não chegou ao WhatsApp.' });
+      // 1 minuto + folga para o tempo da confirmação na tela
+      if (Number(r[0].idade) > 70) return res.status(400).json({ error: 'Só dá para apagar até 1 minuto depois do envio.' });
+      await apagarParaTodos(res.locals.empresaId, r[0].telefone, r[0].wa_id);
+      await pool.query("UPDATE whatsapp_mensagens SET tipo = 'apagada', texto = NULL, arquivo_nome = NULL WHERE id = ?", [r[0].id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      falha(res, err);
+    }
+  });
+
   router.get('/whatsapp/mensagens/:id/midia', async (req: Request, res: Response) => {
     try {
       const [rows] = await pool.query<any[]>(
@@ -620,14 +640,17 @@ export function createConversasRouter(): Router {
                   rq.privado_departamento_id AS resposta_privado_id,
                   w.privado_departamento_id, dp.nome AS privado_departamento,
                   (w.disparo_id IS NOT NULL) AS campanha, (w.origem IS NOT NULL AND w.origem NOT LIKE 'bot:%') AS automatica,
-                  (w.origem LIKE 'bot:%') AS bot, w.erro, DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora
+                  (w.origem LIKE 'bot:%') AS bot, w.erro, DATE_FORMAT(w.data_hora, '%Y-%m-%d %H:%i:%s') AS data_hora,
+                  -- Segundos que faltam para quem enviou poder apagar (1 minuto); null = não pode
+                  IF(w.usuario_id = ? AND w.direcao = 'enviada' AND w.wa_id IS NOT NULL AND w.tipo <> 'apagada'
+                       AND TIMESTAMPDIFF(SECOND, w.data_hora, NOW()) < 60, 60 - TIMESTAMPDIFF(SECOND, w.data_hora, NOW()), NULL) AS apagar_seg
              FROM whatsapp_mensagens w LEFT JOIN usuarios u ON u.id = w.usuario_id
              LEFT JOIN departamentos dp ON dp.id = w.privado_departamento_id
              LEFT JOIN whatsapp_mensagens rq ON rq.id = w.resposta_de
             WHERE w.empresa_id = ? AND w.telefone = ?
             ORDER BY w.data_hora DESC, w.id DESC LIMIT 300) m
           ORDER BY m.data_hora, m.id`,
-        [emp, telefone],
+        [res.locals.usuarioId, emp, telefone],
       );
       const [pessoa] = pessoaId ? await pool.query<any[]>('SELECT id, nome FROM pessoas WHERE id = ? AND empresa_id = ?', [pessoaId, emp]) : [[]];
       const [contato] = contatoId

@@ -251,6 +251,20 @@ async function enviar(c: Credenciais, zapi: { rota: string; corpo: unknown }, ev
   return r.json().catch(() => ({}));
 }
 
+/** Apaga para todos uma mensagem enviada por nós: no WhatsApp do cliente fica "Mensagem apagada" */
+export async function apagarParaTodos(empresaId: string | number, telefone: string, waId: string): Promise<void> {
+  const c = await credenciaisPara(empresaId, telefone);
+  const { url, headers } = endereco(c, {
+    zapi: `messages?messageId=${encodeURIComponent(waId)}&phone=${telefone}&owner=true`,
+    evolution: 'chat/deleteMessageForEveryone',
+  });
+  await requisitar(url, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: c.provedor === 'zapi' ? undefined : JSON.stringify({ id: waId, remoteJid: `${telefone}@s.whatsapp.net`, fromMe: true }),
+  });
+}
+
 /** Mensagem da conversa que a nova responde (aparece citada no WhatsApp do cliente) */
 export interface Citacao {
   id: number;

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGrudarNoFim } from '../utils/grudarNoFim';
 import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, CircleSlash, Hand, Lock, LockOpen, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Reply, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
-import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, descartarConversa, limparConversa, atenderConversa, marcarMensagemPrivada, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
+import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, descartarConversa, limparConversa, atenderConversa, marcarMensagemPrivada, apagarMensagem, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { hojeIso } from '../utils/formatters';
 import { OpcaoRef } from '../types';
@@ -167,6 +167,7 @@ const TIPOS: Record<string, string> = {
   localizacao: 'Localização',
   contato: 'Contato',
   outro: 'Mensagem não suportada',
+  apagada: '🚫 Mensagem apagada',
 };
 
 /** Texto curto da última mensagem, para a lista */
@@ -473,6 +474,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [ocupadoAtendimento, setOcupadoAtendimento] = useState(false);
   /** Mensagem sendo marcada como privada (ou tornada pública) */
   const [privando, setPrivando] = useState<MensagemWhatsApp | null>(null);
+  /** Mensagem a apagar para todos (diálogo de confirmação aberto) */
+  const [apagando, setApagando] = useState<MensagemWhatsApp | null>(null);
   const [depPrivada, setDepPrivada] = useState('');
   const [departamentos, setDepartamentos] = useState<OpcaoRef[]>([]);
   useEffect(() => {
@@ -493,6 +496,25 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
       setOcupadoAtendimento(false);
     }
   };
+
+  const dialogoApagar = apagando && (
+    <ConfirmDialog
+      titulo="Apagar a mensagem para todos?"
+      mensagem='Ela some do WhatsApp do cliente, que passa a ver "Mensagem apagada". Só dá para apagar até 1 minuto depois do envio.'
+      confirmar="Apagar"
+      onConfirmar={async () => {
+        try {
+          await apagarMensagem(apagando.id);
+          onToast('Mensagem apagada.');
+        } catch (err: any) {
+          onToast(err.message);
+        }
+        setApagando(null);
+        if (aberta) await carregarConversa(aberta);
+      }}
+      onCancelar={() => setApagando(null)}
+    />
+  );
 
   const dialogoPrivada = privando && (
     <ConfirmDialog
@@ -530,6 +552,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   return (
     <div className="flex-1 min-h-0 flex bg-white dark:bg-stone-900">
       {dialogoPrivada}
+      {dialogoApagar}
       {/* Lista de conversas */}
       <aside className={`${aberta ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 xl:w-96 shrink-0 flex-col min-h-0 border-r border-stone-200 dark:border-stone-800`}>
         <div className="p-3 border-b border-stone-200 dark:border-stone-800 flex items-stretch gap-2">
@@ -655,7 +678,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                           title="Entrou pelo WhatsApp das campanhas: as respostas saem por esse número"
                           className="shrink-0 text-[10px] font-semibold px-1.5 rounded bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300"
                         >
-                          Campanha
+                          WhatsApp Campanha
                         </span>
                       )}
                       {c.estado === 'encerrado' && (
@@ -974,7 +997,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                             )}
                             {m.texto && <div className="whitespace-pre-wrap break-words">{m.texto}</div>}
                             <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${minha ? 'text-blue-100' : 'text-stone-400'}`}>
-                              {!travada && m.situacao !== 'falhou' && m.situacao !== 'pendente' && (
+                              {!travada && m.situacao !== 'falhou' && m.situacao !== 'pendente' && m.tipo !== 'apagada' && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -986,6 +1009,17 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                                 >
                                   <Reply className="w-3 h-3" />
                                   Responder
+                                </button>
+                              )}
+                              {Boolean(m.apagar_seg) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setApagando(m)}
+                                  title={`Apagar para todos (ainda ${m.apagar_seg} s)`}
+                                  className="flex items-center gap-0.5 cursor-pointer opacity-0 group-hover:opacity-100"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Apagar
                                 </button>
                               )}
                               <button
