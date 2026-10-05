@@ -25,7 +25,10 @@ export const pool = mysql.createPool(dbConfig);
 // O sistema opera no horário de Brasília: NOW(), CURDATE() e os DEFAULT CURRENT_TIMESTAMP
 // passam a sair em UTC-3, qualquer que seja o fuso do servidor MySQL.
 pool.pool.on('connection', (conn: any) => {
-  conn.query("SET time_zone = '-03:00'");
+  // PESSOA_RECENTE/CONTATO_RECENTE juntam o pessoa_id de todas as mensagens da conversa: o limite
+  // padrão (1024) estoura em conversas longas e, dentro de INSERT ... SELECT, vira erro
+  // ("Row N was cut by GROUP_CONCAT()"). ponytail: limite fixo de 4 MB, ~500 mil mensagens.
+  conn.query("SET time_zone = '-03:00', SESSION group_concat_max_len = 4194304");
 });
 
 export const DB_TABLES = [

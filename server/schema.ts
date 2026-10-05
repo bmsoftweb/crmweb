@@ -483,7 +483,8 @@ export const RESOURCES: ResourceDef[] = [
       label: 'Do bot',
       dica: 'Mostrar as atividades do bot (executadas pelo Bot ou criadas pelo chatbot/automação do WhatsApp)',
       ocultar: [
-        { field: 'origem', op: 'ne', value: 'bot' },
+        // Pelo executor, não pela origem: a pesquisa de satisfação pelo WhatsApp tem origem "pesquisa" e é executada pelo Bot
+        { field: 'executor_bot', op: 'ne', value: '1' },
         { field: 'origem', op: 'ne', value: 'chatbot' },
       ],
     },

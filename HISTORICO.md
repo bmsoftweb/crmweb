@@ -2,12 +2,19 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.103 — 2026-10-05
+
+- WhatsApp: corrige o erro "Row N was cut by GROUP_CONCAT()" ao assumir (ou encerrar) conversas longas. Cada conexão do banco sobe o `group_concat_max_len` para 4 MB.
+- Atividades: o toggle "Do bot" passa a esconder pelo executor (Bot), não pela origem; assim a pesquisa de satisfação pelo WhatsApp também some.
+- Barra das listas: os toggles "Minhas" e "Do bot" ganham um separador à esquerda e ficam centralizados na altura.
+
 ## 0.0.102 — 2026-10-05
 
 - Campanhas: campanha iniciada fica travada. No formulário só a Situação muda (pausar, cancelar, concluir), com aviso; o servidor descarta as outras alterações e recusa a exclusão.
 - Campanhas: ação "Ver anexos" no menu da campanha, mostrando a imagem que vai com a mensagem (clique para baixar).
 - Disparos da campanha: botão "Ver conversa" nos disparos de WhatsApp, que abre Conversas no número que recebeu a mensagem (para ler a resposta do lead).
 - WhatsApp: os dados em português do seletor de emojis passam a vir do `emoji-picker-element-data` (o `emojibase-data` novo mudou o formato e o seletor recusava). Sai a dependência `emojibase-data`.
+- Atividades na ficha do negócio e no chamado: o resumo "Bot: …" só aparece quando a atividade é executada pelo Bot.
 
 ## 0.0.101 — 2026-10-05
 

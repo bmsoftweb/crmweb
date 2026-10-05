@@ -1116,7 +1116,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
           )}
 
           {resource.minhas && (
-            <span title="As atividades do seu usuário, as do seu departamento e as de qualquer pessoa" className="shrink-0">
+            <span title="As atividades do seu usuário, as do seu departamento e as de qualquer pessoa" className="shrink-0 flex items-center pl-3 border-l border-stone-200 dark:border-stone-700">
               <Toggle
                 size="sm"
                 checked={minhas}
@@ -1130,7 +1130,7 @@ export const CrudView: React.FC<CrudViewProps> = ({
           )}
 
           {resource.toggleMostrar && (
-            <span title={resource.toggleMostrar.dica} className="shrink-0">
+            <span title={resource.toggleMostrar.dica} className="shrink-0 flex items-center pl-3 border-l border-stone-200 dark:border-stone-700">
               <Toggle
                 size="sm"
                 checked={mostrar}
