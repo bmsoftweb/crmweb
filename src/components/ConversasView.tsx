@@ -466,7 +466,11 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const linhas = Math.min(5, texto.split('\n').length);
   /** Em atendimento com outro usuário: só vê (o administrador pode assumir) */
   const travada = conversa?.estado === 'atendimento' && !conversa.eu_atendo;
-  const numeroEnvio = saiPor ?? conversa?.conta ?? 'provedor';
+  // Última mensagem da conversa foi uma campanha (o cliente ainda não respondeu): o padrão é o número das campanhas,
+  // o mesmo chat em que ele recebeu; senão, o número por onde ele escreveu
+  const ultimaMsg = conversa?.mensagens.filter((m) => m.tipo !== 'evento' && m.tipo !== 'encerramento').at(-1);
+  const numeroPadrao = ultimaMsg?.campanha ? 'campanhas' : (conversa?.conta ?? 'provedor');
+  const numeroEnvio = saiPor ?? numeroPadrao;
   const podeMexer = Boolean(conversa) && (!travada || Boolean(conversa?.sou_admin));
   /** Pode transferir: quem está atendendo, ou o administrador numa conversa de outro */
   const podeTransferir = conversa?.estado === 'atendimento' && (conversa.eu_atendo || conversa.sou_admin);
@@ -1084,9 +1088,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                   <option value="provedor">WhatsApp principal</option>
                   <option value="campanhas">WhatsApp das campanhas</option>
                 </select>
-                {numeroEnvio !== conversa.conta && (
+                {numeroEnvio !== numeroPadrao && (
                   <span className="text-amber-700 dark:text-amber-400">
-                    O cliente escreveu pelo {conversa.conta === 'campanhas' ? 'número das campanhas' : 'número principal'}: no celular dele, esta mensagem cai em outro chat.
+                    {ultimaMsg?.campanha ? 'A campanha chegou' : 'O cliente escreveu'} pelo {numeroPadrao === 'campanhas' ? 'número das campanhas' : 'número principal'}: no celular dele, esta mensagem cai em outro chat.
                   </span>
                 )}
               </div>

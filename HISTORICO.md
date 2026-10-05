@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.107 — 2026-10-05
+
+- WhatsApp: imagem (e outras mídias) das campanhas aparece na conversa mesmo antes de o cliente responder; ela é buscada no número das campanhas, por onde saiu (antes: "Imagem (não disponível)").
+- WhatsApp: o "Sai pelo" vem no número das campanhas quando a última mensagem da conversa foi uma campanha (o mesmo chat em que o cliente recebeu).
+
 ## 0.0.106 — 2026-10-05
 
 - WhatsApp: botão "Apagar" na mensagem enviada pela tela, só para quem enviou e até 1 minuto depois (com confirmação). Apaga para todos no WhatsApp do cliente (Evolution e Z-API) e no CRM fica "Mensagem apagada", sem o conteúdo.

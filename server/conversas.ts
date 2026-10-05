@@ -594,12 +594,13 @@ export function createConversasRouter(): Router {
   router.get('/whatsapp/mensagens/:id/midia', async (req: Request, res: Response) => {
     try {
       const [rows] = await pool.query<any[]>(
-        "SELECT wa_id, tipo, arquivo_nome, telefone, privado_departamento_id FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video', 'documento')",
+        "SELECT wa_id, tipo, arquivo_nome, telefone, privado_departamento_id, disparo_id FROM whatsapp_mensagens WHERE id = ? AND empresa_id = ? AND tipo IN ('imagem', 'figurinha', 'audio', 'video', 'documento')",
         [Number(req.params.id) || 0, res.locals.empresaId],
       );
       if (!rows[0]?.wa_id) return res.status(404).json({ error: 'Arquivo não encontrado.' });
       if (!podeVerPrivada(res, rows[0].privado_departamento_id)) return res.status(403).json({ error: 'Mensagem privada de outro departamento.' });
-      const { mimetype, dados } = await midiaDaMensagem(res.locals.empresaId, rows[0].wa_id, rows[0].telefone);
+      // Campanha sai pelo número das campanhas, mesmo que a conversa seja do principal (o cliente ainda não respondeu)
+      const { mimetype, dados } = await midiaDaMensagem(res.locals.empresaId, rows[0].wa_id, rows[0].telefone, rows[0].disparo_id ? 'campanhas' : undefined);
       res.set({ 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
       if (rows[0].tipo === 'documento') return res.attachment(rows[0].arquivo_nome || 'arquivo').type(mimetype).send(dados);
       if (!/^(image|audio|video)\//.test(mimetype)) return res.status(415).json({ error: 'Tipo de arquivo não exibível.' });

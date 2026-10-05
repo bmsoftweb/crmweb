@@ -945,9 +945,9 @@ export async function conectarWhatsApp(empresaId: string, conta: ContaWhats = 'p
  * Arquivo de uma mensagem (imagem, figurinha, áudio, vídeo) pelo id no WhatsApp. Evolution: baixa e decifra
  * pelo chat/getBase64FromMediaMessage; o CRM não guarda o arquivo.
  */
-export async function midiaDaMensagem(empresaId: string | number, waId: string, telefone?: string): Promise<{ mimetype: string; dados: Buffer }> {
-  // A mídia fica na instância que recebeu: a do número da conversa
-  const c = telefone ? await credenciaisPara(empresaId, telefone) : await credenciais(empresaId);
+export async function midiaDaMensagem(empresaId: string | number, waId: string, telefone?: string, conta?: ContaWhats): Promise<{ mimetype: string; dados: Buffer }> {
+  // A mídia fica na instância que enviou ou recebeu: a informada (ex.: campanha) ou a do número da conversa
+  const c = conta ? await credenciaisDaConta(empresaId, conta) : telefone ? await credenciaisPara(empresaId, telefone) : await credenciais(empresaId);
   if (c.provedor !== 'evolution') throw new Error('Imagens das mensagens só pela Evolution.');
   const { url, headers } = endereco(c, { zapi: '', evolution: 'chat/getBase64FromMediaMessage' });
   const r: any = await (
