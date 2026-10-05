@@ -207,6 +207,12 @@ export async function conferirTrava(recurso: string, acao: 'incluir' | 'alterar'
       throw new Error(`${ERRO_TRAVA} Alterado: ${mudou.map((k) => campos.find((f) => f.name === k)?.label ?? k).join(', ')}.`);
     }
   }
+  // Campanha já iniciada (disparos saindo): não é excluída e só a situação muda (pausar, cancelar, concluir); o resto é descartado
+  if (recurso === 'campanhas' && id && acao !== 'incluir') {
+    const [r] = await pool.query<any[]>('SELECT iniciada_em FROM campanhas WHERE id = ?', [id]);
+    if (r[0]?.iniciada_em && acao === 'excluir') throw new Error('Campanha iniciada não pode ser excluída. Para encerrá-la, mude a situação para Cancelada ou Concluída.');
+    if (r[0]?.iniciada_em && payload) for (const k of Object.keys(payload)) if (k !== 'situacao') delete payload[k];
+  }
   if (recurso === 'contrato_itens') {
     const contratos = new Set([payload?.contrato_id, id ? await contratoDoItem(id) : null].filter(Boolean).map(String));
     for (const c of contratos) if (travado(await situacaoTrava(c))) throw new Error(ERRO_TRAVA);

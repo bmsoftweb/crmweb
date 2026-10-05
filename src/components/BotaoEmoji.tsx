@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Smile } from 'lucide-react';
 import { Picker } from 'emoji-picker-element';
 import ptBR from 'emoji-picker-element/i18n/pt_BR';
-// Dados dos emojis em português (nomes e palavras da busca), servidos pelo próprio app em vez do CDN
-import dadosPt from 'emojibase-data/pt/data.json?url';
+// Dados dos emojis em português (nomes e palavras da busca), servidos pelo próprio app em vez do CDN.
+// Tem de ser o emoji-picker-element-data: o emojibase-data novo (v7+) mudou o formato e o seletor recusa
+import dadosPt from 'emoji-picker-element-data/pt/cldr/data.json?url';
 
 /**
  * Botão de emoji ao lado do campo da mensagem: abre para cima o seletor completo (emoji-picker-element),

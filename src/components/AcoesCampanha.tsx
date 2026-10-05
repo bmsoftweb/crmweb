@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, ListPlus, Loader2, Play, Send, X } from 'lucide-react';
+import { Eye, ListPlus, Loader2, Paperclip, Play, Send, X } from 'lucide-react';
 import { RegistroCrud } from '../types';
 import { enviarDisparoAgora, gerarDisparos, iniciarEnvioCampanha, previaCampanha, PreviaCampanha } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -26,7 +26,9 @@ export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast 
   const [ocupado, setOcupado] = useState(false);
   const [confirmando, setConfirmando] = useState<'gerar' | 'iniciar' | null>(null);
   const [previa, setPrevia] = useState<PreviaCampanha | null>(null);
+  const [vendoAnexos, setVendoAnexos] = useState(false);
   const id = registro.id as number;
+  const imagem = (registro.imagem as string | null) || null;
 
   const verPrevia = async () => {
     setOcupado(true);
@@ -44,6 +46,28 @@ export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast 
       <BotaoAcao icone={Eye} titulo="Pré-visualizar" descricao="Mostra o tamanho do público e a mensagem pronta para as primeiras pessoas" carregando={ocupado} onClick={verPrevia} />
       <BotaoAcao icone={ListPlus} titulo="Gerar disparos" descricao="Cria uma mensagem por pessoa do público, sem enviar" onClick={() => setConfirmando('gerar')} />
       <BotaoAcao icone={Play} titulo="Iniciar envio campanha" descricao="Liga o envio dos disparos pendentes" onClick={() => setConfirmando('iniciar')} />
+      <BotaoAcao icone={Paperclip} titulo="Ver anexos" descricao="Mostra a imagem que vai com a mensagem" onClick={() => setVendoAnexos(true)} />
+      {vendoAnexos &&
+        noBody(
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-xs" onClick={() => setVendoAnexos(false)} aria-hidden="true" />
+            <div role="dialog" aria-modal="true" className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-2xl z-10 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Anexos de "{registro.nome as string}"</h3>
+                <button onClick={() => setVendoAnexos(false)} title="Fechar" className="p-1 rounded text-stone-400 hover:text-stone-700 cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {imagem ? (
+                <a href={imagem} download={`campanha-${id}`} title="Baixar a imagem">
+                  <img src={imagem} alt="Imagem da campanha" className="max-h-[65vh] mx-auto rounded-lg" />
+                </a>
+              ) : (
+                <p className="text-xs text-stone-500 dark:text-stone-400">Esta campanha não tem anexo.</p>
+              )}
+            </div>
+          </div>,
+        )}
       {confirmando === 'gerar' &&
         noBody(
           <ConfirmDialog

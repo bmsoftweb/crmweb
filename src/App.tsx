@@ -687,7 +687,12 @@ export default function App() {
                 recurso === 'pessoas_contatos' ? (
                   <BotaoWhatsApp temNumero={Boolean(row.whatsapp || row.celular || row.telefone)} onAbrir={() => pedirConversa({ contatoId: row.id as string })} />
                 ) : recurso === 'campanha_disparos' ? (
-                  <BotaoEnviarDisparo registro={row} onEnviado={recarregar} onToast={showToast} />
+                  <>
+                    <BotaoEnviarDisparo registro={row} onEnviado={recarregar} onToast={showToast} />
+                    {row.canal === 'whatsapp' && (
+                      <BotaoWhatsApp temNumero={Boolean(row.destino)} titulo="Ver conversa" onAbrir={() => pedirConversa({ telefone: row.destino as string })} />
+                    )}
+                  </>
                 ) : null
               }
             />

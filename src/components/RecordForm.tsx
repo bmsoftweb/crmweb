@@ -374,9 +374,13 @@ export const RecordForm: React.FC<RecordFormProps> = ({
     };
   }, [contratoId, resource.fields]);
 
-  /** Campo desabilitado pela regra disabledWhen do metadado (ex.: grupo de um admin) ou pela trava do contrato */
+  /** Campanha já iniciada: só a situação muda (o servidor descarta o resto) */
+  const campanhaIniciada = resource.name === 'campanhas' && Boolean(record?.iniciada_em);
+
+  /** Campo desabilitado pela regra disabledWhen do metadado (ex.: grupo de um admin), pela trava do contrato ou da campanha iniciada */
   const estaDesabilitado = (field: FieldDef, vals: Record<string, any> = values) =>
     Boolean(travados?.has(field.name)) ||
+    (campanhaIniciada && field.name !== 'situacao') ||
     Boolean(field.disabledWhen && String(vals[field.disabledWhen.field] ?? '') === field.disabledWhen.equals);
 
   const setValue = (name: string, value: any) => {
@@ -735,6 +739,14 @@ export const RecordForm: React.FC<RecordFormProps> = ({
               <span>
                 <b>Contrato assinado: travado.</b> Os campos em cinza só mudam por aditivo (Documentos › Liberar para aditivo, por um
                 administrador). Os demais continuam livres.
+              </span>
+            </div>
+          )}
+          {campanhaIniciada && (
+            <div className="flex items-start gap-2 p-3 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-950/60 text-xs text-stone-700 dark:text-stone-300">
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>
+                <b>Campanha iniciada: travada.</b> Só a situação muda (pausar, cancelar ou concluir). Para outro texto ou outro público, crie outra campanha.
               </span>
             </div>
           )}
