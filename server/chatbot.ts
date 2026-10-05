@@ -574,8 +574,8 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>, o
     await aposGravar('negocios', String(negocioId));
   }
   await pool.query(
-    `INSERT INTO atividades (empresa_id, negocio_id, pessoa_id, executor_id, assunto, tipo, data_vencimento, hora_vencimento, observacao, lembrete_para)
-     VALUES (?, ?, ?, ?, ?, 'whatsapp', CURDATE(), CURTIME(), ?, 'nenhum')`,
+    `INSERT INTO atividades (empresa_id, negocio_id, pessoa_id, executor_id, assunto, tipo, data_vencimento, hora_vencimento, observacao, lembrete_para, criada_por_bot)
+     VALUES (?, ?, ?, ?, ?, 'whatsapp', CURDATE(), CURTIME(), ?, 'nenhum', 1)`,
     [
       emp,
       negocioId,
@@ -609,8 +609,8 @@ async function transferirParaHumano(ctx: Contexto, a: Record<string, unknown>) {
       [ctx.empresaId, ctx.dono.pessoa_id],
     );
     await pool.query(
-      `INSERT INTO atividades (empresa_id, negocio_id, pessoa_id, assunto, tipo, data_vencimento, hora_vencimento, observacao, lembrete_para)
-       VALUES (?, ?, ?, 'Cliente pediu atendimento no WhatsApp', 'whatsapp', CURDATE(), CURTIME(), ?, 'nenhum')`,
+      `INSERT INTO atividades (empresa_id, negocio_id, pessoa_id, assunto, tipo, data_vencimento, hora_vencimento, observacao, lembrete_para, criada_por_bot)
+       VALUES (?, ?, ?, 'Cliente pediu atendimento no WhatsApp', 'whatsapp', CURDATE(), CURTIME(), ?, 'nenhum', 1)`,
       [ctx.empresaId, abertos[0]?.id ?? null, ctx.dono.pessoa_id, motivo],
     );
     if (abertos[0]) await sincronizarNegocio(String(abertos[0].id));
@@ -685,8 +685,8 @@ export async function avisarDepartamento(ctx: Contexto, dep: { id: number; nome:
     ? await pool.query<any[]>("SELECT id FROM negocios WHERE empresa_id = ? AND pessoa_id = ? AND status = 'aberto' ORDER BY id DESC LIMIT 1", [emp, ctx.dono.pessoa_id])
     : [[]];
   const [a] = await pool.query<any>(
-    `INSERT INTO atividades (empresa_id, negocio_id, pessoa_id, departamento_id, assunto, tipo, data_vencimento, hora_vencimento, observacao, lembrete_para)
-     VALUES (?, ?, ?, ?, ?, 'whatsapp', CURDATE(), CURTIME(), ?, 'nenhum')`,
+    `INSERT INTO atividades (empresa_id, negocio_id, pessoa_id, departamento_id, assunto, tipo, data_vencimento, hora_vencimento, observacao, lembrete_para, criada_por_bot)
+     VALUES (?, ?, ?, ?, ?, 'whatsapp', CURDATE(), CURTIME(), ?, 'nenhum', 1)`,
     [emp, abertos[0]?.id ?? null, ctx.dono.pessoa_id, dep.id, `WhatsApp: cliente aguardando (${dep.nome})`.slice(0, 255), `${quem} — ${motivo}`],
   );
   if (abertos[0]) await sincronizarNegocio(String(abertos[0].id));

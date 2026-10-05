@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.101 — 2026-10-05
+
+- WhatsApp: botão de emoji ao lado de Templates, com o seletor completo (emoji-picker-element): categorias, busca em português, tom de pele e usados recentemente; o emoji entra no ponto do cursor. Novas dependências: `emoji-picker-element` e `emojibase-data`.
+- WhatsApp: etiqueta "Pausado" no card da conversa, junto de "Aguardando", quando quem atendia pausou e ela voltou para a fila.
+- Atividades: toggle "Do bot" na barra da lista; desligado esconde as executadas pelo Bot e as criadas sozinhas pelo chatbot/automação (lembrado no navegador). Nova origem "Chatbot do WhatsApp".
+- Banco: `ALTER TABLE atividades ADD COLUMN criada_por_bot TINYINT(1) NOT NULL DEFAULT 0` + UPDATE das antigas (em extras/crmweb_schema.sql).
+
 ## 0.0.100 — 2026-10-05
 
 - WhatsApp: botão "Descartar" nas conversas em Aguardando que não pedem atendimento (ex.: o bot de outra empresa respondendo). A conversa sai da fila como encerrada ("Descartada por ..."), sem pesquisa de satisfação, sem contar como atendimento e sem procurar pendências; uma mensagem nova do cliente volta a abrir atendimento.

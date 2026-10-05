@@ -134,6 +134,8 @@ export interface ResourceDef {
   filtroRapido?: string;
   /** Valor com que o filtro rápido abre: '1' = Sim, '0' = Não (sem ele: Todas) */
   filtroRapidoPadrao?: '1' | '0';
+  /** Toggle na barra da lista: desligado, acrescenta estes filtros (ex.: esconder as atividades do bot) */
+  toggleMostrar?: { label: string; dica: string; ocultar: { field: string; op: 'eq' | 'ne'; value: string }[] };
   /** Excluir só preenche esta coluna com NOW() (o scopeSql deve esconder os excluídos) */
   exclusaoLogica?: string;
   details?: DetailDef[];
@@ -476,6 +478,15 @@ export const RESOURCES: ResourceDef[] = [
     calendario: true,
     // As vindas do Google Agenda aparecem só no calendário
     filtroLista: { field: 'origem', op: 'ne', value: 'google', aviso: 'sem as vindas do Google Agenda (veja em Semana ou Mês)' },
+    // Sim/Não "Do bot": desligado esconde as que o Bot executa e as que o chatbot/automação cria sozinho
+    toggleMostrar: {
+      label: 'Do bot',
+      dica: 'Mostrar as atividades do bot (executadas pelo Bot ou criadas pelo chatbot/automação do WhatsApp)',
+      ocultar: [
+        { field: 'origem', op: 'ne', value: 'bot' },
+        { field: 'origem', op: 'ne', value: 'chatbot' },
+      ],
+    },
     // Minhas: as do usuário, as do departamento dele e as de qualquer pessoa
     minhasSql: `(t.executor_id = ? OR (t.executor_id IS NULL AND (t.departamento_id IS NULL
                    OR t.departamento_id = (SELECT u.departamento_id FROM usuarios u WHERE u.id = ?)))
@@ -542,7 +553,7 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'negocio_id', label: 'Negócio', type: 'text', listed: true, filterable: true, ref: { resource: 'negocios', labelField: 'titulo' } },
       { name: 'pessoa_id', label: 'Contato', type: 'text', listed: true, ref: { resource: 'pessoas', labelField: 'nome' } },
       {
-        // De onde veio: Bot executando, pendência achada na análise de uma conversa (server/pendencias.ts, pela
+        // De onde veio: Bot executando, criada pelo chatbot/automação (atividades.criada_por_bot), pendência achada na análise de uma conversa (server/pendencias.ts, pela
         // observação), tarefa de chamado, ou lançada à mão. Calculada: não há coluna no banco
         name: 'origem',
         label: 'Origem',
@@ -554,6 +565,7 @@ export const RESOURCES: ResourceDef[] = [
           { value: 'google', label: 'Google Agenda' },
           { value: 'pesquisa', label: 'Pesquisa de satisfação' },
           { value: 'bot', label: 'Bot' },
+          { value: 'chatbot', label: 'Chatbot do WhatsApp' },
           { value: 'pendencia', label: 'Pendência da conversa' },
           { value: 'chamado', label: 'Chamado' },
           { value: 'manual', label: 'Manual' },
@@ -561,7 +573,9 @@ export const RESOURCES: ResourceDef[] = [
         // Google Agenda: atividade criada a partir de um evento do Google (server/agendaGoogle.ts)
         sql: `(CASE WHEN t.google_importada = 1 THEN 'google'
                     WHEN EXISTS (SELECT 1 FROM pesquisas_satisfacao_itens i WHERE i.atividade_id = t.id) OR t.observacao LIKE 'Retorno da pesquisa de satisfação%' THEN 'pesquisa'
-                    WHEN t.executor_bot = 1 THEN 'bot' WHEN t.observacao LIKE 'Identificada pela análise automática%' THEN 'pendencia'
+                    WHEN t.executor_bot = 1 THEN 'bot'
+                    WHEN t.criada_por_bot = 1 THEN 'chatbot'
+                    WHEN t.observacao LIKE 'Identificada pela análise automática%' THEN 'pendencia'
                     WHEN t.chamado_id IS NOT NULL THEN 'chamado' ELSE 'manual' END)`,
       },
       {

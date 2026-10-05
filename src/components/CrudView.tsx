@@ -483,6 +483,15 @@ export const CrudView: React.FC<CrudViewProps> = ({
   /** Filtro rápido Sim/Não do recurso ('' = todas, '1' = sim, '0' = não) */
   const [rapido, setRapido] = useState<string>(resource.filtroRapidoPadrao ?? '');
   const campoRapido = resource.filtroRapido ? resource.fields.find((f) => f.name === resource.filtroRapido) : undefined;
+  /** Toggle "mostrar" do recurso (ex.: atividades do bot); a escolha fica lembrada neste navegador */
+  const chaveMostrar = `crmweb.mostrar.${resource.name}`;
+  const [mostrar, setMostrar] = useState(() => {
+    try {
+      return localStorage.getItem(chaveMostrar) !== '0';
+    } catch {
+      return true;
+    }
+  });
 
   /** Lista ou calendário (resource.calendario); a escolha fica lembrada neste navegador */
   const chaveVisao = `crmweb.visao.${resource.name}`;
@@ -652,8 +661,12 @@ export const CrudView: React.FC<CrudViewProps> = ({
 
   /** Filtros da busca avançada + filtro rápido: a lista e o calendário usam os mesmos */
   const filtrosEfetivos = useMemo<FiltroAvancado[]>(
-    () => (campoRapido && rapido ? [...filtros, { field: campoRapido.name, op: 'eq', value: rapido }] : filtros),
-    [filtros, campoRapido, rapido],
+    () => [
+      ...filtros,
+      ...(campoRapido && rapido ? [{ field: campoRapido.name, op: 'eq', value: rapido } as FiltroAvancado] : []),
+      ...(resource.toggleMostrar && !mostrar ? resource.toggleMostrar.ocultar : []),
+    ],
+    [filtros, campoRapido, rapido, resource.toggleMostrar, mostrar],
   );
 
   /** Número da carga mais recente: uma resposta atrasada (ex.: a de antes de um filtro mudar) não sobrescreve a nova */
@@ -1112,6 +1125,25 @@ export const CrudView: React.FC<CrudViewProps> = ({
                   setPage(1);
                 }}
                 label="Só as minhas"
+              />
+            </span>
+          )}
+
+          {resource.toggleMostrar && (
+            <span title={resource.toggleMostrar.dica} className="shrink-0">
+              <Toggle
+                size="sm"
+                checked={mostrar}
+                onChange={(v) => {
+                  setMostrar(v);
+                  setPage(1);
+                  try {
+                    localStorage.setItem(chaveMostrar, v ? '1' : '0');
+                  } catch {
+                    /* sem armazenamento: vale só nesta tela */
+                  }
+                }}
+                label={resource.toggleMostrar.label}
               />
             </span>
           )}

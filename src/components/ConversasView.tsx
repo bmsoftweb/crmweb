@@ -9,6 +9,7 @@ import { SelectBusca } from './SelectBusca';
 import { AvisoErro } from './AvisoErro';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BotaoTemplates } from './BotaoTemplates';
+import { BotaoEmoji } from './BotaoEmoji';
 import { lerSessao } from '../utils/session';
 import { Toggle } from './Toggle';
 
@@ -641,6 +642,14 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                           Aguardando
                         </span>
                       )}
+                      {c.pausada && (
+                        <span
+                          title="Pausada por quem atendia: voltou para a fila"
+                          className="shrink-0 text-[10px] font-semibold px-1.5 rounded bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300"
+                        >
+                          Pausado
+                        </span>
+                      )}
                       {c.conta === 'campanhas' && (
                         <span
                           title="Entrou pelo WhatsApp das campanhas: as respostas saem por esse número"
@@ -1107,6 +1116,21 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     onEscolher={(t) => {
                       setTexto((atual) => (atual.trim() ? `${atual.trimEnd()}\n${t}` : t));
                       setTimeout(() => campoRef.current?.focus());
+                    }}
+                    disabled={enviando}
+                    className="flex items-center justify-center px-3 rounded-lg text-stone-600 dark:text-stone-300 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50"
+                  />
+                  <BotaoEmoji
+                    onEscolher={(e) => {
+                      // Entra no ponto do cursor (ou substitui o trecho selecionado)
+                      const c = campoRef.current;
+                      const ini = c?.selectionStart ?? texto.length;
+                      const fim = c?.selectionEnd ?? texto.length;
+                      setTexto(texto.slice(0, ini) + e + texto.slice(fim));
+                      setTimeout(() => {
+                        c?.focus();
+                        c?.setSelectionRange(ini + e.length, ini + e.length);
+                      });
                     }}
                     disabled={enviando}
                     className="flex items-center justify-center px-3 rounded-lg text-stone-600 dark:text-stone-300 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50"

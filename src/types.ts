@@ -99,6 +99,8 @@ export interface ResourceDef {
   filtroRapido?: string;
   /** Valor com que o filtro rápido abre: '1' = Sim, '0' = Não (sem ele: Todas) */
   filtroRapidoPadrao?: '1' | '0';
+  /** Toggle na barra da lista: desligado, acrescenta estes filtros (ex.: esconder as atividades do bot) */
+  toggleMostrar?: { label: string; dica: string; ocultar: FiltroAvancado[] };
   fields: FieldDef[];
 }
 
