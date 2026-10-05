@@ -535,7 +535,7 @@ export default function App() {
           </main>
         ) : activeTab === 'prospeccao' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">
-            <Prospeccao onToast={showToast} />
+            <Prospeccao onToast={showToast} onVerLeads={(id) => navegarFiltrado('pessoas', [{ field: 'prospeccao_busca_id', op: 'eq', value: id }])} />
           </main>
         ) : activeTab === 'configuracoes' ? (
           <main className="flex-1 flex flex-col min-h-0 w-full">

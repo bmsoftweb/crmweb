@@ -493,6 +493,12 @@ async function incluir(empresaId: string, corpo: any): Promise<{ incluidos: numb
     const [s] = await pool.query<any[]>('SELECT id FROM segmentos WHERE id = ? AND empresa_id = ?', [segmentoId, empresaId]);
     if (!s.length) throw erro(400, 'Segmento não encontrado.');
   }
+  // Busca de onde o lead veio (Pessoas filtra por ela); de outra empresa ou apagada, fica sem
+  let buscaId = Number(corpo?.busca_id) || null;
+  if (buscaId) {
+    const [b] = await pool.query<any[]>('SELECT id FROM prospeccao_buscas WHERE id = ? AND empresa_id = ?', [buscaId, empresaId]);
+    if (!b.length) buscaId = null;
+  }
 
   // Os dados vêm da tela (resultado da busca): tudo passa de novo pelas mesmas regras
   const leads: Lead[] = lista.map((l) => {
@@ -549,9 +555,9 @@ async function incluir(empresaId: string, corpo: any): Promise<{ incluidos: numb
         .join('\n');
       const whatsapp = l.whatsapp_site || l.celular;
       const [r] = await conn.query<any>(
-        `INSERT INTO pessoas (empresa_id, tipo, google_place_id, nome, email, telefone, whatsapp, obs, segmento_id)
-         VALUES (?, 'lead', ?, ?, ?, ?, ?, ?, ?)`,
-        [empresaId, l.place_id, l.nome, l.email, l.telefone, whatsapp ? whatsapp.slice(2) : null, obs, segmentoId],
+        `INSERT INTO pessoas (empresa_id, tipo, google_place_id, prospeccao_busca_id, nome, email, telefone, whatsapp, obs, segmento_id)
+         VALUES (?, 'lead', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [empresaId, l.place_id, buscaId, l.nome, l.email, l.telefone, whatsapp ? whatsapp.slice(2) : null, obs, segmentoId],
       );
       // Mesmo código dos cadastros feitos no CRM (regras.ts › aposGravar)
       await conn.query("UPDATE pessoas SET cod_integracao = CONCAT('CRMWEB-', id) WHERE id = ?", [r.insertId]);

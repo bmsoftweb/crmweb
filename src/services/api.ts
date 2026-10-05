@@ -158,19 +158,27 @@ export const getRecord = (resource: string, id: Id): Promise<RegistroCrud> =>
 /** Atividades gravadas por este usuário neste navegador: não geram o aviso de "atividade para você" */
 export const atividadesGravadasAqui = new Set<number>();
 
+// Gravar muda a lista do recurso: os combos dele são relidos (ex.: segmento criado na Prospecção)
 export const createRecord = (resource: string, payload: RegistroCrud): Promise<{ success: boolean; id: string }> =>
   enviar('POST', `/api/crud/${resource}`, payload).then((r: any) => {
+    invalidateOptions(resource);
     if (resource === 'atividades') atividadesGravadasAqui.add(Number(r.id));
     return r;
   });
 
 export const updateRecord = (resource: string, id: Id, payload: RegistroCrud): Promise<{ success: boolean }> => {
   if (resource === 'atividades') atividadesGravadasAqui.add(Number(id));
-  return enviar('PUT', `/api/crud/${resource}/${encodeURIComponent(String(id))}`, payload);
+  return enviar('PUT', `/api/crud/${resource}/${encodeURIComponent(String(id))}`, payload).then((r: any) => {
+    invalidateOptions(resource);
+    return r;
+  });
 };
 
 export const deleteRecord = (resource: string, id: Id): Promise<{ success: boolean }> =>
-  enviar('DELETE', `/api/crud/${resource}/${encodeURIComponent(String(id))}`);
+  enviar('DELETE', `/api/crud/${resource}/${encodeURIComponent(String(id))}`).then((r: any) => {
+    invalidateOptions(resource);
+    return r;
+  });
 
 // ------------------------------------------------------------
 // CRM: Kanban, ficha do negócio, propostas e pedidos
@@ -1098,8 +1106,8 @@ export interface FiltroProspeccao {
 }
 export const buscarProspeccao = (f: FiltroProspeccao): Promise<{ leads: LeadProspeccao[]; encontrados: number; descartados: number; busca_id: number | null }> =>
   enviar('POST', '/api/prospeccao/buscar', f);
-export const incluirProspeccao = (leads: LeadProspeccao[], segmentoId: string | null): Promise<{ incluidos: number; existentes: number }> =>
-  enviar('POST', '/api/prospeccao/incluir', { leads, segmento_id: segmentoId ? Number(segmentoId) : null });
+export const incluirProspeccao = (leads: LeadProspeccao[], segmentoId: string | null, buscaId?: string | null): Promise<{ incluidos: number; existentes: number }> =>
+  enviar('POST', '/api/prospeccao/incluir', { leads, segmento_id: segmentoId ? Number(segmentoId) : null, busca_id: buscaId ? Number(buscaId) : null });
 export interface BuscaProspeccao {
   id: number;
   termo: string;

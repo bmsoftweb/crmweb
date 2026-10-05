@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.98 — 2026-10-05
+
+- Prospecção: cada lead incluído guarda a busca de onde veio. Botão "Ver leads em Pessoas" ao abrir uma busca anterior; em Pessoas, campo "Busca da prospecção" (filtro da busca avançada). Os leads já incluídos foram ligados às buscas guardadas pelo código do Google.
+- Combos: incluir, alterar ou excluir um registro atualiza na hora os combos daquela tabela (ex.: o segmento criado pelo "+" da Prospecção agora aparece na lista).
+- Banco: `ALTER TABLE pessoas ADD COLUMN prospeccao_busca_id INT NULL AFTER google_place_id` (em extras/crmweb_schema.sql).
+
 ## 0.0.97 — 2026-10-05
 
 - Pesquisa de satisfação: escolha do WhatsApp por onde sai ("Sai pelo": das campanhas, o padrão, ou principal); o Bot da pesquisa conversa por ele (sem o das campanhas configurado, sai pelo principal). Depois de executada, o número não muda.

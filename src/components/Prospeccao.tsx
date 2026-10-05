@@ -57,9 +57,11 @@ const Link: React.FC<{ href: string | null; titulo: string; children: React.Reac
 
 interface Props {
   onToast: (msg: string) => void;
+  /** Abre Pessoas com os leads incluídos pela busca */
+  onVerLeads?: (buscaId: string) => void;
 }
 
-export const Prospeccao: React.FC<Props> = ({ onToast }) => {
+export const Prospeccao: React.FC<Props> = ({ onToast, onVerLeads }) => {
   const [filtro, setFiltro] = useState<FiltroProspeccao>(FILTRO_INICIAL);
   const [buscando, setBuscando] = useState(false);
   const [resultado, setResultado] = useState<{ leads: LeadProspeccao[]; encontrados: number; descartados: number } | null>(null);
@@ -132,7 +134,7 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
     setIncluindo(true);
     setErro(null);
     try {
-      const r = await incluirProspeccao(escolhidos, segmento || null);
+      const r = await incluirProspeccao(escolhidos, segmento || null, buscaAberta || null);
       setIncluidos((s) => new Set([...s, ...escolhidos.map((l) => l.place_id)]));
       setMarcados(new Set());
       onToast(`${r.incluidos} lead(s) incluído(s) em Pessoas${r.existentes ? `; ${r.existentes} já estava(m) no CRM` : ''}.`);
@@ -236,6 +238,16 @@ export const Prospeccao: React.FC<Props> = ({ onToast }) => {
                 </option>
               ))}
             </select>
+            {buscaAberta && onVerLeads && (
+              <button
+                type="button"
+                onClick={() => onVerLeads(buscaAberta)}
+                title="Abre Pessoas com os leads que esta busca incluiu"
+                className={`${botao} border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800`}
+              >
+                Ver leads em Pessoas
+              </button>
+            )}
           </div>
           <button type="submit" disabled={buscando} className={botaoPrimario}>
             {buscando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
