@@ -201,6 +201,13 @@ export function ontemIso(): string {
   return `${o.getFullYear()}-${String(o.getMonth() + 1).padStart(2, '0')}-${String(o.getDate()).padStart(2, '0')}`;
 }
 
+/** Dia útil anterior a hoje, em ISO "aaaa-mm-dd": ontem, ou a sexta-feira quando hoje é segunda */
+export function diaUtilAnteriorIso(): string {
+  const o = new Date();
+  o.setDate(o.getDate() - (o.getDay() === 1 ? 3 : 1));
+  return `${o.getFullYear()}-${String(o.getMonth() + 1).padStart(2, '0')}-${String(o.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * Referência da proposta para as pessoas: o controle (ex.: 2026/001-01); sem controle, "nº 1 v1".
  * O número interno (numero_proposta) fica só para o sistema.

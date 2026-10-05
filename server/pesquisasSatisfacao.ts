@@ -5,7 +5,7 @@ import { podeAcessar } from './permissoes.js';
 import { aposGravar } from './regras.js';
 import { enviarEmail, lerRespostas } from './email.js';
 import { conversarIa, lerChatbot, marcarEvento, temChave } from './chatbot.js';
-import { PESSOA_RECENTE } from './whatsapp.js';
+import { contaWhats, PESSOA_RECENTE } from './whatsapp.js';
 
 /**
  * Pesquisa de satisfação (Suporte › Pesquisa de Satisfação; tabelas pesquisas_satisfacao e pesquisas_satisfacao_itens).
@@ -516,6 +516,8 @@ export function createPesquisasSatisfacaoRouter(): Router {
       descricao,
       objetivo: String(b?.objetivo ?? '').trim().slice(0, 4000) || null,
       canal,
+      // WhatsApp por onde o Bot conversa (server/atividadeBot.ts)
+      conta: contaWhats(b?.conta),
       filtro: JSON.stringify(normalizarFiltro(b?.filtro)),
       quantidade,
       responsavel_id: Number(b?.responsavel_id) || null,
@@ -525,8 +527,8 @@ export function createPesquisasSatisfacaoRouter(): Router {
   router.post('/pesquisas-satisfacao', rota(async (req, res) => {
     const d = dadosDaTela(req.body);
     const [r] = await pool.query<any>(
-      'INSERT INTO pesquisas_satisfacao (empresa_id, descricao, objetivo, canal, filtro, quantidade, responsavel_id, criado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [emp(res), d.descricao, d.objetivo, d.canal, d.filtro, d.quantidade, d.responsavel_id, eu(res)],
+      'INSERT INTO pesquisas_satisfacao (empresa_id, descricao, objetivo, canal, conta, filtro, quantidade, responsavel_id, criado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [emp(res), d.descricao, d.objetivo, d.canal, d.conta, d.filtro, d.quantidade, d.responsavel_id, eu(res)],
     );
     res.json({ id: Number(r.insertId) });
   }));
@@ -536,16 +538,19 @@ export function createPesquisasSatisfacaoRouter(): Router {
     const d = dadosDaTela(req.body);
     // Já executada: o canal não muda (os contatos saíram por ele)
     if (p.situacao !== 'rascunho' && d.canal !== p.canal) throw erro(400, 'A pesquisa já foi executada: o tipo de contato não pode mudar.');
+    // Nem o número: as conversas já começaram por ele
+    if (p.situacao !== 'rascunho') d.conta = contaWhats(p.conta);
     // Já sorteada: o filtro e a quantidade ficam como no primeiro sorteio ("Sortear +x" usa o mesmo filtro)
     const [[{ sorteada }]] = await pool.query<any>('SELECT EXISTS (SELECT 1 FROM pesquisas_satisfacao_itens WHERE pesquisa_id = ?) AS sorteada', [p.id]);
     if (Number(sorteada)) {
       d.filtro = JSON.stringify(p.filtro);
       d.quantidade = p.quantidade;
     }
-    await pool.query('UPDATE pesquisas_satisfacao SET descricao = ?, objetivo = ?, canal = ?, filtro = ?, quantidade = ?, responsavel_id = ? WHERE id = ?', [
+    await pool.query('UPDATE pesquisas_satisfacao SET descricao = ?, objetivo = ?, canal = ?, conta = ?, filtro = ?, quantidade = ?, responsavel_id = ? WHERE id = ?', [
       d.descricao,
       d.objetivo,
       d.canal,
+      d.conta,
       d.filtro,
       d.quantidade,
       d.responsavel_id,

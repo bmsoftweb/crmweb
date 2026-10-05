@@ -22,7 +22,7 @@ import {
   sortearPesquisa,
 } from '../services/api';
 import { Id, OpcaoRef } from '../types';
-import { formatDateBR, formatDateTimeBR, ontemIso } from '../utils/formatters';
+import { diaUtilAnteriorIso, formatDateBR, formatDateTimeBR } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { DateField } from './DateField';
 import { NumberField } from './NumberField';
@@ -64,12 +64,23 @@ const SITUACAO_ITEM: Record<string, [string, string]> = {
 const Etiqueta: React.FC<{ par?: [string, string] }> = ({ par }) =>
   par ? <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${par[1]}`}>{par[0]}</span> : null;
 
-/** Pesquisa nova: atendimentos de ontem (calculado na hora: a tela pode ficar aberta de um dia para o outro) */
+/** Objetivo sugerido na pesquisa nova (pode ser alterado) */
+const OBJETIVO_PADRAO =
+  'Saber se o problema do cliente foi resolvido, como ele avalia o tempo de resposta e a cordialidade de quem atendeu, e se ficou alguma pendência.';
+
+/** Descrição sugerida, pela data inicial dos atendimentos */
+const descricaoSugerida = (dataDe: string | null | undefined) => (dataDe ? `Pesquisa dos atendimentos do dia ${formatDateBR(dataDe)}` : '');
+
+/**
+ * Pesquisa nova: atendimentos do dia útil anterior (ontem; na segunda, a sexta), pelo WhatsApp das campanhas.
+ * Calculado na hora: a tela pode ficar aberta de um dia para o outro
+ */
 const vazia = (): DadosPesquisa => ({
-  descricao: '',
-  objetivo: '',
+  descricao: descricaoSugerida(diaUtilAnteriorIso()),
+  objetivo: OBJETIVO_PADRAO,
   canal: 'whatsapp',
-  filtro: { data_de: ontemIso(), data_ate: ontemIso(), origens: [], notas: [], excluir_dias: 90 },
+  conta: 'campanhas',
+  filtro: { data_de: diaUtilAnteriorIso(), data_ate: diaUtilAnteriorIso(), origens: [], notas: [], excluir_dias: 90 },
   quantidade: 20,
   responsavel_id: null,
 });
@@ -329,7 +340,7 @@ export const PesquisasSatisfacao: React.FC<{ refreshToken: number; onToast: (msg
     try {
       const p = await fetchPesquisa(id);
       setAtual(p);
-      setV({ descricao: p.descricao, objetivo: p.objetivo ?? '', canal: p.canal, filtro: p.filtro, quantidade: p.quantidade, responsavel_id: p.responsavel_id });
+      setV({ descricao: p.descricao, objetivo: p.objetivo ?? '', canal: p.canal, conta: p.conta, filtro: p.filtro, quantidade: p.quantidade, responsavel_id: p.responsavel_id });
       // A prévia é do momento (o que ainda não foi sorteado): só aparece depois de "Ver quantos"
       setPrevia(null);
       setAba(irPara);
@@ -349,7 +360,9 @@ export const PesquisasSatisfacao: React.FC<{ refreshToken: number; onToast: (msg
 
   const f = v.filtro;
   const setFiltro = (m: Partial<FiltroPesquisa>) => {
-    setV({ ...v, filtro: { ...f, ...m } });
+    // Descrição ainda a sugerida: acompanha a data inicial
+    const descricao = 'data_de' in m && v.descricao === descricaoSugerida(f.data_de) ? descricaoSugerida(m.data_de) || v.descricao : v.descricao;
+    setV({ ...v, descricao, filtro: { ...f, ...m } });
     setPrevia(null);
   };
   const alternar = <T,>(lista: T[] | undefined, x: T) => ((lista ?? []).includes(x) ? (lista ?? []).filter((y) => y !== x) : [...(lista ?? []), x]);
@@ -487,6 +500,16 @@ export const PesquisasSatisfacao: React.FC<{ refreshToken: number; onToast: (msg
                 <textarea id="ps-objetivo" rows={2} value={v.objetivo ?? ''} onChange={(e) => setV({ ...v, objetivo: e.target.value })} maxLength={4000} placeholder="O que a pesquisa quer descobrir (ex.: se o problema foi resolvido e como foi o tempo de resposta)" className={`${INPUT_CLASS} w-full resize-y`} />
                 <span className={HINT_CLASS}>Vai para a IA (WhatsApp e e-mail) e para o roteiro de quem liga. A nota é sempre de 1 a 5.</span>
               </div>
+              {v.canal === 'whatsapp' && (
+                <div className={FIELD_CLASS}>
+                  <label htmlFor="ps-conta" className={LABEL_CLASS}>Sai pelo</label>
+                  <select id="ps-conta" value={v.conta} disabled={Boolean(atual && atual.situacao !== 'rascunho')} onChange={(e) => setV({ ...v, conta: e.target.value as DadosPesquisa['conta'] })} className={`${INPUT_CLASS} w-full cursor-pointer`}>
+                    <option value="campanhas">WhatsApp das campanhas</option>
+                    <option value="provedor">WhatsApp principal</option>
+                  </select>
+                  <span className={HINT_CLASS}>Sem o WhatsApp das campanhas configurado, sai pelo principal</span>
+                </div>
+              )}
               {v.canal === 'ligacao' && (
                 <div className={FIELD_CLASS}>
                   <label htmlFor="ps-responsavel" className={LABEL_CLASS}>Quem liga</label>

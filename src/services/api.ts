@@ -1030,6 +1030,8 @@ export interface Pesquisa {
   descricao: string;
   objetivo: string | null;
   canal: CanalPesquisa;
+  /** WhatsApp por onde a pesquisa sai (canal whatsapp) */
+  conta: 'provedor' | 'campanhas';
   filtro: FiltroPesquisa;
   quantidade: number;
   total_filtrados: number | null;
@@ -1038,7 +1040,7 @@ export interface Pesquisa {
   itens: ItemPesquisa[];
 }
 
-export type DadosPesquisa = Pick<Pesquisa, 'descricao' | 'objetivo' | 'canal' | 'filtro' | 'quantidade' | 'responsavel_id'>;
+export type DadosPesquisa = Pick<Pesquisa, 'descricao' | 'objetivo' | 'canal' | 'conta' | 'filtro' | 'quantidade' | 'responsavel_id'>;
 
 export const fetchPesquisas = (): Promise<PesquisaResumo[]> => get('/api/pesquisas-satisfacao');
 export const fetchPesquisa = (id: number): Promise<Pesquisa> => get(`/api/pesquisas-satisfacao/${id}`);

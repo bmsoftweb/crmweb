@@ -185,8 +185,8 @@ export async function contaDaConversa(empresaId: string | number, telefone: stri
 
 /**
  * Número que envia: o principal, ou o das campanhas (o padrão quando ele não foi configurado). Sai pelo das campanhas
- * só quem pede: a tela (o técnico escolhe), as Automações, a pesquisa e a inatividade (seguem a conversa). Chamados,
- * automáticas e avisos saem sempre pelo principal.
+ * só quem pede: a tela (o técnico escolhe), as Automações, a pesquisa e a inatividade (seguem a conversa) e o Bot das
+ * pesquisas de satisfação (o número escolhido na pesquisa; server/atividadeBot.ts). Chamados, automáticas e avisos saem sempre pelo principal.
  */
 const credenciaisDaConta = (empresaId: string | number, conta: ContaWhats = 'provedor'): Promise<Credenciais> =>
   conta === 'campanhas' ? credenciaisDeCampanha(empresaId) : credenciais(empresaId);

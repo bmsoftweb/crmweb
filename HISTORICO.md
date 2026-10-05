@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.97 — 2026-10-05
+
+- Pesquisa de satisfação: escolha do WhatsApp por onde sai ("Sai pelo": das campanhas, o padrão, ou principal); o Bot da pesquisa conversa por ele (sem o das campanhas configurado, sai pelo principal). Depois de executada, o número não muda.
+- Pesquisa nova já vem preenchida: descrição "Pesquisa dos atendimentos do dia dd/mm/aaaa" (acompanha a data inicial enquanto não for alterada), objetivo sugerido e as datas com o dia útil anterior (ontem; na segunda, a sexta).
+- Combos com busca (Segmento, Cliente, Produto...): perto do pé da tela, a lista abre para cima.
+- Banco: `ALTER TABLE pesquisas_satisfacao ADD COLUMN conta ENUM('provedor','campanhas') NOT NULL DEFAULT 'campanhas' AFTER canal` (em extras/crmweb_schema.sql).
+
 ## 0.0.96 — 2026-10-04
 
 - Painel de Suporte: o card "SLA cumprido" deu lugar a "Chamados hoje" (abertos hoje, comparados com todos os abertos ontem; não depende do período escolhido). O "SLA estourado" do bloco "Agora" continua.

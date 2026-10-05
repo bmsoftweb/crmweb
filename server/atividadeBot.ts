@@ -4,7 +4,7 @@ import { enviarEmail } from './email.js';
 import { aposGravar } from './regras.js';
 import { TIPOS_ATIVIDADE } from './schema.js';
 import { conversarIa, explicarErro, lerChatbot, marcarEvento, mudarAtendimento, temChave, type ConfigChatbot, type FalaIa, type FerramentaIa } from './chatbot.js';
-import { enviarAutomatica, enviarReservada, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type MensagemNova } from './whatsapp.js';
+import { contaWhats, enviarAutomatica, enviarReservada, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type MensagemNova } from './whatsapp.js';
 
 /**
  * Bot das atividades ("Quem executa = Bot"). No dia e hora da atividade, o CRM contata quem está em "Lembrete para"
@@ -61,7 +61,10 @@ async function lerAtividade(id: number) {
     `SELECT a.*, DATE_FORMAT(a.data_vencimento, '%d/%m/%Y') AS data, TIME_FORMAT(a.hora_vencimento, '%H:%i') AS hora,
             e.nome AS empresa_nome, p.nome AS pessoa_nome, COALESCE(NULLIF(p.whatsapp, ''), p.telefone) AS pessoa_telefone, p.email AS pessoa_email,
             n.titulo AS negocio_titulo, ct.numero AS contrato_numero, ct.titulo AS contrato_titulo, ch.numero AS chamado_numero, ch.titulo AS chamado_titulo,
-            COALESCE(n.proprietario_id, ct.proprietario_id, ch.atendente_id) AS responsavel_id
+            COALESCE(n.proprietario_id, ct.proprietario_id, ch.atendente_id) AS responsavel_id,
+            -- Pesquisa de satisfação: a conversa sai pelo WhatsApp escolhido nela
+            (SELECT ps.conta FROM pesquisas_satisfacao_itens i JOIN pesquisas_satisfacao ps ON ps.id = i.pesquisa_id
+              WHERE i.atividade_id = a.id LIMIT 1) AS conta_pesquisa
        FROM atividades a
        JOIN empresas e ON e.id = a.empresa_id
        LEFT JOIN pessoas p ON p.id = a.pessoa_id
@@ -147,13 +150,15 @@ async function gravarMensagem(conversaId: number, direcao: 'enviada' | 'recebida
 /**
  * Manda a mensagem do bot pelo WhatsApp com origem própria: não conta como resposta de atendente (a conversa não
  * passa a ser "humano") e aparece na tela do WhatsApp. O número fica como o WhatsApp o conhece (às vezes sem o 9),
- * que é como a resposta da pessoa chega
+ * que é como a resposta da pessoa chega. Sai pelo WhatsApp principal; a pesquisa de satisfação, pelo escolhido nela
+ * (o das campanhas sem configuração cai no principal)
  */
-async function enviarNaConversa(empresaId: number, conv: any, texto: string) {
+async function enviarNaConversa(a: any, conv: any, texto: string) {
+  const empresaId = a.empresa_id;
   const origem = `atividade-bot:${conv.id}:${Date.now()}`;
   const id = await reservarEnvio(empresaId, origem, { pessoa_id: conv.pessoa_id, contato_id: null }, conv.destino, texto);
   if (!id) return;
-  await enviarReservada(empresaId, id, origem, conv.destino, texto, undefined, (await lerChatbot(empresaId))?.nome || 'Assistente');
+  await enviarReservada(empresaId, id, origem, conv.destino, texto, undefined, (await lerChatbot(empresaId))?.nome || 'Assistente', contaWhats(a.conta_pesquisa));
   const [w] = await pool.query<any[]>('SELECT telefone, situacao, erro FROM whatsapp_mensagens WHERE id = ?', [id]);
   if (w[0]?.situacao === 'falhou') throw new Error(`WhatsApp recusou a mensagem: ${w[0].erro ?? ''}`);
   if (w[0]?.telefone && w[0].telefone !== conv.destino) {
@@ -214,7 +219,7 @@ export async function verificarFim(atividadeId: number) {
 async function aplicar(a: any, conv: any, r: Awaited<ReturnType<typeof conversarIa>>) {
   const final = String(r.chamada?.args.mensagem_final ?? '').trim();
   const texto = r.texto || final;
-  if (texto) await enviarNaConversa(a.empresa_id, conv, texto);
+  if (texto) await enviarNaConversa(a, conv, texto);
   if (r.chamada?.nome === 'encerrar_conversa') {
     await encerrar(conv, 'concluida', String(r.chamada.args.resumo ?? '').trim() || 'Conversa concluída.');
     await verificarFim(a.id);
@@ -338,7 +343,7 @@ async function cobrarSemResposta() {
       if (!temChave(cfg)) throw new Error('IA não configurada (Configurações › Chatbot).');
       const pedido = `(A pessoa não respondeu há ${HORAS_SEM_RESPOSTA} horas. Escreva uma mensagem curta e gentil retomando o assunto.)`;
       const r = await conversarIa(cfg, instrucoes(cfg, a, conv), await falas(conv.id, pedido), []);
-      if (r.texto) await enviarNaConversa(a.empresa_id, conv, r.texto);
+      if (r.texto) await enviarNaConversa(a, conv, r.texto);
     } catch (err: any) {
       await encerrar(conv, 'falhou', explicarErro(String(err.message ?? err)));
       await verificarFim(a.id);

@@ -36,6 +36,8 @@ export const SelectBusca: React.FC<SelectBuscaProps> = ({
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
   const [destaque, setDestaque] = useState(0);
+  /** Sem espaço embaixo (perto do pé da tela) e mais espaço em cima: a lista abre para cima */
+  const [paraCima, setParaCima] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
   const lista = useRef<HTMLUListElement>(null);
 
@@ -75,6 +77,9 @@ export const SelectBusca: React.FC<SelectBuscaProps> = ({
 
   const abrir = () => {
     if (disabled) return;
+    const r = caixa.current?.getBoundingClientRect();
+    // 248 = altura máxima da lista (max-h-60) + a margem
+    if (r) setParaCima(window.innerHeight - r.bottom < 248 && r.top > window.innerHeight - r.bottom);
     setAberto(true);
     // Busca vazia ao abrir: a lista mostra tudo, como no combo de cliente
     setBusca('');
@@ -149,7 +154,7 @@ export const SelectBusca: React.FC<SelectBuscaProps> = ({
         <ul
           ref={lista}
           role="listbox"
-          className="absolute z-[60] mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg py-1"
+          className={`absolute z-[60] ${paraCima ? 'bottom-full mb-1' : 'mt-1'} w-full max-h-60 overflow-y-auto rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg py-1`}
         >
           {!required && (
             <li>
