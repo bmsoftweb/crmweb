@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.109 — 2026-10-06
+
+- Widget de suporte do site: botão volta a ser só o ícone (redondo), sem texto.
+
 ## 0.0.108 — 2026-10-06
 
 - Widget de suporte do site: o texto do botão passa de "NOVO SUPORTE" para só "NOVO".
