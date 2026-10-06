@@ -48,7 +48,7 @@ import { BotaoWhatsApp } from './components/BotaoWhatsApp';
 import { BotaoPermissoes } from './components/PermissoesUsuario';
 import { gruposDoMenu, podeAcessar } from './utils/menu';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
-import { Sessao, lerSessao, salvarSessao, limparSessao } from './utils/session';
+import { Sessao, lerSessao, salvarSessao, limparSessao, atualizarSessao } from './utils/session';
 
 export default function App() {
   // ----------------------------------------------------------
@@ -366,15 +366,27 @@ export default function App() {
     return () => setAoExpirarSessao(null);
   }, [handleLogout]);
 
-  // Sessão guardada no navegador é conferida ao abrir: o usuário pode ter sido desativado
+  // Sessão guardada no navegador é conferida ao abrir e ao voltar para a aba: o usuário pode ter
+  // sido desativado ou ter as permissões alteradas (o menu esconde o que ele não acessa)
   useEffect(() => {
     if (!sessao) return;
-    validarSessao().then(({ valida, error }) => {
-      if (valida === false) {
-        handleLogout();
-        setAvisoLogin(error || 'Sua sessão expirou. Entre novamente.');
-      }
-    });
+    const conferir = () =>
+      validarSessao().then(({ valida, error, usuario: atual }) => {
+        if (valida === false) {
+          handleLogout();
+          setAvisoLogin(error || 'Sua sessão expirou. Entre novamente.');
+        } else if (atual) {
+          setSessao((s) => {
+            if (!s || JSON.stringify(s.usuario) === JSON.stringify(atual)) return s;
+            const nova = { ...s, usuario: atual };
+            atualizarSessao(nova);
+            return nova;
+          });
+        }
+      });
+    conferir();
+    window.addEventListener('focus', conferir);
+    return () => window.removeEventListener('focus', conferir);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessao?.token]);
 

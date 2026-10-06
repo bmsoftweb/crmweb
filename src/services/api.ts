@@ -80,12 +80,12 @@ export async function login(payload: { email: string; senha: string }): Promise<
  * Retorna false só quando o servidor recusa; falha de rede ou de banco devolve null,
  * para não deslogar ninguém por instabilidade.
  */
-export async function validarSessao(): Promise<{ valida: boolean | null; error?: string }> {
+export async function validarSessao(): Promise<{ valida: boolean | null; error?: string; usuario?: Usuario }> {
   try {
     const res = await fetch('/api/sessao', { headers: headers() });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401) return { valida: false, error: data?.error };
-    return { valida: res.ok ? true : null, error: data?.error };
+    return { valida: res.ok ? true : null, error: data?.error, usuario: res.ok ? data?.usuario : undefined };
   } catch {
     return { valida: null };
   }

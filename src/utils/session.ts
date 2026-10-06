@@ -46,6 +46,11 @@ export function salvarSessao(sessao: Sessao, lembrar: boolean) {
   }, undefined);
 }
 
+/** Regrava a sessão no mesmo armazenamento em que já estava (ex.: permissões alteradas pelo administrador) */
+export function atualizarSessao(sessao: Sessao) {
+  seguro(() => salvarSessao(sessao, localStorage.getItem(SESSAO) != null), undefined);
+}
+
 export function limparSessao() {
   seguro(() => {
     localStorage.removeItem(SESSAO);

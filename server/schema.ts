@@ -654,7 +654,7 @@ export const RESOURCES: ResourceDef[] = [
     labelSingular: 'Avaliação',
     description: 'Pesquisa de satisfação do WhatsApp: nota de 1 a 5 ao encerrar o atendimento',
     icon: 'Star',
-    group: 'vendas',
+    group: 'marketing',
     pk: ['id'],
     autoIncrement: true,
     labelField: 'id',
