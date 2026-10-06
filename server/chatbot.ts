@@ -500,6 +500,8 @@ interface OpcoesNegocio {
   etapa_id?: number | null;
   assunto: string;
   observacao?: string;
+  /** De onde veio o lead fora do WhatsApp (ex.: "Site"): título do negócio e começo da anotação da atividade */
+  origem?: string;
 }
 
 export async function registrarLead(ctx: Contexto, a: Record<string, unknown>, opcoes?: OpcoesNegocio) {
@@ -566,7 +568,7 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>, o
     const v = await proximoVendedor(emp);
     const [n] = await pool.query<any>(
       "INSERT INTO negocios (empresa_id, titulo, valor, funil_id, etapa_id, pessoa_id, proprietario_id, status, campanha_id) VALUES (?, ?, 0, ?, ?, ?, ?, 'aberto', ?)",
-      [emp, `${campanha ? `Campanha ${campanha.nome}` : 'WhatsApp'}: ${interesse}`.slice(0, 255), f[0].funil_id, f[0].etapa_id, pessoaId, v?.id ?? null, campanha?.id ?? null],
+      [emp, `${opcoes?.origem ?? (campanha ? `Campanha ${campanha.nome}` : 'WhatsApp')}: ${interesse}`.slice(0, 255), f[0].funil_id, f[0].etapa_id, pessoaId, v?.id ?? null, campanha?.id ?? null],
     );
     negocioId = n.insertId;
     vendedor = v?.nome ?? null;
@@ -582,7 +584,7 @@ export async function registrarLead(ctx: Contexto, a: Record<string, unknown>, o
       pessoaId,
       vendedorId,
       opcoes?.assunto ?? 'Lead do WhatsApp',
-      `Atendido pelo chatbot. ${nome}${empresa ? ` (${empresa})` : ''} procura: ${interesse}.${opcoes?.observacao ? `
+      `${opcoes?.origem ? `Veio pelo ${opcoes.origem}.` : 'Atendido pelo chatbot.'} ${nome}${empresa ? ` (${empresa})` : ''} procura: ${interesse}.${opcoes?.observacao ? `
 ${opcoes.observacao}` : ''}`,
     ],
   );

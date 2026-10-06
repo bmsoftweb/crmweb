@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import express, { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { fecharSecao, gravarMensagem } from './chamados.js';
+import { registrarLead } from './chatbot.js';
+import { donoDoTelefone, telefoneWhatsApp } from './whatsapp.js';
 
 /**
  * Suporte pelo site (widget público, sem login): public/widget.js abre a página /suporte?e=<empresa>,
@@ -141,6 +143,53 @@ export function createSuporteRouter(): Router {
       await pool.query('UPDATE site_visitas SET saida_em = NOW() WHERE empresa_id = ? AND chave = ?', [Number(req.params.empresa) || 0, chave]);
     }
     res.status(204).end();
+  }));
+
+  /**
+   * Lead do site (formulário "Agendar Apresentação" da homepage): mesmo caminho do lead do chatbot
+   * (pessoa, negócio no funil para o próximo vendedor do revezamento e atividade de contato).
+   * Quem já está no CRM pelo WhatsApp ou e-mail ganha o negócio/atividade sem novo cadastro.
+   * ponytail: sem limite por IP; o campo-isca "site" barra robôs simples. Captcha se aparecer spam
+   */
+  router.post('/api/publico/leads/:empresa', rota(async (req, res) => {
+    const empresaId = Number(req.params.empresa) || 0;
+    const [e] = await pool.query<any[]>('SELECT id FROM empresas WHERE id = ?', [empresaId]);
+    if (!e[0]) throw erro(404, 'Empresa não encontrada.');
+    const b = req.body || {};
+    // Campo escondido no formulário: pessoa não preenche, robô sim. Responde ok e não grava
+    if (texto(b.site, 200)) return void res.json({ ok: true });
+    const nome = texto(b.nome, 120);
+    const empresa = texto(b.empresa, 255);
+    const email = texto(b.email, 255);
+    const interesse = texto(b.interesse, 200);
+    const mensagem = texto(b.mensagem, 2000);
+    if (nome.length < 2) throw erro(400, 'Informe o seu nome.');
+    if (!interesse) throw erro(400, 'Escolha o sistema de interesse.');
+    let telefone: string;
+    try {
+      telefone = telefoneWhatsApp(b.telefone);
+    } catch {
+      throw erro(400, 'Informe o seu WhatsApp com DDD.');
+    }
+    let dono = await donoDoTelefone(empresaId, telefone);
+    if (!dono.pessoa_id && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      const [p] = await pool.query<any[]>('SELECT id FROM pessoas WHERE empresa_id = ? AND email = ? ORDER BY id LIMIT 1', [empresaId, email]);
+      if (p[0]) dono = { pessoa_id: p[0].id, contato_id: null };
+    }
+    const r: any = await registrarLead(
+      { empresaId, telefone, dono, departamento: null },
+      { nome, empresa, email, interesse },
+      {
+        origem: 'Site',
+        assunto: 'Agendar apresentação (site)',
+        observacao: [email && `E-mail: ${email}`, mensagem && `Mensagem: ${mensagem}`].filter(Boolean).join('\n') || undefined,
+      },
+    );
+    if (!r.ok) {
+      console.error(`Lead do site não registrado: ${r.erro}`);
+      throw erro(500, 'Não foi possível registrar agora. Tente de novo em instantes.');
+    }
+    res.json({ ok: true });
   }));
 
   /** Abre o chamado; devolve o token que dá acesso a ele */
