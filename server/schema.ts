@@ -1332,8 +1332,10 @@ export const RESOURCES: ResourceDef[] = [
       { name: 'titulo', label: 'Título da página', type: 'text', searchable: true, readOnly: true },
       // Site de onde veio (Google, outro site...); vazio = digitou o endereço ou favorito
       { name: 'origem', label: 'Veio de', type: 'text', listed: true, searchable: true, filterable: true, readOnly: true },
-      // Widget com data-cnpj (ex.: dentro do sistema do cliente): liga a visita à Pessoa
+      // CNPJ/CPF do widget (data-cnpj) ou do chat: liga a visita à Pessoa
       { name: 'pessoa_id', label: 'Cliente', type: 'text', listed: true, filterable: true, readOnly: true, ref: { resource: 'pessoas', labelField: 'nome' } },
+      // Nome que o visitante informou no chat do suporte (nesta visita ou numa anterior, no mesmo navegador)
+      { name: 'cliente_nome', label: 'Nome (chat)', type: 'text', listed: true, searchable: true, filterable: true, readOnly: true },
       { name: 'documento', label: 'CNPJ/CPF', type: 'text', searchable: true, filterable: true, readOnly: true },
       {
         name: 'dispositivo',
@@ -1342,7 +1344,7 @@ export const RESOURCES: ResourceDef[] = [
         listed: true,
         filterable: true,
         readOnly: true,
-        width: 'xs',
+        width: 'sm',
         options: [
           { value: 'celular', label: 'Celular' },
           { value: 'computador', label: 'Computador' },
@@ -1350,7 +1352,7 @@ export const RESOURCES: ResourceDef[] = [
         sql: `IF(t.navegador LIKE '%Mobi%' OR t.navegador LIKE '%Android%', 'celular', 'computador')`,
       },
       { name: 'navegador', label: 'Navegador', type: 'text', searchable: true, readOnly: true },
-      { name: 'ip', label: 'IP', type: 'text', searchable: true, filterable: true, readOnly: true },
+      { name: 'ip', label: 'IP', type: 'text', listed: true, searchable: true, filterable: true, readOnly: true, width: 'sm' },
     ],
   },
   {

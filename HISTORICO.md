@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.112 — 2026-10-06
+
+- Visitas do Site: coluna "Nome (chat)" com o nome que o visitante informou no chat do suporte. O chat avisa o widget quem é o cliente (dados já salvos ou chamado aberto); a visita ganha nome e CNPJ/CPF (e o Cliente, se o CNPJ estiver no CRM) e as próximas visitas no mesmo navegador já chegam com eles. Coluna `cliente_nome` em `site_visitas`.
+- Visitas do Site: coluna IP na lista; coluna Dispositivo mais larga (não corta "Computador").
+
 ## 0.0.111 — 2026-10-06
 
 - Sino no topo do app: pisca quando alguém entra no site (consulta a cada 15 s) e o clique abre Suporte › Visitas do Site (antes "Visitas ao Site"). Abrir a tela dá as visitas como vistas (guardado no navegador, por usuário).

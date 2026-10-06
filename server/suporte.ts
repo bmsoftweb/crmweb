@@ -95,21 +95,42 @@ export function createSuporteRouter(): Router {
     return /^[\w-]{8,36}$/.test(s) ? s : null;
   };
 
+  /** Pessoa do CRM com esse CNPJ/CPF (ou null) */
+  const pessoaDoDocumento = async (empresaId: number, documento: string): Promise<number | null> => {
+    if (!documento) return null;
+    const [p] = await pool.query<any[]>('SELECT id FROM pessoas WHERE empresa_id = ? AND cpf = ? ORDER BY id LIMIT 1', [empresaId, documento]);
+    return p[0]?.id ?? null;
+  };
+
   router.post('/api/publico/suporte/:empresa/visitas', corpoTexto, rota(async (req, res) => {
     const empresaId = Number(req.params.empresa) || 0;
     const b = jsonDoTexto(req.body);
     const documento = digitos(b.cnpj, 14);
-    const [p] = documento
-      ? await pool.query<any[]>('SELECT id FROM pessoas WHERE empresa_id = ? AND cpf = ? ORDER BY id LIMIT 1', [empresaId, documento])
-      : [[]];
     const ip = String(req.get('x-forwarded-for')?.split(',')[0] || req.socket.remoteAddress || '').trim().slice(0, 45);
     // Empresa inexistente não grava (o SELECT não devolve linha)
     await pool.query(
-      `INSERT INTO site_visitas (empresa_id, chave, pagina, titulo, origem, documento, pessoa_id, navegador, ip)
-       SELECT id, ?, ?, ?, ?, ?, ?, ?, ? FROM empresas WHERE id = ?`,
-      [chaveVisita(b.chave), texto(b.pagina, 500), texto(b.titulo, 200), texto(b.origem, 500) || null, documento || null, p[0]?.id ?? null,
-        texto(req.get('user-agent'), 300) || null, ip || null, empresaId],
+      `INSERT INTO site_visitas (empresa_id, chave, pagina, titulo, origem, documento, pessoa_id, cliente_nome, navegador, ip)
+       SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM empresas WHERE id = ?`,
+      [chaveVisita(b.chave), texto(b.pagina, 500), texto(b.titulo, 200), texto(b.origem, 500) || null, documento || null,
+        await pessoaDoDocumento(empresaId, documento), texto(b.nome, 120) || null, texto(req.get('user-agent'), 300) || null, ip || null, empresaId],
     );
+    res.status(204).end();
+  }));
+
+  /** O cliente se identificou no chat (dados salvos ou chamado aberto): nome e CNPJ/CPF na visita */
+  router.post('/api/publico/suporte/:empresa/visitas/cliente', corpoTexto, rota(async (req, res) => {
+    const empresaId = Number(req.params.empresa) || 0;
+    const b = jsonDoTexto(req.body);
+    const chave = chaveVisita(b.chave);
+    const documento = digitos(b.cnpj, 14);
+    const nome = texto(b.nome, 120);
+    if (chave && (nome || documento)) {
+      await pool.query(
+        `UPDATE site_visitas SET cliente_nome = COALESCE(?, cliente_nome), documento = COALESCE(?, documento), pessoa_id = COALESCE(?, pessoa_id)
+          WHERE empresa_id = ? AND chave = ?`,
+        [nome || null, documento || null, await pessoaDoDocumento(empresaId, documento), empresaId, chave],
+      );
+    }
     res.status(204).end();
   }));
 
