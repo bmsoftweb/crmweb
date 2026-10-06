@@ -17,6 +17,25 @@
   var cor = script.getAttribute('data-cor') || '#2563eb';
   var url = origem + '/suporte?e=' + encodeURIComponent(empresa) + (cnpj ? '&cnpj=' + encodeURIComponent(cnpj) : '');
 
+  // Registra a visita no CRM (Suporte › Visitas ao Site), uma vez por aba: navegar pelo site não repete.
+  // text/plain + no-cors: sem consulta prévia de CORS; a resposta não interessa
+  var jaVisitou = false;
+  try {
+    jaVisitou = sessionStorage.getItem('crmwebVisita') === empresa;
+    sessionStorage.setItem('crmwebVisita', empresa);
+  } catch (e) {
+    // sem sessionStorage (navegação privada bloqueada): registra a cada página
+  }
+  if (!jaVisitou && window.fetch) {
+    fetch(origem + '/api/publico/suporte/' + encodeURIComponent(empresa) + '/visitas', {
+      method: 'POST',
+      mode: 'no-cors',
+      keepalive: true,
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ pagina: location.href, titulo: document.title, origem: document.referrer, cnpj: cnpj }),
+    }).catch(function () {});
+  }
+
   var caixa = document.createElement('div');
   caixa.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483000;font-family:system-ui,sans-serif;';
 

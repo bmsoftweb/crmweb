@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.110 — 2026-10-06
+
+- Suporte › Visitas ao Site: o widget registra cada entrada no site (uma por aba do navegador) com página, de onde veio, cliente (quando o widget tem data-cnpj), dispositivo, navegador e IP. Tela só de consulta, com busca e filtros. Tabela `site_visitas`.
+
 ## 0.0.109 — 2026-10-06
 
 - Widget de suporte do site: botão volta a ser só o ícone (redondo), sem texto.
