@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.115 — 2026-10-06
+
+- Suporte pelo site (widget): formulário de abertura com o visual do "Agendar Apresentação" da homepage: rótulo pequeno em maiúsculas em cima, campos em caixa arredondada com borda (foco azul), exemplos dentro dos campos e botão maior. Exceção `campo-site` no CSS; os campos do CRM seguem o padrão sem moldura.
+
 ## 0.0.114 — 2026-10-06
 
 - Lead do site: rota pública `POST /api/publico/leads/:empresa` para o formulário "Agendar Apresentação" da homepage. Mesmo caminho do lead do chatbot: pessoa (ou a já cadastrada pelo WhatsApp/e-mail), negócio "Site: <sistema>" no funil para o próximo vendedor do revezamento e atividade "Agendar apresentação (site)" com e-mail e mensagem. Campo-isca contra robôs.

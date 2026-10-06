@@ -73,6 +73,18 @@ html, body {
   background-image: linear-gradient(rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.06)) !important;
 }
 
+/* Exceção: formulário do suporte pelo site (SuportePublico), em caixa arredondada com borda,
+   como o "Agendar Apresentação" da homepage. Mais específico que as regras acima */
+.campo-site:is(input, select, textarea) {
+  border: 1px solid #e7e5e4 !important; /* stone-200 */
+  border-radius: 0.75rem !important;
+}
+.campo-site:is(input, select, textarea):focus {
+  border-color: #3b82f6 !important; /* blue-500 */
+  background-image: none !important;
+  background-color: #eff6ff !important; /* blue-50 */
+}
+
 /* Tamanho dos campos escolhido em "Customizar layout" do formulário */
 @media (min-width: 64rem) {
   .campo-span {

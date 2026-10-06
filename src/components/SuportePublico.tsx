@@ -3,7 +3,7 @@ import { Bell, CheckCircle2, Download, Headset, Loader2, MonitorSmartphone, Send
 import { formatDateTimeBR } from '../utils/formatters';
 import { ConfirmDialog } from './ConfirmDialog';
 import { destravarSom, tocarAviso } from '../utils/som';
-import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS } from '../utils/formStyles';
+import { INPUT_CLASS } from '../utils/formStyles';
 
 /**
  * Página pública /suporte?e=<empresa> (dentro do painel do widget.js, no site do cliente): abre o
@@ -248,33 +248,37 @@ const Abrir: React.FC<{
 
   // Foco no primeiro campo vazio
   const primeiroVazio = !v.documento ? 'sp-doc' : !v.nome ? 'sp-nome' : !v.telefone ? 'sp-tel' : categorias.length ? 'sp-cat' : 'sp-desc';
-  const campo = `${INPUT_CLASS} w-full`;
+  // Visual próprio do formulário do site (pedido do usuário, como o "Agendar Apresentação" da homepage):
+  // rótulo pequeno em maiúsculas em cima, campo em caixa arredondada com borda
+  // Borda e foco vêm da classe campo-site (index.css): o padrão global dos campos usa !important
+  const campo = 'campo-site w-full bg-white px-3.5 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 outline-none transition-colors';
+  const rotulo = 'block mb-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-500';
 
   return (
-    <form onSubmit={enviar} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+    <form onSubmit={enviar} className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
       {aviso && (
         <p className="p-2.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" /> {aviso}
         </p>
       )}
       <p className="text-xs text-stone-600">Conte o que está acontecendo. O primeiro atendente livre continua a conversa por aqui.</p>
-      <div className={FIELD_CLASS}>
-        <label htmlFor="sp-doc" className={LABEL_CLASS}>CNPJ da empresa (ou CPF)</label>
-        <input id="sp-doc" autoFocus={primeiroVazio === 'sp-doc'} inputMode="numeric" value={v.documento} onChange={(e) => alterar({ documento: soDigitos(e.target.value, 14) })} onFocus={(e) => e.target.select()} placeholder="Só os números" required pattern="\d{11}|\d{14}" title="CNPJ com 14 dígitos ou CPF com 11" className={campo} />
+      <div>
+        <label htmlFor="sp-doc" className={rotulo}>CNPJ da empresa (ou CPF)</label>
+        <input id="sp-doc" autoFocus={primeiroVazio === 'sp-doc'} inputMode="numeric" value={v.documento} onChange={(e) => alterar({ documento: soDigitos(e.target.value, 14) })} onFocus={(e) => e.target.select()} placeholder="Ex: 12345678000199" required pattern="\d{11}|\d{14}" title="CNPJ com 14 dígitos ou CPF com 11" className={campo} />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className={FIELD_CLASS}>
-          <label htmlFor="sp-nome" className={LABEL_CLASS}>Seu nome</label>
-          <input id="sp-nome" autoFocus={primeiroVazio === 'sp-nome'} value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} maxLength={120} autoComplete="name" required minLength={2} className={campo} />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="sp-nome" className={rotulo}>Seu nome</label>
+          <input id="sp-nome" autoFocus={primeiroVazio === 'sp-nome'} value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} placeholder="Ex: Pedro" maxLength={120} autoComplete="name" required minLength={2} className={campo} />
         </div>
-        <div className={FIELD_CLASS}>
-          <label htmlFor="sp-tel" className={LABEL_CLASS}>WhatsApp</label>
-          <input id="sp-tel" autoFocus={primeiroVazio === 'sp-tel'} inputMode="tel" value={v.telefone} onChange={(e) => alterar({ telefone: soDigitos(e.target.value, 13) })} onFocus={(e) => e.target.select()} placeholder="DDD + número" required pattern="\d{10,13}" title="WhatsApp com DDD (só os números)" className={campo} />
+        <div>
+          <label htmlFor="sp-tel" className={rotulo}>WhatsApp</label>
+          <input id="sp-tel" autoFocus={primeiroVazio === 'sp-tel'} inputMode="tel" value={v.telefone} onChange={(e) => alterar({ telefone: soDigitos(e.target.value, 13) })} onFocus={(e) => e.target.select()} placeholder="Ex: 11999999999" required pattern="\d{10,13}" title="WhatsApp com DDD (só os números)" className={campo} />
         </div>
       </div>
       {categorias.length > 0 && (
-        <div className={FIELD_CLASS}>
-          <label htmlFor="sp-cat" className={LABEL_CLASS}>Assunto</label>
+        <div>
+          <label htmlFor="sp-cat" className={rotulo}>Assunto</label>
           <select id="sp-cat" autoFocus={primeiroVazio === 'sp-cat'} value={v.categoria_id} onChange={(e) => alterar({ categoria_id: e.target.value })} className={`${campo} cursor-pointer`}>
             <option value="">Escolha...</option>
             {categorias.map((c) => (
@@ -285,12 +289,12 @@ const Abrir: React.FC<{
           </select>
         </div>
       )}
-      <div className={FIELD_CLASS}>
-        <label htmlFor="sp-desc" className={LABEL_CLASS}>Como podemos ajudar?</label>
-        <textarea id="sp-desc" autoFocus={primeiroVazio === 'sp-desc'} value={v.descricao} onChange={(e) => alterar({ descricao: e.target.value })} rows={5} maxLength={4000} required minLength={5} className={`${campo} resize-none`} />
+      <div>
+        <label htmlFor="sp-desc" className={rotulo}>Como podemos ajudar?</label>
+        <textarea id="sp-desc" autoFocus={primeiroVazio === 'sp-desc'} value={v.descricao} onChange={(e) => alterar({ descricao: e.target.value })} rows={5} maxLength={4000} required minLength={5} placeholder="Ex: não consigo emitir a nota fiscal" className={`${campo} resize-none`} />
       </div>
       {erro && <div className="p-2.5 rounded-lg bg-rose-50 text-rose-800 text-xs">{erro}</div>}
-      <button type="submit" disabled={enviando} className="flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-50">
+      <button type="submit" disabled={enviando} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold shadow-lg shadow-blue-500/30 transition-colors cursor-pointer disabled:opacity-50">
         {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         Iniciar atendimento
       </button>
