@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.111 — 2026-10-06
+
+- Sino no topo do app: pisca quando alguém entra no site (consulta a cada 15 s) e o clique abre Suporte › Visitas do Site (antes "Visitas ao Site"). Abrir a tela dá as visitas como vistas (guardado no navegador, por usuário).
+- Visitas do Site: colunas Saída e Tempo no site. O widget avisa quando a página sai de vista (fechou a aba, foi para outro site, trocou de aba ou de página); vale a última saída. Colunas `chave` e `saida_em` em `site_visitas`.
+
 ## 0.0.110 — 2026-10-06
 
 - Suporte › Visitas ao Site: o widget registra cada entrada no site (uma por aba do navegador) com página, de onde veio, cliente (quando o widget tem data-cnpj), dispositivo, navegador e IP. Tela só de consulta, com busca e filtros. Tabela `site_visitas`.

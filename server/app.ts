@@ -335,6 +335,19 @@ export function createApp() {
     }
   });
 
+  // Última visita ao site (widget): o sino do topo pisca quando ela é mais nova que a última vista
+  app.get('/api/visitas/ultima', async (_req: Request, res: Response) => {
+    try {
+      const [r] = await pool.query<any[]>(
+        'SELECT id, pagina, criado_em FROM site_visitas WHERE empresa_id = ? ORDER BY id DESC LIMIT 1',
+        [res.locals.empresaId],
+      );
+      res.json(r[0] ?? null);
+    } catch (err: any) {
+      res.status(503).json({ error: err.message });
+    }
+  });
+
   // Cadastro de usuários: só administradores (um vendedor não pode se promover)
   app.use('/api/crud/usuarios', (_req: Request, res: Response, next: NextFunction) => {
     if (res.locals.usuario.tipo !== 'admin') return res.status(403).json({ error: 'Somente administradores gerenciam usuários.' });

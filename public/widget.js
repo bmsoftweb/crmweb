@@ -17,24 +17,40 @@
   var cor = script.getAttribute('data-cor') || '#2563eb';
   var url = origem + '/suporte?e=' + encodeURIComponent(empresa) + (cnpj ? '&cnpj=' + encodeURIComponent(cnpj) : '');
 
-  // Registra a visita no CRM (Suporte › Visitas ao Site), uma vez por aba: navegar pelo site não repete.
-  // text/plain + no-cors: sem consulta prévia de CORS; a resposta não interessa
-  var jaVisitou = false;
+  // Registra a visita no CRM (Suporte › Visitas do Site), uma vez por aba: navegar pelo site não repete.
+  // A chave da aba liga a entrada às saídas. text/plain + no-cors: sem consulta prévia de CORS; a resposta não interessa
+  var urlVisitas = origem + '/api/publico/suporte/' + encodeURIComponent(empresa) + '/visitas';
+  var chaveVisita = null;
   try {
-    jaVisitou = sessionStorage.getItem('crmwebVisita') === empresa;
-    sessionStorage.setItem('crmwebVisita', empresa);
+    chaveVisita = sessionStorage.getItem('crmwebVisita:' + empresa);
   } catch (e) {
-    // sem sessionStorage (navegação privada bloqueada): registra a cada página
+    // sem sessionStorage (navegação privada bloqueada): cada página vira uma visita
   }
-  if (!jaVisitou && window.fetch) {
-    fetch(origem + '/api/publico/suporte/' + encodeURIComponent(empresa) + '/visitas', {
-      method: 'POST',
-      mode: 'no-cors',
-      keepalive: true,
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ pagina: location.href, titulo: document.title, origem: document.referrer, cnpj: cnpj }),
-    }).catch(function () {});
+  if (!chaveVisita) {
+    chaveVisita = window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    try {
+      sessionStorage.setItem('crmwebVisita:' + empresa, chaveVisita);
+    } catch (e) {
+      // idem
+    }
+    if (window.fetch) {
+      fetch(urlVisitas, {
+        method: 'POST',
+        mode: 'no-cors',
+        keepalive: true,
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ chave: chaveVisita, pagina: location.href, titulo: document.title, origem: document.referrer, cnpj: cnpj }),
+      }).catch(function () {});
+    }
   }
+  // Saída: página fora de vista (fechou a aba, foi para outro site, trocou de aba ou de página do site). A última vale
+  function registrarSaida() {
+    if (navigator.sendBeacon) navigator.sendBeacon(urlVisitas + '/saida', new Blob([JSON.stringify({ chave: chaveVisita })], { type: 'text/plain' }));
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') registrarSaida();
+  });
+  window.addEventListener('pagehide', registrarSaida);
 
   var caixa = document.createElement('div');
   caixa.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483000;font-family:system-ui,sans-serif;';

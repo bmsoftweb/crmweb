@@ -935,6 +935,8 @@ export const fetchMinhasAtividades = (): Promise<{
 export type FiltroChamados = 'meus' | 'todos' | 'aguardando' | 'andamento' | 'encerrados';
 
 export const fetchFilaChamados = (): Promise<ChamadoResumo[]> => get('/api/chamados/fila');
+/** Última visita ao site (widget), para o sino do topo */
+export const fetchUltimaVisita = (): Promise<{ id: number; pagina: string; criado_em: string } | null> => get('/api/visitas/ultima');
 export const fetchContagemChamados = (): Promise<{
   fila: number;
   /** Chamado da fila esperando há mais de 10 minutos (o mais antigo): buzina */

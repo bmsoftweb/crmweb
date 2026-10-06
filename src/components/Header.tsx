@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Database, Plus, RefreshCw } from 'lucide-react';
+import { Menu, Database, Plus, RefreshCw, Bell } from 'lucide-react';
 import { DbConnectionStatus } from '../types';
 import { ThemeMode } from '../utils/theme';
 import { ThemeToggle } from './ThemeToggle';
@@ -16,6 +16,9 @@ interface HeaderProps {
   createLabel?: string;
   theme?: ThemeMode;
   onToggleTheme?: () => void;
+  /** Sino das visitas ao site: abre Visitas do Site; pisca com visita nova ainda não vista */
+  onAbrirVisitas?: () => void;
+  visitaNova?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
   createLabel,
   theme = 'light',
   onToggleTheme,
+  onAbrirVisitas,
+  visitaNova,
 }) => {
   return (
     <header className="h-[var(--altura-topo)] shrink-0 z-20 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800">
@@ -88,6 +93,22 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
           </div>
+
+          {onAbrirVisitas && (
+            <button
+              id="btn-visitas-site"
+              onClick={onAbrirVisitas}
+              title={visitaNova ? 'Alguém entrou no site: ver em Visitas do Site' : 'Visitas do Site'}
+              className={`relative p-2 rounded-xl border transition-colors cursor-pointer ${
+                visitaNova
+                  ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 animate-pulse'
+                  : 'border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+              }`}
+            >
+              <Bell className="w-4 h-4" />
+              {visitaNova && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500" />}
+            </button>
+          )}
 
           {onToggleTheme && (
             <ThemeToggle theme={theme} onToggle={onToggleTheme} variant="header" />

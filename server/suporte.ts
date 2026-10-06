@@ -80,16 +80,24 @@ export function createSuporteRouter(): Router {
    * Visita ao site com o widget (uma por aba do navegador; o widget.js controla). Vem como text/plain
    * para o navegador não fazer a consulta prévia de CORS (o site é de outro endereço)
    */
-  router.post('/api/publico/suporte/:empresa/visitas', express.text({ type: 'text/plain', limit: '8kb' }), rota(async (req, res) => {
-    const empresaId = Number(req.params.empresa) || 0;
-    let b: any = req.body || {};
-    if (typeof b === 'string') {
-      try {
-        b = JSON.parse(b);
-      } catch {
-        b = {};
-      }
+  const corpoTexto = express.text({ type: 'text/plain', limit: '8kb' });
+  const jsonDoTexto = (corpo: unknown): any => {
+    if (typeof corpo !== 'string') return corpo || {};
+    try {
+      return JSON.parse(corpo);
+    } catch {
+      return {};
     }
+  };
+  /** Chave da visita gerada pelo widget (UUID ou equivalente) */
+  const chaveVisita = (v: unknown) => {
+    const s = String(v ?? '');
+    return /^[\w-]{8,36}$/.test(s) ? s : null;
+  };
+
+  router.post('/api/publico/suporte/:empresa/visitas', corpoTexto, rota(async (req, res) => {
+    const empresaId = Number(req.params.empresa) || 0;
+    const b = jsonDoTexto(req.body);
     const documento = digitos(b.cnpj, 14);
     const [p] = documento
       ? await pool.query<any[]>('SELECT id FROM pessoas WHERE empresa_id = ? AND cpf = ? ORDER BY id LIMIT 1', [empresaId, documento])
@@ -97,11 +105,20 @@ export function createSuporteRouter(): Router {
     const ip = String(req.get('x-forwarded-for')?.split(',')[0] || req.socket.remoteAddress || '').trim().slice(0, 45);
     // Empresa inexistente não grava (o SELECT não devolve linha)
     await pool.query(
-      `INSERT INTO site_visitas (empresa_id, pagina, titulo, origem, documento, pessoa_id, navegador, ip)
-       SELECT id, ?, ?, ?, ?, ?, ?, ? FROM empresas WHERE id = ?`,
-      [texto(b.pagina, 500), texto(b.titulo, 200), texto(b.origem, 500) || null, documento || null, p[0]?.id ?? null,
+      `INSERT INTO site_visitas (empresa_id, chave, pagina, titulo, origem, documento, pessoa_id, navegador, ip)
+       SELECT id, ?, ?, ?, ?, ?, ?, ?, ? FROM empresas WHERE id = ?`,
+      [chaveVisita(b.chave), texto(b.pagina, 500), texto(b.titulo, 200), texto(b.origem, 500) || null, documento || null, p[0]?.id ?? null,
         texto(req.get('user-agent'), 300) || null, ip || null, empresaId],
     );
+    res.status(204).end();
+  }));
+
+  /** Saída do site (sendBeacon do widget ao esconder/fechar a página): a última hora fica valendo */
+  router.post('/api/publico/suporte/:empresa/visitas/saida', corpoTexto, rota(async (req, res) => {
+    const chave = chaveVisita(jsonDoTexto(req.body).chave);
+    if (chave) {
+      await pool.query('UPDATE site_visitas SET saida_em = NOW() WHERE empresa_id = ? AND chave = ?', [Number(req.params.empresa) || 0, chave]);
+    }
     res.status(204).end();
   }));
 

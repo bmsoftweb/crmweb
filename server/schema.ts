@@ -1293,12 +1293,12 @@ export const RESOURCES: ResourceDef[] = [
     ],
   },
   {
-    // Suporte › Visitas ao Site: gravadas pelo widget.js (uma por aba do navegador; server/suporte.ts). Só leitura
+    // Suporte › Visitas do Site (sino do topo): gravadas pelo widget.js (uma por aba do navegador; server/suporte.ts). Só leitura
     name: 'site_visitas',
     table: 'site_visitas',
     tenantColumn: 'empresa_id',
     scopeSql: 't.empresa_id = ?',
-    label: 'Visitas ao Site',
+    label: 'Visitas do Site',
     labelSingular: 'Visita',
     description: 'Entradas no site com o widget de suporte: página, origem, cliente e dispositivo',
     icon: 'Globe',
@@ -1313,6 +1313,21 @@ export const RESOURCES: ResourceDef[] = [
     fields: [
       ID,
       { name: 'criado_em', label: 'Data/hora', type: 'datetime', listed: true, filterable: true, readOnly: true },
+      // Última vez que a página saiu de vista (fechou, foi para outro site, trocou de aba); vazio = sem aviso do navegador
+      { name: 'saida_em', label: 'Saída', type: 'datetime', listed: true, filterable: true, readOnly: true },
+      {
+        name: 'tempo_site',
+        label: 'Tempo no site',
+        type: 'text',
+        listed: true,
+        readOnly: true,
+        width: 'xs',
+        sql: (() => {
+          const s = 'TIMESTAMPDIFF(SECOND, t.criado_em, t.saida_em)';
+          return `CASE WHEN t.saida_em IS NULL THEN NULL WHEN ${s} < 60 THEN CONCAT(${s}, ' s') WHEN ${s} < 3600 THEN CONCAT(${s} DIV 60, ' min')
+                  ELSE CONCAT(${s} DIV 3600, ' h ', LPAD(${s} % 3600 DIV 60, 2, '0'), ' min') END`;
+        })(),
+      },
       { name: 'pagina', label: 'Página', type: 'text', listed: true, searchable: true, filterable: true, readOnly: true },
       { name: 'titulo', label: 'Título da página', type: 'text', searchable: true, readOnly: true },
       // Site de onde veio (Google, outro site...); vazio = digitou o endereço ou favorito

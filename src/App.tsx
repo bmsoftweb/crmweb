@@ -11,6 +11,7 @@ import { fetchContagemChamados,
   fetchNaoVistas,
   fetchMinhasAtividades,
   atividadesGravadasAqui,
+  fetchUltimaVisita,
 } from './services/api';
 import { destravarSom, tocarAviso } from './utils/som';
 import { limparConfigListas } from './utils/configListas';
@@ -242,6 +243,49 @@ export default function App() {
     const i = setInterval(atualizarMinhasAtividades, 15_000);
     return () => clearInterval(i);
   }, [sessao, atualizarMinhasAtividades]);
+
+  // Sino do topo: pisca quando alguém entrou no site depois da última visita vista. A vista fica no navegador,
+  // por usuário (sem ela, a primeira consulta só marca como vista, sem piscar pelas antigas)
+  const veVisitas = podeAcessar(sessao?.usuario ?? null, 'site_visitas');
+  const chaveVisita = `crmwebVisitaVista:${sessao?.usuario.id ?? ''}`;
+  const [ultimaVisita, setUltimaVisita] = useState(0);
+  const [visitaVista, setVisitaVista] = useState(0);
+  const marcarVisitaVista = useCallback(
+    (id: number) => {
+      setVisitaVista(id);
+      try {
+        localStorage.setItem(chaveVisita, String(id));
+      } catch {
+        // sem localStorage: vale só nesta aba
+      }
+    },
+    [chaveVisita],
+  );
+  useEffect(() => {
+    if (!sessao || !veVisitas) return;
+    let vista: number | null = null;
+    try {
+      vista = Number(localStorage.getItem(chaveVisita)) || null;
+    } catch {
+      // sem localStorage
+    }
+    if (vista) setVisitaVista(vista);
+    const atualizar = () =>
+      fetchUltimaVisita()
+        .then((v) => {
+          const id = v?.id ?? 0;
+          setUltimaVisita(id);
+          if (vista === null) marcarVisitaVista((vista = id));
+        })
+        .catch(() => {}); // sem a tabela ou sem conexão: sino parado
+    atualizar();
+    const i = setInterval(atualizar, 15_000);
+    return () => clearInterval(i);
+  }, [sessao, veVisitas, chaveVisita, marcarVisitaVista]);
+  // Abrir a tela (pelo sino ou pelo menu) dá as visitas como vistas
+  useEffect(() => {
+    if (activeTab === 'site_visitas' && ultimaVisita > visitaVista) marcarVisitaVista(ultimaVisita);
+  }, [activeTab, ultimaVisita, visitaVista, marcarVisitaVista]);
 
   // Tela sem permissão (ex.: o Funil, que abre primeiro): vai para a primeira opção do menu que o usuário acessa
   useEffect(() => {
@@ -476,6 +520,8 @@ export default function App() {
           createLabel={activeTab === 'kanban' ? 'Novo Negócio' : activeTab === 'chamados_ativos' ? 'Novo Chamado' : activeResource ? `Novo ${activeResource.labelSingular}` : undefined}
           theme={theme}
           onToggleTheme={handleToggleTheme}
+          onAbrirVisitas={veVisitas ? () => navegar('site_visitas') : undefined}
+          visitaNova={ultimaVisita > visitaVista}
         />
 
         {activeTab === 'kanban' ? (
