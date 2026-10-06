@@ -27,7 +27,7 @@
   var quadro = null; // o chat só carrega na primeira abertura
 
   // Texto ao lado do ícone com o chat fechado. Temporário, para divulgar o suporte novo: '' volta ao botão redondo
-  var ROTULO = 'NOVO SUPORTE';
+  var ROTULO = 'NOVO';
 
   var botao = document.createElement('button');
   botao.type = 'button';

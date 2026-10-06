@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.108 — 2026-10-06
+
+- Widget de suporte do site: o texto do botão passa de "NOVO SUPORTE" para só "NOVO".
+
 ## 0.0.107 — 2026-10-05
 
 - WhatsApp: imagem (e outras mídias) das campanhas aparece na conversa mesmo antes de o cliente responder; ela é buscada no número das campanhas, por onde saiu (antes: "Imagem (não disponível)").
