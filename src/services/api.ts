@@ -667,7 +667,7 @@ export const fetchConversa = (
   /** Nome do assistente (Configurações › Chatbot): as respostas do bot aparecem como "Eloisa (bot)" */
   bot_nome: string | null;
   /** bot = com o bot/jornada; aguardando = esperando alguém atender; atendimento = alguém pegou */
-  estado: 'bot' | 'aguardando' | 'atendimento';
+  estado: 'bot' | 'aguardando' | 'atendimento' | 'encerrado';
   /** Quem pegou a conversa (trava: só ele responde) */
   atendente: { id: number; nome: string } | null;
   atendido_em: string | null;

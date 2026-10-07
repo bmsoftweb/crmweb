@@ -781,6 +781,15 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                       {conversa.bot_nome || 'Bot'} atendendo
                     </span>
                   )}
+                  {conversa.estado === 'encerrado' && (
+                    <span
+                      title="Atendimento encerrado: a próxima mensagem do cliente começa um novo atendimento"
+                      className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                    >
+                      <CircleCheck className="w-3.5 h-3.5" />
+                      Encerrado
+                    </span>
+                  )}
                   {conversa.estado === 'aguardando' && (
                     <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                       <Clock className="w-3.5 h-3.5" />
@@ -846,7 +855,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                       Transferir
                     </button>
                   )}
-                  {podeMexer && conversa.com_bot && conversa.estado !== 'bot' && (
+                  {podeMexer && conversa.com_bot && conversa.estado !== 'bot' && conversa.estado !== 'encerrado' && (
                     <button
                       disabled={ocupadoAtendimento}
                       onClick={() => acaoAtendimento(() => mudarAtendimentoConversa(aberta, 'bot'), 'Conversa devolvida ao bot.')}

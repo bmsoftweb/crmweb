@@ -680,13 +680,17 @@ export function createConversasRouter(): Router {
       const atendimento = await atendimentoAtual(emp, telefone, minutosDevolver(chatbot), comBot);
       const [cv] = await pool.query<any[]>(
         `SELECT d.nome AS departamento, c.atendente_id, u.nome AS atendente_nome, DATE_FORMAT(c.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
-                DATE_FORMAT(c.humano_desde, '%Y-%m-%d %H:%i:%s') AS aguardando_desde, ${ENCERRAVEL} AS encerravel
+                DATE_FORMAT(c.humano_desde, '%Y-%m-%d %H:%i:%s') AS aguardando_desde, ${ENCERRAVEL} AS encerravel,
+                -- Encerrada e o cliente ainda não escreveu de novo (resposta de pesquisa/cortesia não conta): como na lista
+                (SELECT COALESCE(MAX(IF(w.tipo = 'encerramento', w.data_hora, NULL))
+                          > COALESCE(MAX(IF(w.direcao = 'recebida' AND (w.origem IS NULL OR w.origem NOT LIKE 'pesquisa%'), w.data_hora, NULL)), '1000-01-01'), 0)
+                   FROM whatsapp_mensagens w WHERE w.empresa_id = c.empresa_id AND w.telefone = c.telefone) AS encerrada
            FROM whatsapp_conversas c LEFT JOIN departamentos d ON d.id = c.departamento_id LEFT JOIN usuarios u ON u.id = c.atendente_id
           WHERE c.empresa_id = ? AND c.telefone = ?`,
         [emp, telefone],
       );
       const c = cv[0] ?? {};
-      const estado = c.atendente_id ? 'atendimento' : atendimento === 'humano' || !comBot ? 'aguardando' : 'bot';
+      const estado = c.atendente_id ? 'atendimento' : Number(c.encerrada) ? 'encerrado' : atendimento === 'humano' || !comBot ? 'aguardando' : 'bot';
       res.json({
         pessoa: pessoa[0] ?? null,
         contato: contato[0] ?? null,

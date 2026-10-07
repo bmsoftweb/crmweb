@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.122 — 2026-10-07
+
+- WhatsApp: o cabeçalho da conversa mostra "Encerrado" (como a lista) quando o atendimento foi encerrado e o cliente ainda não escreveu de novo, em vez de "<bot> atendendo". Nesse estado o botão "Devolver ao bot" não aparece.
+
 ## 0.0.121 — 2026-10-07
 
 - WhatsApp: quando o Bot das atividades termina a conversa (ex.: pesquisa de satisfação respondida, ou sem resposta), grava a linha "Conversa do Bot encerrada": a lista mostra Encerrado e um "ok, de nada" logo depois não abre conversa nova. Não conta como atendimento (não sorteia outra pesquisa); passada para a equipe continua na fila.
