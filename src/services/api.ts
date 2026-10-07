@@ -745,6 +745,8 @@ export const fetchNaoVistas = (): Promise<{
   encaminhadas: Encaminhada[];
   /** Última conversa transferida para o usuário por outra pessoa (id do evento) */
   transferida: { id: number; telefone: string; nome: string | null; de: string | null } | null;
+  /** Conversas minhas em que o cliente espera a minha resposta há X minutos (id da última mensagem dele) */
+  esperando?: { id: number; telefone: string; nome: string | null }[];
 }> => get('/api/whatsapp/nao-vistas');
 /** Encerrar a sessão da conversa: como se o tempo de devolver ao bot tivesse passado */
 export const encerrarConversa = (telefone: string): Promise<{ success: boolean }> =>
@@ -831,6 +833,8 @@ export interface ChamadoResumo {
   ultima: string | null;
   /** Só na fila */
   posicao?: number;
+  /** Senha do dia: ordem de chegada na fila (1º, 2º...), recomeça a cada dia */
+  nr_fila: number;
 }
 
 export interface ChamadoMensagem {

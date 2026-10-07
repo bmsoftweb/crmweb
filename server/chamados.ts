@@ -51,6 +51,15 @@ const rota =
     }
   };
 
+/**
+ * Senha do dia: 1, 2, 3... na ordem de chegada, recomeça a cada dia. Chamado aberto pela equipe já
+ * atendendo ("Atender agora": assumido_em = criado_em) não passa pela fila e não pega senha.
+ */
+const NR_FILA = `(SELECT COUNT(*) + 1 FROM chamados o
+    WHERE o.empresa_id = c.empresa_id AND DATE(o.criado_em) = DATE(c.criado_em)
+      AND (o.criado_em < c.criado_em OR (o.criado_em = c.criado_em AND o.id < c.id))
+      AND NOT (o.assumido_em <=> o.criado_em))`;
+
 /** Colunas da lista/fila: cliente, categoria, atendente, espera e SLA */
 const SELECT = `
   SELECT c.id, c.numero, c.titulo, c.status, c.prioridade, c.canal, c.pessoa_id, c.categoria_id, c.atendente_id, c.departamento_id,
@@ -59,7 +68,8 @@ const SELECT = `
          p.tecnico_padrao_id, tp.nome AS tecnico_padrao_nome,
          TIMESTAMPDIFF(MINUTE, c.criado_em, NOW()) AS espera_min,
          (c.sla_prazo IS NOT NULL AND c.sla_prazo < NOW() AND c.status NOT IN ${ENCERRADOS}) AS sla_vencido,
-         (SELECT m.texto FROM chamado_mensagens m WHERE m.chamado_id = c.id AND m.autor <> 'sistema' ORDER BY m.id DESC LIMIT 1) AS ultima
+         (SELECT m.texto FROM chamado_mensagens m WHERE m.chamado_id = c.id AND m.autor <> 'sistema' ORDER BY m.id DESC LIMIT 1) AS ultima,
+         ${NR_FILA} AS nr_fila
     FROM chamados c
     LEFT JOIN pessoas p ON p.id = c.pessoa_id
     LEFT JOIN chamado_categorias cat ON cat.id = c.categoria_id
@@ -67,7 +77,7 @@ const SELECT = `
     LEFT JOIN departamentos d ON d.id = c.departamento_id
     LEFT JOIN usuarios tp ON tp.id = p.tecnico_padrao_id`;
 
-const numeros = (r: any) => ({ ...r, espera_min: Number(r.espera_min), sla_vencido: Boolean(Number(r.sla_vencido)) });
+const numeros = (r: any) => ({ ...r, espera_min: Number(r.espera_min), sla_vencido: Boolean(Number(r.sla_vencido)), nr_fila: Number(r.nr_fila) });
 
 // ------------------------------------------------------------
 // Seções: cada vez que alguém pega o chamado (assumir, abrir já atendendo, receber por transferência) abre uma
@@ -145,7 +155,7 @@ export function createChamadosRouter(): Router {
     res.json(r.map((x, i) => ({ ...numeros(x), posicao: i + 1 })));
   }));
 
-  /** Chamados Ativos: filtro rápido (meus, todos, aguardando, andamento, encerrados) e busca */
+  /** Chamados Ativos: filtro rápido (meus, todos, aguardando, andamento, encerrados) e busca; abertos na ordem de chegada */
   router.get('/chamados', rota(async (req, res) => {
     const filtro = String(req.query.filtro || 'meus');
     const onde: string[] = ['c.empresa_id = ?'];
@@ -163,7 +173,7 @@ export function createChamadosRouter(): Router {
       params.push(`%${q}%`, `%${q}%`, `%${q}%`, Number(q) || 0);
     }
     const [r] = await pool.query<any[]>(
-      `${SELECT} WHERE ${onde.join(' AND ')} ORDER BY ${filtro === 'encerrados' ? 'c.encerrado_em DESC' : 'c.criado_em DESC'}, c.id DESC LIMIT 200`,
+      `${SELECT} WHERE ${onde.join(' AND ')} ORDER BY ${filtro === 'encerrados' ? 'c.encerrado_em DESC, c.id DESC' : 'c.criado_em, c.id'} LIMIT 200`,
       params,
     );
     res.json(r.map(numeros));

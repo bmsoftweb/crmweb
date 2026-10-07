@@ -245,7 +245,7 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
         <table className="w-full text-xs border-separate border-spacing-0">
           <thead className="sticky top-0 z-10">
             <tr>
-              <th className={`${th} text-center`}>Posição</th>
+              <th className={`${th} text-center`} title="Senha do dia: ordem de chegada na fila">Senha</th>
               <th className={`${th} text-left`}>Origem</th>
               <th className={`${th} text-right`}>Nº</th>
               <th className={`${th} text-left w-full`}>Chamado</th>
@@ -278,10 +278,11 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
                 </td>
               </tr>
             ) : (
-              itens.map((it, i) => {
+              itens.map((it) => {
+                // Senha do dia do chamado; conversa do WhatsApp não tem senha
                 const posicao = (
                   <td className={`${td} text-center`}>
-                    <span className="font-bold text-blue-600 dark:text-blue-400">{i + 1}º</span>
+                    {it.tipo === 'chamado' ? <span className="font-bold text-blue-600 dark:text-blue-400">{it.c.nr_fila}º</span> : <span className="text-stone-400">—</span>}
                   </td>
                 );
                 const linha = 'bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors';
@@ -416,6 +417,8 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
   const [erro, setErro] = useState<string | null>(null);
   const [fila, setFila] = useState<ChamadoResumo[] | null>(null);
   const [assumindo, setAssumindo] = useState<number | null>(null);
+  /** Chamados que o técnico logado atende: uma aba cada, acima do chat */
+  const [meus, setMeus] = useState<ChamadoResumo[]>([]);
 
   useEffect(() => {
     if (abrir) setAberto(abrir);
@@ -432,6 +435,9 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
       .catch((e) => setErro(e.message));
     fetchFilaChamados()
       .then(setFila)
+      .catch((e) => setErro(e.message));
+    fetchChamados('meus', '')
+      .then(setMeus)
       .catch((e) => setErro(e.message));
   }, [filtro, busca]);
   useEffect(() => {
@@ -516,14 +522,15 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
                 }`}
               >
                 <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400" title="Senha do dia: ordem de chegada na fila">{c.nr_fila}º</span>
                   <span className="text-[11px] font-mono text-stone-400">nº {c.numero}</span>
                   <Status s={c.status} />
                   <span className="ml-auto">
                     <Prioridade p={c.prioridade} />
                   </span>
                 </div>
-                <div className="text-xs font-semibold text-stone-900 dark:text-stone-100 truncate mt-1">{c.titulo}</div>
-                <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.pessoa_nome || 'Sem cliente'}</div>
+                <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate mt-1">{c.pessoa_nome || 'Sem cliente'}</div>
+                <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.titulo}</div>
                 <Atendente c={c} />
                 {c.sla_vencido && <Sla />}
               </button>
@@ -552,12 +559,12 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
                 >
                   <button type="button" onClick={() => setAberto(c.id)} className="flex-1 min-w-0 text-left cursor-pointer">
                     <div className="flex items-center gap-1.5 text-[11px]">
-                      <span className="font-bold text-blue-600 dark:text-blue-400">{c.posicao}º</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400" title="Senha do dia: ordem de chegada na fila">{c.nr_fila}º</span>
                       <span className="font-mono text-stone-400">nº {c.numero}</span>
                       <span className="ml-auto text-stone-500 whitespace-nowrap">{tempoEspera(c.espera_min)}</span>
                     </div>
-                    <div className="text-xs font-semibold text-stone-900 dark:text-stone-100 truncate">{c.titulo}</div>
-                    <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.pessoa_nome || 'Sem cliente'}</div>
+                    <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{c.pessoa_nome || 'Sem cliente'}</div>
+                    <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.titulo}</div>
                     <Atendente c={c} />
                     {c.sla_vencido && <Sla />}
                   </button>
@@ -580,6 +587,29 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
 
       {/* Chamado aberto */}
       <div className="flex-1 min-w-0 flex flex-col min-h-0 bg-stone-50 dark:bg-stone-950">
+        {meus.length > 0 && (
+          <div role="tablist" className="shrink-0 flex gap-1 px-2 pt-2 overflow-x-auto border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900">
+            {meus.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="tab"
+                aria-selected={aberto === c.id}
+                onClick={() => setAberto(c.id)}
+                title={c.titulo}
+                className={`shrink-0 max-w-[200px] px-3 py-1.5 rounded-t-lg text-left text-[11px] cursor-pointer border border-b-0 ${
+                  aberto === c.id
+                    ? 'bg-white dark:bg-stone-950 border-stone-200 dark:border-stone-800'
+                    : 'border-transparent text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-800'
+                }`}
+              >
+                <span className="font-bold text-blue-600 dark:text-blue-400">{c.nr_fila}º</span>
+                <span className="font-mono text-stone-400"> • nº {c.numero}</span>
+                <span className="block font-bold text-stone-800 dark:text-stone-100 truncate">{c.pessoa_nome || 'Sem cliente'}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {aberto ? (
           <ChamadoAberto key={aberto} id={aberto} refreshToken={refreshToken} onMudou={mudou} onConversar={onConversar} onToast={onToast} onVoltarFila={onVoltarFila} onAbrir={setAberto} />
         ) : (

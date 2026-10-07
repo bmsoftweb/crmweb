@@ -1,12 +1,17 @@
 import { pool } from './db.js';
 import { encerrarAtendimento, marcarEncerramento, minutosInatividade, type ConfigChatbot } from './chatbot.js';
 import { contaDaConversa, CONTATO_RECENTE, enviarReservada, PESSOA_RECENTE, reservarEnvio } from './whatsapp.js';
+import { ehCortesia, ehDespedida, enviarPesquisa } from './pesquisa.js';
 
 /**
- * Encerramento por falta de interação no WhatsApp. A última mensagem da conversa foi do bot ou do técnico, o
- * cliente já tinha escrito neste atendimento e não respondeu em X minutos (Configurações › Chatbot): o bot avisa
- * que vai encerrar; 30 s depois do aviso, sem resposta, encerra (linha de encerramento, sem pesquisa de satisfação:
- * o cliente estava ausente). Não entram: conversa aguardando atendente (quem espera é o cliente), parada num Esperar da Automação
+ * Encerramento por falta de interação no WhatsApp, X minutos (Configurações › Chatbot) depois da última mensagem,
+ * com o cliente tendo escrito neste atendimento. A mensagem decide:
+ * - do bot/técnico esperando resposta do cliente: o bot avisa que vai encerrar; 30 s depois do aviso, sem resposta,
+ *   encerra (sem pesquisa de satisfação: o cliente estava ausente);
+ * - que não espera resposta (despedida do técnico, "ok, obrigado" do cliente): encerra direto, com a pesquisa se um
+ *   humano atendia;
+ * - do cliente esperando o técnico: nada aqui; a tela do técnico toca a campainha (/whatsapp/nao-vistas).
+ * Não entram: conversa aguardando atendente (quem espera é o cliente), parada num Esperar da Automação
  * e mensagens de campanha/automáticas. Roda no cron do WhatsApp (Vercel) e no setInterval local, com trava no
  * MySQL: os dois usam o mesmo banco e o aviso não pode sair duas vezes.
  */
@@ -14,6 +19,7 @@ import { contaDaConversa, CONTATO_RECENTE, enviarReservada, PESSOA_RECENTE, rese
 export const AVISO_INATIVIDADE =
   'Como não tivemos resposta, este atendimento será encerrado em 30 segundos. Se ainda precisar de ajuda, é só responder por aqui.';
 export const TEXTO_ENCERRAMENTO = 'Atendimento encerrado por falta de interação do cliente';
+const TEXTO_CONCLUIDO = 'Atendimento encerrado: conversa concluída, sem resposta pendente';
 /** Espera depois do aviso */
 const ESPERA_S = 30;
 /** Mensagem mais velha que o prazo + esta janela não é avisada (servidor parado, conversa antiga) */
@@ -27,7 +33,7 @@ const esperar = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
  */
 async function candidatas(empresaId: number, minutos: number) {
   const [rows] = await pool.query<any[]>(
-    `SELECT c.telefone, c.departamento_id, c.atendente_id, u.nome AS atendente_nome, m.id, m.origem,
+    `SELECT c.telefone, c.departamento_id, c.atendente_id, u.nome AS atendente_nome, m.id, m.origem, m.direcao, m.tipo, m.texto,
             TIMESTAMPDIFF(SECOND, m.data_hora, NOW()) AS idade
        FROM whatsapp_conversas c
        JOIN whatsapp_mensagens m ON m.id = (SELECT MAX(z.id) FROM whatsapp_mensagens z
@@ -35,8 +41,10 @@ async function candidatas(empresaId: number, minutos: number) {
        LEFT JOIN usuarios u ON u.id = c.atendente_id
       WHERE c.empresa_id = ? AND c.retomar_em IS NULL
         AND NOT (c.atendimento = 'humano' AND c.atendente_id IS NULL)
-        AND m.direcao = 'enviada' AND m.tipo <> 'encerramento' AND m.situacao <> 'pendente'
-        AND (m.origem IS NULL OR m.origem LIKE 'bot:%' OR m.origem LIKE 'inatividade:%')
+        AND m.tipo <> 'encerramento'
+        AND ((m.direcao = 'enviada' AND m.situacao <> 'pendente' AND (m.origem IS NULL OR m.origem LIKE 'bot:%' OR m.origem LIKE 'inatividade:%'))
+             -- Do cliente, com um técnico atendendo: a cortesia ("ok, obrigado") encerra
+             OR (m.direcao = 'recebida' AND c.atendente_id IS NOT NULL AND m.tipo = 'texto'))
         AND m.data_hora > NOW() - INTERVAL ? MINUTE
         AND EXISTS (SELECT 1 FROM whatsapp_mensagens r
                      WHERE r.empresa_id = c.empresa_id AND r.telefone = c.telefone AND r.direcao = 'recebida'
@@ -60,7 +68,13 @@ async function passe(empresaId: number, minutos: number): Promise<{ avisadas: nu
         await marcarEncerramento(empresaId, c.telefone, null, null, TEXTO_ENCERRAMENTO);
         // Sem pesquisa: o cliente estava ausente, e a resposta atrasada (depois da validade) abriria um atendimento novo
         encerradas++;
-      } else if (idade >= minutos * 60) {
+      } else if (idade >= minutos * 60 && (c.direcao === 'recebida' ? ehCortesia(c.texto) : c.tipo === 'texto' && ehDespedida(c.texto))) {
+        // Não espera resposta: fim natural, sem aviso
+        await encerrarAtendimento(empresaId, c.telefone);
+        await marcarEncerramento(empresaId, c.telefone, null, null, TEXTO_CONCLUIDO);
+        if (c.atendente_id) await enviarPesquisa(empresaId, c.telefone, 'atendente', { id: c.atendente_id, nome: c.atendente_nome }, c.departamento_id ?? null);
+        encerradas++;
+      } else if (idade >= minutos * 60 && c.direcao === 'enviada') {
         // Origem com o id da última mensagem: o mesmo silêncio não gera dois avisos
         const origem = `inatividade:${c.telefone}:${c.id}`;
         const [d] = await pool.query<any[]>(`SELECT ${PESSOA_RECENTE()} AS pessoa_id, ${CONTATO_RECENTE()} AS contato_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`, [

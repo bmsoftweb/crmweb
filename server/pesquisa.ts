@@ -127,6 +127,16 @@ export function ehCortesia(texto: string): boolean {
   return palavras.length <= 8 && palavras.every((p) => CORTESIA.has(p));
 }
 
+/**
+ * Mensagem da equipe/bot que fecha a conversa sem pedir resposta: "Resolvido! Qualquer coisa estamos à disposição".
+ * Pergunta ("?") ou promessa ("vou verificar e te retorno") espera resposta de alguém: não fecha
+ */
+export function ehDespedida(texto: string): boolean {
+  const t = String(texto ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  if (t.includes('?') || /\b(vou|vamos|verific|retorn|aguard|moment|instante|ja ja|daqui a pouco)/.test(t)) return false;
+  return /resolvid|disposicao|disponive|qualquer (coisa|duvida)|\bate (mais|logo|breve)|tenha um|\bbo(m|a) (dia|tarde|noite|semana|fim)|obrigad|agradec|tchau|abraco/.test(t);
+}
+
 /** Minutos depois do agradecimento da pesquisa (ou do encerramento) em que a cortesia é ignorada */
 const MINUTOS_CORTESIA = 30;
 

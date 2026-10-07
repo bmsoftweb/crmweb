@@ -2,6 +2,15 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.116 — 2026-10-07
+
+- Chamados Ativos: lista dos abertos na ordem de chegada (o mais antigo em cima); Encerrados continua do mais recente.
+- Senha do dia: cada chamado que entra na fila ganha 1, 2, 3... na ordem de chegada (recomeça a cada dia; não muda ao ser atendido; "Atender agora" não pega senha). Aparece no card dos Chamados Ativos, no quadro "Na fila" e na coluna Senha da Fila de Chamados (conversa do WhatsApp fica sem senha). Calculada na consulta, sem coluna nova.
+- Chamados Ativos: card com o nome do cliente em negrito e o problema embaixo; uma aba por chamado que o técnico logado atende, acima do chat (clique abre o chamado).
+- WhatsApp: campainha e aviso quando um cliente espera a resposta do técnico há X minutos (Configurações › Chatbot), uma vez por mensagem.
+- Inatividade do WhatsApp: conversa que já terminou (despedida do técnico ou "ok, obrigado" do cliente) encerra direto, sem aviso, com a pesquisa de satisfação quando um humano atendia.
+- Pesquisa de Satisfação: o sorteio não repete o mesmo cliente na pesquisa.
+
 ## 0.0.115 — 2026-10-06
 
 - Suporte pelo site (widget): formulário de abertura com o visual do "Agendar Apresentação" da homepage: rótulo pequeno em maiúsculas em cima, campos em caixa arredondada com borda (foco azul), exemplos dentro dos campos e botão maior. Exceção `campo-site` no CSS; os campos do CRM seguem o padrão sem moldura.

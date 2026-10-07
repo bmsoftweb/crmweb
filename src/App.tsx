@@ -100,6 +100,8 @@ export default function App() {
   const avisadasRef = useRef(new Set<string>());
   /** Última conversa transferida para mim já avisada (null = ainda não carregou: sem campainha na abertura) */
   const ultimaTransferidaWa = useRef<number | null>(null);
+  /** Mensagens de cliente esperando a minha resposta que já tocaram a campainha */
+  const esperandoAvisadas = useRef(new Set<number>());
   const atualizarNaoVistas = useCallback(() => {
     fetchNaoVistas()
       .then((r) => {
@@ -120,6 +122,13 @@ export default function App() {
           setRefreshToken((t) => t + 1);
         }
         ultimaTransferidaWa.current = Math.max(ultimaTransferidaWa.current ?? 0, tr?.id ?? 0);
+        // Cliente esperando a minha resposta há X minutos: campainha, uma vez por mensagem
+        const esp = (r.esperando ?? []).filter((e) => !esperandoAvisadas.current.has(e.id));
+        esp.forEach((e) => esperandoAvisadas.current.add(e.id));
+        if (esp.length) {
+          tocarAviso('campainha');
+          showToast(`${esp[0].nome || `+${esp[0].telefone}`} está esperando a sua resposta${esp.length > 1 ? ` (e mais ${esp.length - 1})` : ''}. Veja no Whatsapp.`);
+        }
       })
       .catch(() => {}); // sem a tabela ou sem conexão: fica sem etiqueta
   }, [showToast]);

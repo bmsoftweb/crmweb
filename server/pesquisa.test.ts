@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { ehCortesia, lerNota, pesquisaPublica, prepararPesquisa } from './pesquisa.js';
+import { ehCortesia, ehDespedida, lerNota, pesquisaPublica, prepararPesquisa } from './pesquisa.js';
 
 // Nota pelo número ou pelas estrelas
 assert.strictEqual(lerNota('4'), 4);
@@ -31,5 +31,11 @@ for (const t of ['de nada', 'De nada!', 'obrigado', 'Obrigadoo!!', 'valeu 👍',
   assert.strictEqual(ehCortesia(t), true, t);
 for (const t of ['bom dia', 'obrigado, mas o sistema ainda trava', 'preciso de ajuda com a nota', 'oi', 'quero falar com o Rafael', '5', '', 'ok, e a nota fiscal?'])
   assert.strictEqual(ehCortesia(t), false, t);
+
+// Mensagem da equipe que fecha a conversa (encerra sem aviso) × a que espera resposta (aviso de inatividade)
+for (const t of ['Resolvido! Qualquer coisa estamos à disposição.', 'Obrigado pelo contato, tenha um ótimo dia!', 'Até mais!'])
+  assert.strictEqual(ehDespedida(t), true, t);
+for (const t of ['Conseguiu acessar?', 'Vou verificar e já te retorno, obrigado.', 'Me envia o print da tela', 'Obrigado! Posso ajudar em algo mais?'])
+  assert.strictEqual(ehDespedida(t), false, t);
 
 console.log('pesquisa: ok');

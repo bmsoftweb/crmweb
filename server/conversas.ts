@@ -3,7 +3,7 @@ import { pool } from './db.js';
 import { apagarParaTodos, ArquivoEnvio, chaveTelefone, citacaoDa, contaWhats, CONTATO_RECENTE, donoDoTelefone, PESSOA_RECENTE, enviarMidiaWhatsApp, enviarWhatsApp, midiaDaMensagem, telefoneWhatsApp, contaDaConversa } from './whatsapp.js';
 import { sincronizarNegocio } from './regras.js';
 import { lerConfig } from './config.js';
-import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, mudarAtendimento } from './chatbot.js';
+import { atendimentoAtual, encerrarAtendimento, marcarEncerramento, marcarEvento, minutosDevolver, minutosInatividade, mudarAtendimento } from './chatbot.js';
 import { jornadaAtende, lerJornadaConfig } from './jornada.js';
 import { podeAcessar } from './permissoes.js';
 
@@ -20,7 +20,7 @@ function mascararPrivada<T extends Record<string, any>>(res: Response, m: T): T 
   if (!privada || podeVerPrivada(res, m.privado_departamento_id)) return { ...m, privada };
   return { ...m, privada: { ...privada, oculta: true }, texto: null, arquivo_nome: null };
 }
-import { enviarPesquisa } from './pesquisa.js';
+import { ehCortesia, enviarPesquisa } from './pesquisa.js';
 
 /** Começo do evento de transferência (para um atendente ou um departamento): /whatsapp/nao-vistas acha por ele a transferida para mim */
 const TRANSFERIDO_PARA = 'Transferido para ';
@@ -460,7 +460,23 @@ export function createConversasRouter(): Router {
           ORDER BY w.id DESC LIMIT 1`,
         [`${TRANSFERIDO_PARA}%`, res.locals.empresaId, res.locals.usuario.id, res.locals.usuario.id],
       );
-      res.json({ total: Number(r[0].total), encaminhadas, transferida: t[0] ?? null });
+      // Conversas minhas em que o cliente espera a minha resposta há X minutos (Configurações › Chatbot): a tela toca
+      // a campainha uma vez por mensagem. "ok, obrigado" não espera nada (o cron encerra: server/inatividade.ts)
+      const minutos = minutosInatividade((await lerConfig(String(res.locals.empresaId), 'whatsapp', 'chatbot')) as any);
+      const [e] = minutos
+        ? await pool.query<any[]>(
+            `SELECT m.id, c.telefone, m.tipo, m.texto,
+                    COALESCE((SELECT p.nome FROM pessoas p WHERE p.id = m.pessoa_id), ${NOME_CONTATO('c')}) AS nome
+               FROM whatsapp_conversas c
+               JOIN whatsapp_mensagens m ON m.id = (SELECT MAX(z.id) FROM whatsapp_mensagens z
+                                                     WHERE z.empresa_id = c.empresa_id AND z.telefone = c.telefone AND z.tipo <> 'evento')
+              WHERE c.empresa_id = ? AND c.atendente_id = ? AND m.direcao = 'recebida' AND m.data_hora <= NOW() - INTERVAL ? MINUTE
+              ORDER BY m.id DESC LIMIT 20`,
+            [res.locals.empresaId, res.locals.usuario.id, minutos],
+          )
+        : [[]];
+      const esperando = e.filter((m: any) => m.tipo !== 'texto' || !ehCortesia(m.texto)).map(({ id, telefone, nome }: any) => ({ id, telefone, nome }));
+      res.json({ total: Number(r[0].total), encaminhadas, transferida: t[0] ?? null, esperando });
     } catch (err: any) {
       falha(res, err);
     }

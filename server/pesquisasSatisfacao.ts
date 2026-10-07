@@ -134,7 +134,11 @@ async function pesquisaDaEmpresa(id: string | number, empresaId: number) {
 async function sortear(p: any, quantidade: number): Promise<{ sorteados: number; filtrados: number }> {
   const { sql, params } = atendimentosFiltrados(p.empresa_id, p.id, p.filtro);
   const [[{ n }]] = await pool.query<any>(`SELECT COUNT(*) AS n FROM (${sql}) x`, params);
-  const [lista] = await pool.query<any[]>(`${sql} ORDER BY RAND() LIMIT ?`, [...params, quantidade]);
+  // Um cliente só uma vez na pesquisa: dois atendimentos dele no período dariam duas conversas iguais ao mesmo tempo
+  const [todos] = await pool.query<any[]>(`${sql} ORDER BY RAND()`, params);
+  const [ja] = await pool.query<any[]>('SELECT DISTINCT pessoa_id FROM pesquisas_satisfacao_itens WHERE pesquisa_id = ?', [p.id]);
+  const vistos = new Set(ja.map((r) => Number(r.pessoa_id)));
+  const lista = todos.filter((a) => !vistos.has(Number(a.pessoa_id)) && vistos.add(Number(a.pessoa_id))).slice(0, quantidade);
   const [[{ lote }]] = await pool.query<any>('SELECT COALESCE(MAX(lote), 0) + 1 AS lote FROM pesquisas_satisfacao_itens WHERE pesquisa_id = ?', [p.id]);
   if (lista.length) {
     await pool.query(
