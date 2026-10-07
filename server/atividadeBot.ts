@@ -3,7 +3,7 @@ import { pool } from './db.js';
 import { enviarEmail } from './email.js';
 import { aposGravar } from './regras.js';
 import { TIPOS_ATIVIDADE } from './schema.js';
-import { conversarIa, explicarErro, lerChatbot, marcarEvento, mudarAtendimento, temChave, type ConfigChatbot, type FalaIa, type FerramentaIa } from './chatbot.js';
+import { conversarIa, explicarErro, lerChatbot, marcarEncerramento, marcarEvento, mudarAtendimento, temChave, type ConfigChatbot, type FalaIa, type FerramentaIa } from './chatbot.js';
 import { contaWhats, enviarAutomatica, enviarReservada, mostrarDigitando, reservarEnvio, telefoneWhatsApp, type MensagemNova } from './whatsapp.js';
 
 /**
@@ -185,6 +185,18 @@ async function avisarResponsavel(a: any, texto: string) {
 
 async function encerrar(conv: any, situacao: 'concluida' | 'humano' | 'sem_resposta' | 'falhou', resumo: string) {
   await pool.query('UPDATE atividade_conversas SET situacao = ?, resumo = ?, encerrada_em = NOW() WHERE id = ?', [situacao, resumo.slice(0, 2000), conv.id]);
+  // WhatsApp terminado pelo Bot (cumprida ou sem resposta): linha de encerramento, para a lista mostrar Encerrado e a
+  // próxima mensagem do cliente começar um ciclo novo. Sem contar como atendimento (não sorteia outra pesquisa).
+  // Passada para a equipe fica na fila; com alguém atendendo, não mexe
+  if (conv.canal === 'whatsapp' && conv.destino && (situacao === 'concluida' || situacao === 'sem_resposta')) {
+    const [w] = await pool.query<any[]>(
+      `SELECT a.empresa_id FROM atividade_conversas ac JOIN atividades a ON a.id = ac.atividade_id
+         LEFT JOIN whatsapp_conversas c ON c.empresa_id = a.empresa_id AND c.telefone = ac.destino
+        WHERE ac.id = ? AND COALESCE(c.atendimento, 'bot') <> 'humano'`,
+      [conv.id],
+    );
+    if (w[0]) await marcarEncerramento(w[0].empresa_id, conv.destino, null, null, 'Conversa do Bot encerrada', false);
+  }
   // Pendências da conversa viram tarefas; passada para a equipe também: o Bot prometeu retorno, e a conversa pode
   // voltar ao bot pelo tempo sem ninguém assumir
   // Conversa de uma pesquisa de satisfação: a análise é a da pesquisa (nota, comentário, retorno para o técnico)

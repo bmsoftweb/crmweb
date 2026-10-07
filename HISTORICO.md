@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.121 — 2026-10-07
+
+- WhatsApp: quando o Bot das atividades termina a conversa (ex.: pesquisa de satisfação respondida, ou sem resposta), grava a linha "Conversa do Bot encerrada": a lista mostra Encerrado e um "ok, de nada" logo depois não abre conversa nova. Não conta como atendimento (não sorteia outra pesquisa); passada para a equipe continua na fila.
+
 ## 0.0.120 — 2026-10-07
 
 - Chamados Ativos: todos os filtros (inclusive Encerrados) na ordem de chegada dos chamados; a lista traz os 200 mais recentes.
