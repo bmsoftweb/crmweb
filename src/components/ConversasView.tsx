@@ -240,10 +240,12 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   const [erro, setErro] = useState<string | null>(null);
   /** Só as que eu atendo e as que aguardam (sem departamento ou no meu departamento) */
   const [minhas, setMinhas] = useState(false);
-  /** Filtro da lista pelo estado do atendimento ('' = todas; vírgula = mais de um estado) */
-  const [filtroEstado, setFiltroEstado] = useState<'' | 'aguardando' | 'atendimento' | 'aguardando,atendimento' | 'encerrado'>('aguardando,atendimento');
+  /** Filtro da lista pelo estado do atendimento ('' = todas; vírgula = mais de um estado; campanhas = só as do número das campanhas) */
+  const [filtroEstado, setFiltroEstado] = useState<'' | 'aguardando' | 'atendimento' | 'aguardando,atendimento' | 'encerrado' | 'campanhas'>('aguardando,atendimento');
   // A conversa aberta (ex.: vinda do negócio ou da atividade) fica na lista mesmo fora do filtro
-  const visiveis = filtroEstado ? conversas?.filter((c) => c.telefone === aberta || filtroEstado.split(',').includes(c.estado ?? '')) : conversas;
+  const visiveis = filtroEstado
+    ? conversas?.filter((c) => c.telefone === aberta || (filtroEstado === 'campanhas' ? c.conta === 'campanhas' : filtroEstado.split(',').includes(c.estado ?? '')))
+    : conversas;
   /** Transferir: destino escolhido ("u:ID" atendente, "d:ID" departamento); null = janela fechada */
   const [transferir, setTransferir] = useState<string | null>(null);
   const [destinos, setDestinos] = useState<{ usuarios: OpcaoRef[]; departamentos: OpcaoRef[] }>({ usuarios: [], departamentos: [] });
@@ -586,7 +588,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
           <select
             value={filtroEstado}
             onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)}
-            title="Mostrar só as conversas neste estado"
+            title="Mostrar só as conversas neste estado, ou só as do WhatsApp das campanhas"
             className={`${INPUT_CLASS} py-1`}
           >
             <option value="">Todas</option>
@@ -594,6 +596,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
             <option value="atendimento">Em atendimento</option>
             <option value="aguardando,atendimento">Aguardando + Em atendimento</option>
             <option value="encerrado">Encerradas</option>
+            <option value="campanhas">Só Campanhas</option>
           </select>
         </div>
         <div className="flex-1 overflow-y-auto">

@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.118 — 2026-10-07
+
+- Whatsapp: filtro "Só Campanhas" na lista de conversas (as que entraram pelo número das campanhas, em qualquer estado).
+
 ## 0.0.117 — 2026-10-07
 
 - Menu: opções favoritas (até 3). Ao passar o mouse aparece uma estrela à direita; clicada, fica fixa e a opção vira um botão (só o ícone) no topo, antes do sino. Gravadas por usuário em `usuarios.config_listas` (chave `_menu`).
