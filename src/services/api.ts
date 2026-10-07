@@ -4,7 +4,6 @@ import {
   FiltroAvancado,
   RegistroCrud,
   OpcaoRef,
-  DbConnectionStatus,
   DashboardData,
   Usuario,
   EmpresaSessao,
@@ -104,15 +103,6 @@ export async function saveConfigListas(config: Record<string, unknown>): Promise
 // Metadados e painel
 // ------------------------------------------------------------
 export const fetchResources = (): Promise<ResourceDef[]> => get('/api/meta/resources');
-
-export async function fetchDbStatus(): Promise<DbConnectionStatus> {
-  try {
-    const res = await fetch('/api/db/status');
-    return await res.json();
-  } catch (err: any) {
-    return { connected: false, latencyMs: 0, error: err.message || 'Falha ao conectar com a API' };
-  }
-}
 
 export const fetchDashboard = (): Promise<DashboardData> => get('/api/crm/dashboard');
 

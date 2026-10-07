@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, KeyRound, LockKeyhole, LogOut, X, User, type LucideIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, KeyRound, LockKeyhole, LogOut, Star, X, User, type LucideIcon } from 'lucide-react';
 import { Usuario, ResourceDef } from '../types';
 import { gruposDoMenu, podeAcessar } from '../utils/menu';
 import { trocarMinhaSenha } from '../services/api';
@@ -29,6 +29,9 @@ interface SidebarProps {
   onLogout: () => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  /** Opções favoritas (até 3): estrela no menu, atalho no topo */
+  favoritos: string[];
+  onAlternarFavorito: (id: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -42,6 +45,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   isOpenMobile,
   onCloseMobile,
+  favoritos,
+  onAlternarFavorito,
 }) => {
   // Desktop: menu recolhido (só os ícones), lembrado neste navegador
   const [recolhido, setRecolhido] = useState(() => {
@@ -78,13 +83,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     rec: boolean,
   ) => {
     const isActive = activeTab === id;
+    const fav = favoritos.includes(id);
     return (
+      <div key={id} className="relative group/item">
       <button
-        key={id}
         id={`sidebar-nav-${id}`}
         onClick={() => handleNavClick(id)}
         title={rec ? label : undefined}
-        className={`relative w-full flex items-center ${rec ? 'justify-center' : 'justify-between px-4'} py-[11px] text-left transition-colors cursor-pointer group border-l-2 ${
+        className={`relative w-full flex items-center ${rec ? 'justify-center' : 'justify-between pl-4 pr-9'} py-[11px] text-left transition-colors cursor-pointer group border-l-2 ${
           isActive
             ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300'
             : 'border-transparent text-stone-600 hover:bg-stone-100 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
@@ -120,6 +126,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         )}
       </button>
+      {/* Estrela: aparece ao passar o mouse; marcada, fica fixa (a opção vira atalho no topo) */}
+      {!rec && (
+        <button
+          type="button"
+          onClick={() => onAlternarFavorito(id)}
+          aria-pressed={fav}
+          title={fav ? 'Tirar dos favoritos' : 'Marcar como favorita: vira um atalho no topo (até 3)'}
+          className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded cursor-pointer ${
+            fav ? 'text-amber-500' : 'text-stone-300 dark:text-stone-600 hover:text-amber-500 opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100'
+          }`}
+        >
+          <Star className="w-3.5 h-3.5" fill={fav ? 'currentColor' : 'none'} />
+        </button>
+      )}
+      </div>
     );
   };
 

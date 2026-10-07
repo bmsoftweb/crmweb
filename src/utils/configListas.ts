@@ -28,6 +28,8 @@ export interface ConfigLista {
   ordemForm?: string[];
   /** Tamanho de cada campo no formulário: colunas ocupadas (1-12) e altura do controle em px */
   tamanhosForm?: Record<string, TamanhoCampo>;
+  /** Só na chave '_menu': opções favoritas do menu (até 3), atalhos no topo */
+  favoritos?: string[];
 }
 
 let cache: Record<string, ConfigLista> | null = null;

@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.117 — 2026-10-07
+
+- Menu: opções favoritas (até 3). Ao passar o mouse aparece uma estrela à direita; clicada, fica fixa e a opção vira um botão (só o ícone) no topo, antes do sino. Gravadas por usuário em `usuarios.config_listas` (chave `_menu`).
+- Topo: saiu o card "Banco de Dados xxms".
+- Chamados Ativos: saiu o quadro "Na fila" (os aguardando já aparecem na lista de abertos, com a senha); assumir pelo botão do chamado aberto.
+
 ## 0.0.116 — 2026-10-07
 
 - Chamados Ativos: lista dos abertos na ordem de chegada (o mais antigo em cima); Encerrados continua do mais recente.

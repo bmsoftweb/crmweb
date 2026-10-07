@@ -1,6 +1,6 @@
 import React from 'react';
-import { Menu, Database, Plus, RefreshCw, Bell } from 'lucide-react';
-import { DbConnectionStatus } from '../types';
+import { Menu, Plus, RefreshCw, Bell } from 'lucide-react';
+import type { ItemMenu } from '../utils/menu';
 import { ThemeMode } from '../utils/theme';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -9,7 +9,6 @@ interface HeaderProps {
   empresaNome: string;
   title: string;
   subtitle: string;
-  dbStatus: DbConnectionStatus | null;
   onOpenMobileSidebar: () => void;
   onRefresh?: () => void;
   onCreate?: () => void;
@@ -19,13 +18,16 @@ interface HeaderProps {
   /** Sino das visitas ao site: abre Visitas do Site; pisca com visita nova ainda não vista */
   onAbrirVisitas?: () => void;
   visitaNova?: boolean;
+  /** Opções favoritas do menu: só o ícone, antes do sino */
+  favoritos?: ItemMenu[];
+  onAbrirFavorito?: (id: string) => void;
+  activeTab?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   empresaNome,
   title,
   subtitle,
-  dbStatus,
   onOpenMobileSidebar,
   onRefresh,
   onCreate,
@@ -34,6 +36,9 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onAbrirVisitas,
   visitaNova,
+  favoritos = [],
+  onAbrirFavorito,
+  activeTab,
 }) => {
   return (
     <header className="h-[var(--altura-topo)] shrink-0 z-20 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800">
@@ -64,35 +69,21 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Ações à direita */}
         <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          {/* Status da conexão MySQL */}
-          <div
-            title={
-              dbStatus?.connected
-                ? `MySQL conectado • ${dbStatus.database} • ${dbStatus.latencyMs}ms`
-                : dbStatus?.error || 'Verificando conexão com o banco...'
-            }
-            className="hidden md:flex items-center gap-2 bg-stone-50 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700/80 rounded-xl px-3 py-1.5"
-          >
-            <Database
-              className={`w-3.5 h-3.5 ${
-                dbStatus?.connected ? 'text-emerald-500' : 'text-rose-500 animate-pulse'
+          {favoritos.map(({ id, label, icone: Icone }) => (
+            <button
+              key={id}
+              id={`btn-favorito-${id}`}
+              onClick={() => onAbrirFavorito?.(id)}
+              title={label}
+              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                activeTab === id
+                  ? 'border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300'
+                  : 'border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
               }`}
-            />
-            <div className="text-right">
-              <div className="text-[10px] text-stone-500 dark:text-stone-400 font-medium">
-                Banco de Dados
-              </div>
-              <div
-                className={`text-xs font-bold font-mono ${
-                  dbStatus?.connected
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-rose-600 dark:text-rose-400'
-                }`}
-              >
-                {dbStatus?.connected ? `${dbStatus.latencyMs}ms` : 'Offline'}
-              </div>
-            </div>
-          </div>
+            >
+              <Icone className="w-4 h-4" />
+            </button>
+          ))}
 
           {onAbrirVisitas && (
             <button

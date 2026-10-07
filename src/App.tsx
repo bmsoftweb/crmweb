@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Usuario, ResourceDef, DbConnectionStatus, DashboardData, RegistroCrud, FiltroAvancado } from './types';
+import { Usuario, ResourceDef, DashboardData, RegistroCrud, FiltroAvancado } from './types';
 import { fetchContagemChamados,
   setTokenSessao,
   setAoExpirarSessao,
   fetchResources,
-  fetchDbStatus,
   fetchDashboard,
   invalidateOptions,
   validarSessao,
@@ -14,7 +13,7 @@ import { fetchContagemChamados,
   fetchUltimaVisita,
 } from './services/api';
 import { destravarSom, tocarAviso } from './utils/som';
-import { limparConfigListas } from './utils/configListas';
+import { lerConfigLista, limparConfigListas, salvarConfigLista } from './utils/configListas';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { LoginView } from './components/LoginView';
@@ -35,7 +34,7 @@ import { BotaoNovaVersao } from './components/BotaoNovaVersao';
 import { AcaoConversaBot, ConversaBot } from './components/ConversaBot';
 import { AcaoConcluir, BotaoConcluirRapido } from './components/ConcluirAtividade';
 import { BotaoAcao } from './components/MenuAcoes';
-import { Headset } from 'lucide-react';
+import { Headset, KeyRound } from 'lucide-react';
 import { AcaoRetornoLigacao, PesquisasSatisfacao } from './components/PesquisasSatisfacao';
 import { PainelSuporte } from './components/PainelSuporte';
 import { Prospeccao } from './components/Prospeccao';
@@ -46,7 +45,7 @@ import { ConversasView, PedidoConversa } from './components/ConversasView';
 import { ChamadosAtivos, ChamadosFila, tempoEspera } from './components/Chamados';
 import { BotaoWhatsApp } from './components/BotaoWhatsApp';
 import { BotaoPermissoes } from './components/PermissoesUsuario';
-import { gruposDoMenu, podeAcessar } from './utils/menu';
+import { gruposDoMenu, podeAcessar, type ItemMenu } from './utils/menu';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { Sessao, lerSessao, salvarSessao, limparSessao, atualizarSessao } from './utils/session';
 
@@ -78,7 +77,6 @@ export default function App() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [resources, setResources] = useState<ResourceDef[]>([]);
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
-  const [dbStatus, setDbStatus] = useState<DbConnectionStatus | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -399,14 +397,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessao?.token]);
 
-  // Metadados dos recursos e saúde do banco
+  // Metadados dos recursos
   useEffect(() => {
     if (!sessao) return;
     let alive = true;
     fetchResources()
       .then((list) => alive && setResources(list))
       .catch((err) => console.warn('Falha ao carregar os metadados dos recursos:', err));
-    fetchDbStatus().then((s) => alive && setDbStatus(s));
     return () => {
       alive = false;
     };
@@ -428,13 +425,30 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'dashboard') {
       loadDashboard();
-      fetchDbStatus().then(setDbStatus);
     }
   }, [activeTab, loadDashboard, refreshToken]);
 
   const handleCountChange = useCallback((resourceName: string, total: number) => {
     setRecordCounts((prev) => (prev[resourceName] === total ? prev : { ...prev, [resourceName]: total }));
   }, []);
+
+  /** Opções favoritas do menu (até 3), por usuário em usuarios.config_listas: estrela no menu, atalho no topo */
+  const [favoritos, setFavoritos] = useState<string[]>([]);
+  useEffect(() => {
+    if (sessao) lerConfigLista('_menu').then((c) => setFavoritos(c.favoritos ?? []));
+  }, [sessao?.token]);
+  const alternarFavorito = (id: string) => {
+    if (!favoritos.includes(id) && favoritos.length >= 3) return showToast('Já há 3 favoritas: tire a estrela de uma antes.');
+    const novos = favoritos.includes(id) ? favoritos.filter((f) => f !== id) : [...favoritos, id];
+    setFavoritos(novos);
+    salvarConfigLista('_menu', { favoritos: novos });
+  };
+  const itensFavoritos = useMemo(() => {
+    const itens: ItemMenu[] = gruposDoMenu(resources).flatMap((g) => g.itens);
+    const u = resources.find((r) => r.name === 'usuarios');
+    if (u) itens.push({ id: u.name, label: u.label, descricao: u.description, icone: KeyRound });
+    return favoritos.map((id) => itens.find((i) => i.id === id)).filter((i): i is ItemMenu => Boolean(i) && podeAcessar(sessao?.usuario ?? null, i!.id));
+  }, [favoritos, resources, sessao]);
 
   const activeResource = useMemo(() => resources.find((r) => r.name === activeTab) || null, [resources, activeTab]);
   const resourceNegocios = useMemo(() => resources.find((r) => r.name === 'negocios'), [resources]);
@@ -527,6 +541,8 @@ export default function App() {
         onLogout={handleLogout}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        favoritos={favoritos}
+        onAlternarFavorito={alternarFavorito}
       />
 
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -534,7 +550,6 @@ export default function App() {
           empresaNome={sessao.empresa.nome}
           title={headerTitle}
           subtitle={headerSubtitle}
-          dbStatus={dbStatus}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           onRefresh={() => setRefreshToken((t) => t + 1)}
           onCreate={podeCriar ? () => setCreateToken((t) => t + 1) : undefined}
@@ -543,6 +558,9 @@ export default function App() {
           onToggleTheme={handleToggleTheme}
           onAbrirVisitas={veVisitas ? () => navegar('site_visitas') : undefined}
           visitaNova={ultimaVisita > visitaVista}
+          favoritos={itensFavoritos}
+          onAbrirFavorito={navegar}
+          activeTab={activeTab}
         />
 
         {activeTab === 'kanban' ? (
