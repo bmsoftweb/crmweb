@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.120 — 2026-10-07
+
+- Chamados Ativos: todos os filtros (inclusive Encerrados) na ordem de chegada dos chamados; a lista traz os 200 mais recentes.
+
 ## 0.0.119 — 2026-10-07
 
 - Chamados Ativos: abas dos atendimentos chapadas (sem espaço nem cantos arredondados; a aberta com barra azul embaixo).

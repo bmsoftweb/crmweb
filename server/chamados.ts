@@ -155,7 +155,7 @@ export function createChamadosRouter(): Router {
     res.json(r.map((x, i) => ({ ...numeros(x), posicao: i + 1 })));
   }));
 
-  /** Chamados Ativos: filtro rápido (meus, todos, aguardando, andamento, encerrados) e busca; abertos na ordem de chegada */
+  /** Chamados Ativos: filtro rápido (meus, todos, aguardando, andamento, encerrados) e busca; na ordem de chegada */
   router.get('/chamados', rota(async (req, res) => {
     const filtro = String(req.query.filtro || 'meus');
     const onde: string[] = ['c.empresa_id = ?'];
@@ -173,10 +173,11 @@ export function createChamadosRouter(): Router {
       params.push(`%${q}%`, `%${q}%`, `%${q}%`, Number(q) || 0);
     }
     const [r] = await pool.query<any[]>(
-      `${SELECT} WHERE ${onde.join(' AND ')} ORDER BY ${filtro === 'encerrados' ? 'c.encerrado_em DESC, c.id DESC' : 'c.criado_em, c.id'} LIMIT 200`,
+      `${SELECT} WHERE ${onde.join(' AND ')} ORDER BY c.criado_em DESC, c.id DESC LIMIT 200`,
       params,
     );
-    res.json(r.map(numeros));
+    // Os 200 mais recentes, mostrados na ordem de chegada (em todos os filtros, inclusive Encerrados)
+    res.json(r.reverse().map(numeros));
   }));
 
   /** Quantos na fila (etiqueta do menu) */
