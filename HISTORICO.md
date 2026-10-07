@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.119 — 2026-10-07
+
+- Chamados Ativos: abas dos atendimentos chapadas (sem espaço nem cantos arredondados; a aberta com barra azul embaixo).
+- Chamados Ativos: duplo clique no chamado aguardando ou pausado (sem atendente) assume, como o botão Assumir.
+- Chamados Ativos: ao encerrar, a tela fica em Chamados Ativos com o chamado encerrado aberto (antes ia para a Fila).
+- Fila de Chamados: na tabela, o cliente em cima e o problema embaixo.
+
 ## 0.0.118 — 2026-10-07
 
 - Whatsapp: filtro "Só Campanhas" na lista de conversas (as que entraram pelo número das campanhas, em qualquer estado).

@@ -339,11 +339,11 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
                     <td className={`${td} text-right font-mono text-stone-500`}>{c.numero}</td>
                     <td className={td}>
                       <div className="font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
-                        {c.titulo}
+                        {c.pessoa_nome || 'Sem cliente'}
                         {c.status === 'pausado' && <Status s="pausado" />}
                       </div>
                       <div className="text-[11px] text-stone-500 dark:text-stone-400">
-                        {c.pessoa_nome || 'Sem cliente'}
+                        {c.titulo}
                         {c.departamento_nome && ` • ${c.departamento_nome}`}
                       </div>
                     </td>
@@ -404,7 +404,7 @@ interface AtivosProps {
   onMudou: () => void;
   onConversar: (pessoaId: number) => void;
   onToast: (msg: string) => void;
-  /** Chamado encerrado ou pausado pelo técnico: volta para a Fila de Chamados */
+  /** Chamado pausado pelo técnico: volta para a Fila de Chamados (encerrado fica em Chamados Ativos) */
   onVoltarFila: () => void;
 }
 
@@ -417,6 +417,8 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
   const [erro, setErro] = useState<string | null>(null);
   /** Chamados que o técnico logado atende: uma aba cada, acima do chat */
   const [meus, setMeus] = useState<ChamadoResumo[]>([]);
+  /** Recarga do chamado aberto depois de assumir pelo duplo clique */
+  const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
     if (abrir) setAberto(abrir);
@@ -447,6 +449,20 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
   const mudou = () => {
     carregar();
     onMudou();
+  };
+
+  // Duplo clique no chamado aguardando ou pausado (sem atendente): o mesmo do botão Assumir
+  const assumir = async (c: ChamadoResumo) => {
+    if (!['aguardando', 'pausado'].includes(c.status) || c.atendente_id) return;
+    try {
+      await assumirChamado(c.id);
+      onToast(`Chamado nº ${c.numero} assumido.`);
+      mudou();
+      setRecarga((r) => r + 1);
+    } catch (e: any) {
+      setErro(e.message);
+      carregar();
+    }
   };
 
   return (
@@ -496,6 +512,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
                 key={c.id}
                 type="button"
                 onClick={() => setAberto(c.id)}
+                onDoubleClick={() => assumir(c)}
                 className={`w-full text-left px-3 py-2.5 border-b border-stone-100 dark:border-stone-800/70 cursor-pointer ${
                   aberto === c.id ? 'bg-blue-50 dark:bg-blue-950/40' : 'hover:bg-stone-50 dark:hover:bg-stone-800/50'
                 }`}
@@ -522,7 +539,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
       {/* Chamado aberto */}
       <div className="flex-1 min-w-0 flex flex-col min-h-0 bg-stone-50 dark:bg-stone-950">
         {meus.length > 0 && (
-          <div role="tablist" className="shrink-0 flex gap-1 px-2 pt-2 overflow-x-auto border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900">
+          <div role="tablist" className="shrink-0 flex overflow-x-auto border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900">
             {meus.map((c) => (
               <button
                 key={c.id}
@@ -531,10 +548,10 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
                 aria-selected={aberto === c.id}
                 onClick={() => setAberto(c.id)}
                 title={c.titulo}
-                className={`shrink-0 max-w-[200px] px-3 py-1.5 rounded-t-lg text-left text-[11px] cursor-pointer border border-b-0 ${
+                className={`shrink-0 max-w-[200px] px-3 py-1.5 text-left text-[11px] cursor-pointer border-r border-b-2 border-r-stone-200 dark:border-r-stone-800 ${
                   aberto === c.id
-                    ? 'bg-white dark:bg-stone-950 border-stone-200 dark:border-stone-800'
-                    : 'border-transparent text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-800'
+                    ? 'bg-white dark:bg-stone-950 border-b-blue-600 dark:border-b-blue-400'
+                    : 'border-b-transparent text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-800'
                 }`}
               >
                 <span className="font-bold text-blue-600 dark:text-blue-400">{c.nr_fila}º</span>
@@ -545,7 +562,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
           </div>
         )}
         {aberto ? (
-          <ChamadoAberto key={aberto} id={aberto} refreshToken={refreshToken} onMudou={mudou} onConversar={onConversar} onToast={onToast} onVoltarFila={onVoltarFila} onAbrir={setAberto} />
+          <ChamadoAberto key={aberto} id={aberto} refreshToken={refreshToken + recarga} onMudou={mudou} onConversar={onConversar} onToast={onToast} onVoltarFila={onVoltarFila} onAbrir={setAberto} />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-stone-400 gap-2">
             <Inbox className="w-10 h-10" />
@@ -933,8 +950,9 @@ const ChamadoAberto: React.FC<{
             setConclusao('');
             setDialogo(null);
             onToast(`Chamado nº ${c.numero} encerrado.`);
+            // Fica em Chamados Ativos, com o chamado encerrado (só consulta) aberto
+            carregar();
             onMudou();
-            onVoltarFila();
           }}
           onCancelar={() => setDialogo(null)}
         >
