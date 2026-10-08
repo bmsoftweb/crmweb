@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import express, { Router, Request, Response } from 'express';
 import { pool } from './db.js';
 import { chamarBmdesk } from './bmdesk.js';
-import { fecharSecao, gravarMensagem } from './chamados.js';
+import { fecharSecao, gravarMensagem, NR_FILA } from './chamados.js';
 import { registrarLead } from './chatbot.js';
 import { donoDoTelefone, telefoneWhatsApp } from './whatsapp.js';
 
@@ -61,10 +61,8 @@ export function createSuporteRouter(): Router {
     const [r] = await pool.query<any[]>(
       `SELECT c.id, c.empresa_id, c.numero, c.titulo, c.status, c.pessoa_id, c.atendente_id, c.departamento_id, c.criado_em, c.contato_telefone,
               u.nome AS atendente_nome,
-              -- Posição entre os que esperam um técnico (na fila, sem atendente): assumido sai e os de trás sobem
-              (CASE WHEN c.status IN ('aguardando','pausado') AND c.atendente_id IS NULL THEN
-                (SELECT COUNT(*) FROM chamados f WHERE f.empresa_id = c.empresa_id AND f.status IN ('aguardando','pausado') AND f.atendente_id IS NULL
-                    AND (f.criado_em < c.criado_em OR (f.criado_em = c.criado_em AND f.id < c.id))) + 1 END) AS posicao,
+              -- Mesmo número da tela do técnico (Chamados): posição entre os abertos, por ordem de chegada
+              ${NR_FILA} AS posicao,
               EXISTS (SELECT 1 FROM chamado_mensagens m WHERE m.chamado_id = c.id AND m.autor = 'sistema' AND m.texto LIKE 'Cliente avaliou%') AS avaliado
          FROM chamados c LEFT JOIN usuarios u ON u.id = c.atendente_id WHERE c.id = ?`,
       [id],

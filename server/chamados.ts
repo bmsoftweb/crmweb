@@ -56,7 +56,7 @@ const rota =
  * Número na fila: a posição do chamado entre os abertos (na fila ou em atendimento), por ordem de chegada.
  * Quando um encerra, os de trás sobem. Encerrado/cancelado não tem número (null)
  */
-const NR_FILA = `(CASE WHEN c.status IN ${ENCERRADOS} THEN NULL ELSE (SELECT COUNT(*) + 1 FROM chamados o
+export const NR_FILA = `(CASE WHEN c.status IN ${ENCERRADOS} THEN NULL ELSE (SELECT COUNT(*) + 1 FROM chamados o
     WHERE o.empresa_id = c.empresa_id AND o.status NOT IN ${ENCERRADOS}
       AND (o.criado_em < c.criado_em OR (o.criado_em = c.criado_em AND o.id < c.id))) END)`;
 

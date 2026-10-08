@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.132 — 2026-10-08
+
+- Suporte pelo site: a posição na fila no widget passa a ser a mesma da tela do técnico (entre os chamados abertos, por ordem de chegada); antes contava só os que esperavam sem atendente.
+
 ## 0.0.131 — 2026-10-08
 
 - Chamados (técnico): o "Cutucar" também traz o chat para frente no computador do cliente com o BMSoft Suporte instalado (Windows, vinculado ao cliente do chamado e online): o BMDesk manda o agente procurar a janela do navegador com o título que o chat pisca no cutucão, maximizar e pôr na frente. O aviso do técnico diz quando isso foi pedido. Sem BMDesk configurado ou fora do ar, o cutucão continua só no chat (som, tremida, título piscando e notificação do Windows).
