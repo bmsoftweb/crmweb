@@ -80,6 +80,8 @@ const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: bool
   const [id, setId] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [baixando, setBaixando] = useState(false);
+  /** Nome que o cliente dá ao computador antes de baixar: o técnico acha o computador no chamado e vira o apelido dele */
+  const [nomePc, setNomePc] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   /**
    * BMSoft Suporte (BMDesk): a página do instalador abre numa aba nova. A aba abre já no clique
@@ -90,7 +92,7 @@ const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: bool
     setBaixando(true);
     setErro(null);
     try {
-      const { url: link } = await api(`${url}/agente`, {});
+      const { url: link } = await api(`${url}/agente`, { nome: nomePc.trim() });
       if (janela) {
         janela.opener = null;
         janela.location.href = link;
@@ -123,14 +125,26 @@ const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: bool
       <p className="text-xs text-stone-600 mt-1">
         {tecnico} pediu para ver a sua tela e ajudar. Baixe o BMSoft Suporte, abra o arquivo e clique em "Instalar" ou "Conectar".
       </p>
-      <button
-        type="button"
-        onClick={baixarAgente}
-        disabled={baixando}
-        className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-60"
-      >
-        {baixando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Baixar BMSoft Suporte
-      </button>
+      <div className="flex gap-2 mt-2">
+        <input
+          value={nomePc}
+          onChange={(e) => setNomePc(e.target.value.slice(0, 60))}
+          onFocus={(e) => e.target.select()}
+          onKeyDown={(e) => e.key === 'Enter' && !baixando && baixarAgente()}
+          placeholder="Nome deste computador (ex.: Recepção)"
+          aria-label="Nome deste computador"
+          title="Opcional: ajuda o técnico a achar este computador (ex.: Recepção, Caixa 1, Notebook da Maria)"
+          className={`${INPUT_CLASS} flex-1 min-w-0 text-sm`}
+        />
+        <button
+          type="button"
+          onClick={baixarAgente}
+          disabled={baixando}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-60"
+        >
+          {baixando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Baixar BMSoft Suporte
+        </button>
+      </div>
       <p className="text-xs text-stone-500 mt-2">Prefere o AnyDesk? Abra-o e informe abaixo o número que aparece em "Seu endereço".</p>
       <div className="flex flex-wrap gap-2 mt-2">
         <a href="anydesk://" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">

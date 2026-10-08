@@ -317,19 +317,22 @@ export function createSuporteRouter(): Router {
 
   /**
    * Instalador do BMSoft Suporte (agente do MeshCentral, link de 24 h gerado pelo BMDesk) no cartão
-   * "Acesso remoto". O técnico fica sabendo pelo evento no chamado, para vincular o computador no BMDesk
+   * "Acesso remoto". O técnico fica sabendo pelo evento no chamado, para vincular o computador no BMDesk.
+   * O link passa pelo BMDesk com o chamado e o nome que o cliente deu ao computador: o computador instalado
+   * fica em destaque no "Acessar computador" deste chamado e o nome vira o apelido ao vincular
    */
   router.post('/api/publico/suporte/chamado/:token/agente', rota(async (req, res) => {
     const c = await doToken(req.params.token);
     if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento foi encerrado.');
-    const { url } = await chamarBmdesk('/api/integracao/convite').catch((e) => {
+    const nome = texto(req.body?.nome, 60) || '';
+    const { url } = await chamarBmdesk(`/api/integracao/convite?${new URLSearchParams({ chamado: String(c.id), nome })}`).catch((e) => {
       console.error(`Suporte (site): ${e.message}`);
       throw erro(503, 'O BMSoft Suporte está indisponível agora. Use o AnyDesk, logo abaixo.');
     });
     await gravarMensagem({
       chamado_id: c.id,
       autor: 'sistema',
-      texto: 'Cliente abriu o instalador do BMSoft Suporte: depois de instalado, use "Acessar computador" e "Vincular e acessar" no computador novo.',
+      texto: `Cliente abriu o instalador do BMSoft Suporte${nome ? ` para o computador "${nome}"` : ''}: depois de instalado, use "Acessar computador" e "Vincular e acessar" no computador em destaque.`,
     });
     res.json({ url });
   }));

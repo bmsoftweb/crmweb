@@ -739,7 +739,8 @@ const ChamadoAberto: React.FC<{
     setPcs(null);
     try {
       await vincularComputador(c.id, pc);
-      await abrirComputador(pc, janela);
+      // O nome dado pelo cliente no chat virou o apelido: já vai no título da aba
+      await abrirComputador({ ...pc, apelido: pc.apelido || pc.nomeSugerido }, janela);
     } catch (e: any) {
       janela?.close();
       setErro(e.message);
@@ -963,9 +964,23 @@ const ChamadoAberto: React.FC<{
                           </div>
                         </div>
                         {pcs.semCliente.map((pc) => (
-                          <div key={pc.id} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-stone-50 dark:hover:bg-stone-800/60">
+                          <div
+                            key={pc.id}
+                            className={`flex items-center gap-2 px-3 py-1.5 text-xs ${
+                              pc.doChamado ? 'bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-950/60' : 'hover:bg-stone-50 dark:hover:bg-stone-800/60'
+                            }`}
+                          >
                             <span className="w-2 h-2 rounded-full shrink-0 bg-emerald-500" />
-                            {blocoPc(pc)}
+                            {/* Instalado pelo cliente deste chamado (mesmo IP de quem baixou no chat): o nome que ele deu aparece como apelido */}
+                            {blocoPc(pc.nomeSugerido && !pc.apelido ? { ...pc, apelido: pc.nomeSugerido } : pc)}
+                            {pc.doChamado && editandoPc !== pc.id && (
+                              <span
+                                title="Instalado pelo cliente deste chamado: veio do mesmo endereço de internet de quem baixou o BMSoft Suporte no chat"
+                                className="shrink-0 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[10px] font-semibold"
+                              >
+                                Deste chamado
+                              </span>
+                            )}
                             {/* Apelido num computador sem cliente: só em chamado sem cliente (o BMDesk confere) */}
                             {editandoPc !== pc.id && !c.pessoa_id && lapisApelido(pc)}
                             {editandoPc !== pc.id && <button

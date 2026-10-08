@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.134 — 2026-10-08
+
+- Chat do site (cliente): no cartão "Acesso remoto", campo "Nome deste computador" (opcional, ex.: Recepção) ao lado do "Baixar BMSoft Suporte". O aviso no chamado traz o nome.
+- Chamados (técnico): no "Acessar computador", o computador instalado pelo cliente do chamado vem primeiro entre os sem cliente, em azul com a etiqueta "Deste chamado" e o nome que o cliente deu (o BMDesk reconhece pelo endereço de internet de quem clicou no download). No "Vincular e acessar" o nome vira o apelido do computador e vai no título da aba. O técnico continua confirmando o vínculo.
+
 ## 0.0.133 — 2026-10-08
 
 - Chamados (técnico): indicador do BMSoft Suporte no cabeçalho do chamado, ao lado do "Acessar computador": verde "online" (com "1 de 3" quando há vários), cinza "instalado, offline" ou laranja "não instalado". Confere os computadores vinculados ao cliente do chamado no BMDesk e se o agente está conectado; verifica ao abrir o chamado e de novo no clique (ex.: depois de o cliente instalar e o técnico vincular). Não aparece em chamado sem cliente no cadastro.

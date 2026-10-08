@@ -982,6 +982,10 @@ export interface ComputadorBmdesk {
   apelido?: string;
   /** Usuários logados no Windows */
   usuario?: string;
+  /** Sem cliente: instalado pelo cliente deste chamado (mesmo IP de quem baixou pelo chat) */
+  doChamado?: boolean;
+  /** Nome que o cliente deu ao computador no chat, antes de baixar (vira o apelido ao vincular) */
+  nomeSugerido?: string;
 }
 /** Grava o apelido do computador no BMDesk (vazio apaga) */
 export const apelidarComputador = (id: number, pc: ComputadorBmdesk, apelido: string): Promise<{ apelido: string }> =>
@@ -991,7 +995,7 @@ export const computadoresDoChamado = (id: number): Promise<{ doCliente: Computad
   get(`/api/chamados/${id}/computadores`);
 /** Vincula ao cliente do chamado um computador ainda sem cliente */
 export const vincularComputador = (id: number, pc: ComputadorBmdesk) =>
-  enviar('POST', `/api/chamados/${id}/vincular-computador`, { computador: pc.id, nome: pc.nome });
+  enviar('POST', `/api/chamados/${id}/vincular-computador`, { computador: pc.id, nome: pc.nome, apelido: pc.nomeSugerido || '' });
 /** Endereço da tela remota do computador (abre em outra aba) */
 export const acessarComputador = (id: number, pc: ComputadorBmdesk): Promise<{ url: string }> =>
   enviar('POST', `/api/chamados/${id}/acessar-computador`, { computador: pc.id, nome: pc.nome });
