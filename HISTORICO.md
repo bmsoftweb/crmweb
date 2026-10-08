@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.129 — 2026-10-08
+
+- Chamados (técnico): a lista do "Acessar computador" mostra o apelido do computador em destaque e, embaixo, o nome, o usuário logado no Windows e o IP — para achar o computador certo quando o cliente tem vários. O lápis dá/edita o apelido ali mesmo (Enter grava, Esc cancela, vazio apaga). O apelido fica no BMDesk (descrição do computador no MeshCentral) e só pode ser dado nos computadores do cliente do chamado.
+
 ## 0.0.128 — 2026-10-08
 
 - Chamados (técnico): "Acessar computador" aparece também no chamado sem cliente no cadastro (ex.: aberto pelo widget com CNPJ/CPF que não existe em Pessoas). Mostra sempre a lista dos computadores recém-instalados sem cliente, com sistema e IP, e o botão "Acessar" (abre sem vincular; para vincular, cadastre o cliente). Por esse caminho só abre computador que não é de nenhum cliente (o BMDesk confere). O acesso entra na linha do tempo do chamado.

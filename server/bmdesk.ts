@@ -25,6 +25,6 @@ export async function chamarBmdesk(caminho: string, corpo?: unknown): Promise<an
     throw erro(502, `BMDesk não respondeu: ${e.message}`);
   });
   const dados: any = await r.json().catch(() => ({}));
-  if (!r.ok) throw erro([400, 404, 409].includes(r.status) ? r.status : 502, `BMDesk: ${dados?.error || `HTTP ${r.status}`}`);
+  if (!r.ok) throw erro([400, 403, 404, 409].includes(r.status) ? r.status : 502, `BMDesk: ${dados?.error || `HTTP ${r.status}`}`);
   return dados;
 }

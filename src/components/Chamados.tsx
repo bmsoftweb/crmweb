@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, Monitor, MonitorSmartphone, Pause, Plus, Search, Send, StickyNote, UserRound, Headset } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, Monitor, MonitorSmartphone, Pause, Pencil, Plus, Search, Send, StickyNote, UserRound, Headset } from 'lucide-react';
 import {
   acessarComputador,
+  apelidarComputador,
   ComputadorBmdesk,
   computadoresDoChamado,
   vincularComputador,
@@ -625,6 +626,10 @@ const ChamadoAberto: React.FC<{
   /** Acessar computador (BMDesk): buscando a lista; com mais de um computador, a lista para escolher */
   const [buscandoPcs, setBuscandoPcs] = useState(false);
   const [pcs, setPcs] = useState<{ doCliente: ComputadorBmdesk[]; semCliente: ComputadorBmdesk[] } | null>(null);
+  /** Apelido sendo editado na lista (id do computador), o texto e se está gravando */
+  const [editandoPc, setEditandoPc] = useState<string | null>(null);
+  const [textoApelido, setTextoApelido] = useState('');
+  const [gravandoApelido, setGravandoApelido] = useState(false);
   /**
    * Tela remota numa aba dentro do atendimento (iframe do MeshCentral, liberado para crm.bmsoft.com.br
    * no config dele). naTela = aba visível; voltando para o atendimento o iframe fica carregado (a conexão não cai)
@@ -729,6 +734,7 @@ const ChamadoAberto: React.FC<{
     if (tela) return setNaTela(true);
     setBuscandoPcs(true);
     setErro(null);
+    setEditandoPc(null);
     try {
       const r = await computadoresDoChamado(c.id);
       if (r.doCliente.length === 1 && r.doCliente[0].online && !r.semCliente.length) return void (await abrirComputador(r.doCliente[0]));
@@ -745,6 +751,67 @@ const ChamadoAberto: React.FC<{
       setBuscandoPcs(false);
     }
   };
+  /** Grava o apelido no BMDesk e atualiza a lista aberta (vazio apaga) */
+  const gravarApelido = async (pc: ComputadorBmdesk) => {
+    setGravandoApelido(true);
+    try {
+      const { apelido } = await apelidarComputador(c.id, pc, textoApelido.trim());
+      const trocar = (l: ComputadorBmdesk[]) => l.map((x) => (x.id === pc.id ? { ...x, apelido } : x));
+      setPcs((p) => p && { doCliente: trocar(p.doCliente), semCliente: trocar(p.semCliente) });
+      setEditandoPc(null);
+    } catch (e: any) {
+      setErro(e.message);
+    } finally {
+      setGravandoApelido(false);
+    }
+  };
+  /** Nome na lista: o apelido em destaque; embaixo o nome do computador, o usuário logado e o IP. Editando: o campo do apelido */
+  const blocoPc = (pc: ComputadorBmdesk) =>
+    editandoPc === pc.id ? (
+      <form
+        className="min-w-0 flex-1 flex items-stretch gap-1"
+        onSubmit={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          void gravarApelido(pc);
+        }}
+      >
+        <input
+          autoFocus
+          value={textoApelido}
+          onChange={(e) => setTextoApelido(e.target.value)}
+          onFocus={(e) => e.target.select()}
+          onKeyDown={(e) => e.key === 'Escape' && setEditandoPc(null)}
+          maxLength={60}
+          placeholder="Apelido (ex.: Recepção, Caixa 1)"
+          aria-label={`Apelido de ${pc.nome}`}
+          className={`${INPUT_CLASS} flex-1 min-w-0`}
+        />
+        <button type="submit" disabled={gravandoApelido} className="shrink-0 inline-flex items-center px-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-60">
+          {gravandoApelido ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Gravar'}
+        </button>
+      </form>
+    ) : (
+      <div className="min-w-0 flex-1" title={pc.sistema}>
+        <div className="truncate font-medium text-stone-800 dark:text-stone-100">{pc.apelido || pc.nome}</div>
+        <div className="truncate text-[10px] text-stone-400">
+          {[pc.apelido ? pc.nome : '', pc.usuario ? `👤 ${pc.usuario}` : 'ninguém logado', pc.ip].filter(Boolean).join(' • ')}
+        </div>
+      </div>
+    );
+  const lapisApelido = (pc: ComputadorBmdesk) => (
+    <button
+      type="button"
+      onClick={() => {
+        setTextoApelido(pc.apelido || '');
+        setEditandoPc(pc.id);
+      }}
+      title="Dar um apelido ao computador (Recepção, Caixa 1...)"
+      className="shrink-0 p-1 rounded text-stone-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+    >
+      <Pencil className="w-3.5 h-3.5" />
+    </button>
+  );
   const abaClasse = (ativa: boolean) =>
     `inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 cursor-pointer ${
       ativa ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
@@ -812,23 +879,29 @@ const ChamadoAberto: React.FC<{
               {pcs && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setPcs(null)} />
-                  <div className="absolute right-0 top-full mt-1 z-40 w-80 max-h-96 overflow-y-auto py-1 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-xl">
+                  <div className="absolute right-0 top-full mt-1 z-40 w-96 max-h-96 overflow-y-auto py-1 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-xl">
                     {pcs.doCliente.length > 0 && (
                       <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">Computadores do cliente</div>
                     )}
                     {pcs.doCliente.map((pc) => (
-                      <button
-                        key={pc.id}
-                        type="button"
-                        disabled={!pc.online}
-                        onClick={() => abrirComputador(pc)}
-                        title={pc.online ? pc.sistema : 'Computador desligado ou sem internet'}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
+                      <div key={pc.id} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-stone-50 dark:hover:bg-stone-800/60">
                         <span className={`w-2 h-2 rounded-full shrink-0 ${pc.online ? 'bg-emerald-500' : 'bg-stone-400'}`} />
-                        <span className="truncate text-stone-800 dark:text-stone-100">{pc.nome}</span>
-                        <span className="ml-auto text-[10px] text-stone-400">{pc.online ? 'online' : 'offline'}</span>
-                      </button>
+                        {blocoPc(pc)}
+                        {editandoPc !== pc.id && (
+                          <>
+                            {lapisApelido(pc)}
+                            <button
+                              type="button"
+                              disabled={!pc.online}
+                              onClick={() => abrirComputador(pc)}
+                              title={pc.online ? `Abre a tela de ${pc.apelido || pc.nome}` : 'Computador desligado ou sem internet'}
+                              className="shrink-0 px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold cursor-pointer disabled:bg-stone-300 dark:disabled:bg-stone-700 disabled:cursor-not-allowed"
+                            >
+                              {pc.online ? 'Acessar' : 'Offline'}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     ))}
                     {pcs.semCliente.length > 0 && (
                       <>
@@ -844,18 +917,17 @@ const ChamadoAberto: React.FC<{
                         {pcs.semCliente.map((pc) => (
                           <div key={pc.id} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-stone-50 dark:hover:bg-stone-800/60">
                             <span className="w-2 h-2 rounded-full shrink-0 bg-emerald-500" />
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-stone-800 dark:text-stone-100">{pc.nome}</div>
-                              <div className="truncate text-[10px] text-stone-400">{[pc.sistema, pc.ip].filter(Boolean).join(' • ')}</div>
-                            </div>
-                            <button
+                            {blocoPc(pc)}
+                            {/* Apelido num computador sem cliente: só em chamado sem cliente (o BMDesk confere) */}
+                            {editandoPc !== pc.id && !c.pessoa_id && lapisApelido(pc)}
+                            {editandoPc !== pc.id && <button
                               type="button"
                               onClick={() => (c.pessoa_id ? vincularEAbrir(pc) : abrirComputador(pc))}
                               title={c.pessoa_id ? `Liga ${pc.nome} a ${c.pessoa_nome || 'este cliente'} no BMDesk e abre a tela` : `Abre a tela de ${pc.nome} sem vincular (chamado sem cliente)`}
                               className="shrink-0 px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold cursor-pointer"
                             >
                               {c.pessoa_id ? 'Vincular e acessar' : 'Acessar'}
-                            </button>
+                            </button>}
                           </div>
                         ))}
                       </>

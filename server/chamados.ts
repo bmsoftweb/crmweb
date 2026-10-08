@@ -499,6 +499,17 @@ export function createChamadosRouter(): Router {
     res.json({ doCliente, semCliente });
   }));
 
+  /** Apelido do computador ("Recepção", "Caixa 1"): fica no BMDesk, só nos computadores do cliente do chamado */
+  router.post('/chamados/:id/apelido-computador', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    const r = await chamarBmdesk('/api/integracao/apelido', {
+      pessoa: c.pessoa_id ?? null,
+      id: String(req.body?.computador || ''),
+      apelido: String(req.body?.apelido ?? ''),
+    });
+    res.json(r);
+  }));
+
   /** Vincula ao cliente do chamado um computador ainda sem cliente; fica registrado como evento do chamado */
   router.post('/chamados/:id/vincular-computador', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));

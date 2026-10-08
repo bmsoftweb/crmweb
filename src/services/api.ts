@@ -977,7 +977,14 @@ export interface ComputadorBmdesk {
   online: boolean;
   sistema: string;
   ip?: string;
+  /** Apelido dado pela equipe ("Recepção", "Caixa 1") */
+  apelido?: string;
+  /** Usuários logados no Windows */
+  usuario?: string;
 }
+/** Grava o apelido do computador no BMDesk (vazio apaga) */
+export const apelidarComputador = (id: number, pc: ComputadorBmdesk, apelido: string): Promise<{ apelido: string }> =>
+  enviar('POST', `/api/chamados/${id}/apelido-computador`, { computador: pc.id, apelido });
 /** Os do cliente do chamado e os online ainda sem cliente (recém-instalados pelo widget) */
 export const computadoresDoChamado = (id: number): Promise<{ doCliente: ComputadorBmdesk[]; semCliente: ComputadorBmdesk[] }> =>
   get(`/api/chamados/${id}/computadores`);
