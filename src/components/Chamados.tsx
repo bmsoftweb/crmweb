@@ -4,6 +4,7 @@ import {
   acessarComputador,
   ComputadorBmdesk,
   computadoresDoChamado,
+  vincularComputador,
   assumirChamado,
   atenderConversa,
   ConversaResumo,
@@ -619,7 +620,7 @@ const ChamadoAberto: React.FC<{
   const campoResposta = useRef<HTMLTextAreaElement>(null);
   /** Acessar computador (BMDesk): buscando a lista; com mais de um computador, a lista para escolher */
   const [buscandoPcs, setBuscandoPcs] = useState(false);
-  const [pcs, setPcs] = useState<ComputadorBmdesk[] | null>(null);
+  const [pcs, setPcs] = useState<{ doCliente: ComputadorBmdesk[]; semCliente: ComputadorBmdesk[] } | null>(null);
 
   const carregar = useCallback(() => {
     fetchChamado(id)
@@ -697,18 +698,34 @@ const ChamadoAberto: React.FC<{
       setErro(e.message);
     }
   };
-  /** Um computador só, online: abre direto. Mais de um: lista para escolher */
+  /** Computador recém-instalado (sem cliente): vincula ao cliente do chamado e já abre a tela */
+  const vincularEAbrir = async (pc: ComputadorBmdesk) => {
+    const janela = window.open('', '_blank');
+    setPcs(null);
+    try {
+      await vincularComputador(c.id, pc);
+      await abrirComputador(pc, janela);
+    } catch (e: any) {
+      janela?.close();
+      setErro(e.message);
+      carregar();
+    }
+  };
+  /**
+   * Um computador do cliente, online, e nenhum novo sem cliente: abre direto. Senão, a lista com os
+   * do cliente e os sem cliente (o que ele acabou de instalar pelo widget), para vincular ali mesmo
+   */
   const acessarPc = async () => {
     const janela = window.open('', '_blank');
     setBuscandoPcs(true);
     setErro(null);
     try {
-      const lista = await computadoresDoChamado(c.id);
-      if (lista.length === 1 && lista[0].online) return void abrirComputador(lista[0], janela);
+      const r = await computadoresDoChamado(c.id);
+      if (r.doCliente.length === 1 && r.doCliente[0].online && !r.semCliente.length) return void abrirComputador(r.doCliente[0], janela);
       janela?.close();
-      if (!lista.length) {
-        setErro('Este cliente não tem computador no BMDesk. Peça a Tela Remota para ele instalar o BMSoft Suporte e vincule o computador no BMDesk (Vincular cliente).');
-      } else setPcs(lista);
+      if (!r.doCliente.length && !r.semCliente.length) {
+        setErro('Nenhum computador deste cliente no BMDesk. Peça a Tela Remota para ele instalar o BMSoft Suporte; quando o computador aparecer, ele fica disponível aqui para vincular.');
+      } else setPcs(r);
     } catch (e: any) {
       janela?.close();
       setErro(e.message);
@@ -779,8 +796,11 @@ const ChamadoAberto: React.FC<{
               {pcs && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setPcs(null)} />
-                  <div className="absolute right-0 top-full mt-1 z-40 w-64 py-1 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-xl">
-                    {pcs.map((pc) => (
+                  <div className="absolute right-0 top-full mt-1 z-40 w-80 max-h-96 overflow-y-auto py-1 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-xl">
+                    {pcs.doCliente.length > 0 && (
+                      <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">Computadores do cliente</div>
+                    )}
+                    {pcs.doCliente.map((pc) => (
                       <button
                         key={pc.id}
                         type="button"
@@ -794,6 +814,32 @@ const ChamadoAberto: React.FC<{
                         <span className="ml-auto text-[10px] text-stone-400">{pc.online ? 'online' : 'offline'}</span>
                       </button>
                     ))}
+                    {pcs.semCliente.length > 0 && (
+                      <>
+                        {pcs.doCliente.length > 0 && <div className="my-1 border-t border-stone-100 dark:border-stone-800" />}
+                        <div className="px-3 pt-1.5 pb-1">
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Sem cliente (recém-instalados)</div>
+                          <div className="text-[10px] text-stone-400">Confira o nome com o cliente antes de vincular.</div>
+                        </div>
+                        {pcs.semCliente.map((pc) => (
+                          <div key={pc.id} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-stone-50 dark:hover:bg-stone-800/60">
+                            <span className="w-2 h-2 rounded-full shrink-0 bg-emerald-500" />
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-stone-800 dark:text-stone-100">{pc.nome}</div>
+                              <div className="truncate text-[10px] text-stone-400">{[pc.sistema, pc.ip].filter(Boolean).join(' • ')}</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => vincularEAbrir(pc)}
+                              title={`Liga ${pc.nome} a ${c.pessoa_nome || 'este cliente'} no BMDesk e abre a tela`}
+                              className="shrink-0 px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold cursor-pointer"
+                            >
+                              Vincular e acessar
+                            </button>
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </>
               )}

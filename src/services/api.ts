@@ -970,14 +970,20 @@ export const transferirChamado = (id: number, destino: { usuario_id?: number; de
 export const pausarChamado = (id: number): Promise<{ success: boolean; aviso: string | null }> => enviar('POST', `/api/chamados/${id}/pausar`);
 export const cutucarCliente = (id: number) => enviar('POST', `/api/chamados/${id}/cutucar`);
 export const pedirTelaRemota = (id: number) => enviar('POST', `/api/chamados/${id}/tela-remota`);
-/** Computador do cliente no BMDesk (vinculado à pessoa do chamado) */
+/** Computador no BMDesk (MeshCentral) */
 export interface ComputadorBmdesk {
   id: string;
   nome: string;
   online: boolean;
   sistema: string;
+  ip?: string;
 }
-export const computadoresDoChamado = (id: number): Promise<ComputadorBmdesk[]> => get(`/api/chamados/${id}/computadores`);
+/** Os do cliente do chamado e os online ainda sem cliente (recém-instalados pelo widget) */
+export const computadoresDoChamado = (id: number): Promise<{ doCliente: ComputadorBmdesk[]; semCliente: ComputadorBmdesk[] }> =>
+  get(`/api/chamados/${id}/computadores`);
+/** Vincula ao cliente do chamado um computador ainda sem cliente */
+export const vincularComputador = (id: number, pc: ComputadorBmdesk) =>
+  enviar('POST', `/api/chamados/${id}/vincular-computador`, { computador: pc.id, nome: pc.nome });
 /** Endereço da tela remota do computador (abre em outra aba) */
 export const acessarComputador = (id: number, pc: ComputadorBmdesk): Promise<{ url: string }> =>
   enviar('POST', `/api/chamados/${id}/acessar-computador`, { computador: pc.id, nome: pc.nome });

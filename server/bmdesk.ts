@@ -11,17 +11,20 @@ function erro(status: number, msg: string) {
   return Object.assign(new Error(msg), { status });
 }
 
-export async function chamarBmdesk(caminho: string): Promise<any> {
+/** GET, ou POST com corpo JSON quando há corpo */
+export async function chamarBmdesk(caminho: string, corpo?: unknown): Promise<any> {
   const url = process.env.BMDESK_URL;
   const chave = process.env.BMDESK_CHAVE;
   if (!url || !chave) throw erro(503, 'Acesso remoto BMDesk não configurado: defina BMDESK_URL e BMDESK_CHAVE.');
   const r = await fetch(`${url.replace(/\/$/, '')}${caminho}`, {
-    headers: { 'x-bmdesk-chave': chave },
+    method: corpo === undefined ? 'GET' : 'POST',
+    headers: { 'x-bmdesk-chave': chave, ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }) },
+    body: corpo === undefined ? undefined : JSON.stringify(corpo),
     signal: AbortSignal.timeout(TIMEOUT_BMDESK_MS),
   }).catch((e) => {
     throw erro(502, `BMDesk não respondeu: ${e.message}`);
   });
   const dados: any = await r.json().catch(() => ({}));
-  if (!r.ok) throw erro(r.status === 400 || r.status === 404 ? r.status : 502, `BMDesk: ${dados?.error || `HTTP ${r.status}`}`);
+  if (!r.ok) throw erro([400, 404, 409].includes(r.status) ? r.status : 502, `BMDesk: ${dados?.error || `HTTP ${r.status}`}`);
   return dados;
 }

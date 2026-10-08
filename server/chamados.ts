@@ -484,11 +484,28 @@ export function createChamadosRouter(): Router {
     res.json({ success: true });
   }));
 
-  /** Computadores do cliente no BMDesk: os vinculados à pessoa do chamado (Vincular cliente no BMDesk) */
+  /**
+   * Computadores no BMDesk: os do cliente do chamado e os online ainda sem cliente (o que o cliente
+   * acabou de instalar pelo widget aparece ali, para o técnico vincular sem sair do chamado)
+   */
   router.get('/chamados/:id/computadores', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
-    if (!c.pessoa_id) return res.json([]);
-    res.json(await chamarBmdesk(`/api/integracao/computadores?pessoa=${c.pessoa_id}`));
+    if (!c.pessoa_id) return res.json({ doCliente: [], semCliente: [] });
+    const [doCliente, semCliente] = await Promise.all([
+      chamarBmdesk(`/api/integracao/computadores?pessoa=${c.pessoa_id}`),
+      chamarBmdesk('/api/integracao/sem-vinculo'),
+    ]);
+    res.json({ doCliente, semCliente });
+  }));
+
+  /** Vincula ao cliente do chamado um computador ainda sem cliente; fica registrado como evento do chamado */
+  router.post('/chamados/:id/vincular-computador', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    if (!c.pessoa_id) throw erro(400, 'Chamado sem cliente: ligue o chamado a uma pessoa para vincular o computador.');
+    await chamarBmdesk('/api/integracao/vincular', { pessoa: c.pessoa_id, id: String(req.body?.computador || '') });
+    const nome = String(req.body?.nome || '').trim().slice(0, 120);
+    await evento(c.id, eu(res), `${res.locals.usuario.nome} vinculou o computador ${nome || 'novo'} ao cliente no BMDesk.`);
+    res.json({ success: true });
   }));
 
   /**

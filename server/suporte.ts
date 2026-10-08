@@ -331,7 +331,7 @@ export function createSuporteRouter(): Router {
     await gravarMensagem({
       chamado_id: c.id,
       autor: 'sistema',
-      texto: 'Cliente abriu o instalador do BMSoft Suporte: depois de instalado, vincule o computador a ele no BMDesk (Vincular cliente).',
+      texto: 'Cliente abriu o instalador do BMSoft Suporte: depois de instalado, use "Acessar computador" e "Vincular e acessar" no computador novo.',
     });
     res.json({ url });
   }));

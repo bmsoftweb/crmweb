@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.125 — 2026-10-07
+
+- Chamados (técnico): "Acessar computador" também lista os computadores online ainda sem cliente no BMDesk (o que o cliente acabou de instalar pelo widget), com sistema e IP, e o botão "Vincular e acessar": liga o computador ao cliente do chamado e já abre a tela, sem ir ao BMDesk. Só computador sem cliente pode ser vinculado por aqui (trocar de cliente continua no BMDesk). O vínculo entra na linha do tempo do chamado.
+- Abre direto só quando o cliente tem um computador, online, e não há computador novo sem cliente esperando.
+- O aviso do widget no chamado passa a orientar o "Vincular e acessar".
+
 ## 0.0.124 — 2026-10-07
 
 - Integração com o BMDesk (acesso remoto pelo MeshCentral, desk.bmsoft.com.br), configurada por BMDESK_URL e BMDESK_CHAVE no .env (e nas variáveis da Vercel); sem elas fica desligada.
