@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.128 — 2026-10-08
+
+- Chamados (técnico): "Acessar computador" aparece também no chamado sem cliente no cadastro (ex.: aberto pelo widget com CNPJ/CPF que não existe em Pessoas). Mostra sempre a lista dos computadores recém-instalados sem cliente, com sistema e IP, e o botão "Acessar" (abre sem vincular; para vincular, cadastre o cliente). Por esse caminho só abre computador que não é de nenhum cliente (o BMDesk confere). O acesso entra na linha do tempo do chamado.
+
 ## 0.0.127 — 2026-10-07
 
 - Chamados Ativos: o botão "Novo" (abrir chamado) saiu do cabeçalho e fica ao lado da pesquisa da lista, com a mesma altura do campo.

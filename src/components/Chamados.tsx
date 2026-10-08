@@ -733,8 +733,12 @@ const ChamadoAberto: React.FC<{
       const r = await computadoresDoChamado(c.id);
       if (r.doCliente.length === 1 && r.doCliente[0].online && !r.semCliente.length) return void (await abrirComputador(r.doCliente[0]));
       if (!r.doCliente.length && !r.semCliente.length) {
-        setErro('Nenhum computador deste cliente no BMDesk. Peça a Tela Remota para ele instalar o BMSoft Suporte; quando o computador aparecer, ele fica disponível aqui para vincular.');
-      } else setPcs(r);
+        setErro(
+          c.pessoa_id
+            ? 'Nenhum computador deste cliente no BMDesk. Peça a Tela Remota para ele instalar o BMSoft Suporte; quando o computador aparecer, ele fica disponível aqui para vincular.'
+            : 'Nenhum computador novo (sem cliente) online no BMDesk. Peça a Tela Remota para o cliente instalar o BMSoft Suporte e tente de novo em alguns segundos.',
+        );
+      } else setPcs(r); // chamado sem cliente: sempre a lista, para o técnico conferir o nome
     } catch (e: any) {
       setErro(e.message);
     } finally {
@@ -794,13 +798,13 @@ const ChamadoAberto: React.FC<{
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {c.pessoa_id && (
+          {(
             <div className="relative">
               <button
                 type="button"
                 onClick={acessarPc}
                 disabled={buscandoPcs}
-                title="Abre a tela do computador do cliente pelo BMDesk (computadores vinculados a ele)"
+                title={c.pessoa_id ? 'Abre a tela do computador do cliente pelo BMDesk (computadores vinculados a ele)' : 'Chamado sem cliente: lista os computadores recém-instalados (sem cliente) para acessar'}
                 className={`${botao} bg-blue-600 hover:bg-blue-700 text-white`}
               >
                 {buscandoPcs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Monitor className="w-3.5 h-3.5" />} Acessar computador
@@ -831,7 +835,11 @@ const ChamadoAberto: React.FC<{
                         {pcs.doCliente.length > 0 && <div className="my-1 border-t border-stone-100 dark:border-stone-800" />}
                         <div className="px-3 pt-1.5 pb-1">
                           <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Sem cliente (recém-instalados)</div>
-                          <div className="text-[10px] text-stone-400">Confira o nome com o cliente antes de vincular.</div>
+                          <div className="text-[10px] text-stone-400">
+                            {c.pessoa_id
+                              ? 'Confira o nome com o cliente antes de vincular.'
+                              : 'Chamado sem cliente no cadastro: confira o nome com o cliente e acesse. Para vincular o computador, cadastre o cliente.'}
+                          </div>
                         </div>
                         {pcs.semCliente.map((pc) => (
                           <div key={pc.id} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-stone-50 dark:hover:bg-stone-800/60">
@@ -842,11 +850,11 @@ const ChamadoAberto: React.FC<{
                             </div>
                             <button
                               type="button"
-                              onClick={() => vincularEAbrir(pc)}
-                              title={`Liga ${pc.nome} a ${c.pessoa_nome || 'este cliente'} no BMDesk e abre a tela`}
+                              onClick={() => (c.pessoa_id ? vincularEAbrir(pc) : abrirComputador(pc))}
+                              title={c.pessoa_id ? `Liga ${pc.nome} a ${c.pessoa_nome || 'este cliente'} no BMDesk e abre a tela` : `Abre a tela de ${pc.nome} sem vincular (chamado sem cliente)`}
                               className="shrink-0 px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold cursor-pointer"
                             >
-                              Vincular e acessar
+                              {c.pessoa_id ? 'Vincular e acessar' : 'Acessar'}
                             </button>
                           </div>
                         ))}

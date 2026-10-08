@@ -490,7 +490,8 @@ export function createChamadosRouter(): Router {
    */
   router.get('/chamados/:id/computadores', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
-    if (!c.pessoa_id) return res.json({ doCliente: [], semCliente: [] });
+    // Chamado sem cliente no cadastro: só os sem cliente (o técnico escolhe e acessa, sem vincular)
+    if (!c.pessoa_id) return res.json({ doCliente: [], semCliente: await chamarBmdesk('/api/integracao/sem-vinculo') });
     const [doCliente, semCliente] = await Promise.all([
       chamarBmdesk(`/api/integracao/computadores?pessoa=${c.pessoa_id}`),
       chamarBmdesk('/api/integracao/sem-vinculo'),
@@ -514,12 +515,13 @@ export function createChamadosRouter(): Router {
    */
   router.post('/chamados/:id/acessar-computador', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
-    if (!c.pessoa_id) throw erro(400, 'Chamado sem cliente: ligue o chamado a uma pessoa para acessar o computador dela.');
     const quem = res.locals.usuario.nome;
-    const params = new URLSearchParams({ pessoa: String(c.pessoa_id), id: String(req.body?.computador || ''), modo: 'desktop', usuario: quem });
-    const { url } = await chamarBmdesk(`/api/integracao/acesso?${params}`);
+    const params = new URLSearchParams({ id: String(req.body?.computador || ''), modo: 'desktop', usuario: quem });
+    // Sem cliente no cadastro: só computador ainda sem cliente (o BMDesk confere)
+    if (c.pessoa_id) params.set('pessoa', String(c.pessoa_id));
+    const { url } = await chamarBmdesk(`/api/integracao/${c.pessoa_id ? 'acesso' : 'acesso-sem-cliente'}?${params}`);
     const nome = String(req.body?.nome || '').trim().slice(0, 120);
-    await evento(c.id, eu(res), `${quem} acessou o computador ${nome || 'do cliente'} pelo BMDesk.`);
+    await evento(c.id, eu(res), `${quem} acessou o computador ${nome || 'do cliente'}${c.pessoa_id ? '' : ' (sem cliente no cadastro)'} pelo BMDesk.`);
     res.json({ url });
   }));
 
