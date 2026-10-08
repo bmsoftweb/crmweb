@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.124 — 2026-10-07
+
+- Integração com o BMDesk (acesso remoto pelo MeshCentral, desk.bmsoft.com.br), configurada por BMDESK_URL e BMDESK_CHAVE no .env (e nas variáveis da Vercel); sem elas fica desligada.
+- Widget de suporte: o cartão "Acesso remoto" ganha o botão "Baixar BMSoft Suporte" (instalador do agente, link de 24 h); o AnyDesk continua como alternativa logo abaixo. O chamado registra, só para a equipe, que o cliente abriu o instalador, para o técnico vincular o computador no BMDesk.
+- Chamados (técnico): botão "Acessar computador" no cabeçalho do chamado com cliente. Um computador online abre a tela remota direto numa aba nova; vários mostram a lista (online/offline) para escolher. O acesso entra na linha do tempo do chamado com o nome de quem acessou (no MeshCentral aparece a conta de serviço do BMDesk).
+
 ## 0.0.123 — 2026-10-07
 
 - Chamados (técnico): o número da fila passa a ser a posição do chamado entre os abertos (na fila ou em atendimento), por ordem de chegada; quando um encerra, os de trás sobem. Encerrado/cancelado fica sem número.

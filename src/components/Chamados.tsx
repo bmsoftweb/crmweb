@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, MonitorSmartphone, Pause, Search, Send, StickyNote, UserRound, Headset } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, Monitor, MonitorSmartphone, Pause, Search, Send, StickyNote, UserRound, Headset } from 'lucide-react';
 import {
+  acessarComputador,
+  ComputadorBmdesk,
+  computadoresDoChamado,
   assumirChamado,
   atenderConversa,
   ConversaResumo,
@@ -614,6 +617,9 @@ const ChamadoAberto: React.FC<{
   const linhaDoTempo = useRef<HTMLDivElement>(null);
   /** Campo da resposta: o foco volta para ele depois de enviar (fica desabilitado enquanto envia) */
   const campoResposta = useRef<HTMLTextAreaElement>(null);
+  /** Acessar computador (BMDesk): buscando a lista; com mais de um computador, a lista para escolher */
+  const [buscandoPcs, setBuscandoPcs] = useState(false);
+  const [pcs, setPcs] = useState<ComputadorBmdesk[] | null>(null);
 
   const carregar = useCallback(() => {
     fetchChamado(id)
@@ -674,6 +680,43 @@ const ChamadoAberto: React.FC<{
     }
   };
 
+  /**
+   * Tela remota pelo BMDesk numa aba nova. A aba abre já no clique (depois da chamada o navegador
+   * bloquearia o pop-up) e recebe o endereço quando ele chega
+   */
+  const abrirComputador = async (pc: ComputadorBmdesk, janela = window.open('', '_blank')) => {
+    setPcs(null);
+    try {
+      const { url } = await acessarComputador(c.id, pc);
+      if (!janela) return setErro('O navegador bloqueou a nova aba. Libere pop-ups para este endereço.');
+      janela.opener = null;
+      janela.location.href = url;
+      carregar(); // o acesso entra na linha do tempo
+    } catch (e: any) {
+      janela?.close();
+      setErro(e.message);
+    }
+  };
+  /** Um computador só, online: abre direto. Mais de um: lista para escolher */
+  const acessarPc = async () => {
+    const janela = window.open('', '_blank');
+    setBuscandoPcs(true);
+    setErro(null);
+    try {
+      const lista = await computadoresDoChamado(c.id);
+      if (lista.length === 1 && lista[0].online) return void abrirComputador(lista[0], janela);
+      janela?.close();
+      if (!lista.length) {
+        setErro('Este cliente não tem computador no BMDesk. Peça a Tela Remota para ele instalar o BMSoft Suporte e vincule o computador no BMDesk (Vincular cliente).');
+      } else setPcs(lista);
+    } catch (e: any) {
+      janela?.close();
+      setErro(e.message);
+    } finally {
+      setBuscandoPcs(false);
+    }
+  };
+
   // Conectar: pede a tela remota no chat do site (o AnyDesk do cliente abre) e o link já sobe o AnyDesk do técnico
   const conectar = podeEscrever && c.canal === 'web' ? () => void acao(() => pedirTelaRemota(c.id), 'Tela remota pedida ao cliente; abrindo o seu AnyDesk.') : undefined;
 
@@ -722,6 +765,40 @@ const ChamadoAberto: React.FC<{
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {c.pessoa_id && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={acessarPc}
+                disabled={buscandoPcs}
+                title="Abre a tela do computador do cliente pelo BMDesk (computadores vinculados a ele)"
+                className={`${botao} bg-blue-600 hover:bg-blue-700 text-white`}
+              >
+                {buscandoPcs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Monitor className="w-3.5 h-3.5" />} Acessar computador
+              </button>
+              {pcs && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setPcs(null)} />
+                  <div className="absolute right-0 top-full mt-1 z-40 w-64 py-1 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-xl">
+                    {pcs.map((pc) => (
+                      <button
+                        key={pc.id}
+                        type="button"
+                        disabled={!pc.online}
+                        onClick={() => abrirComputador(pc)}
+                        title={pc.online ? pc.sistema : 'Computador desligado ou sem internet'}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${pc.online ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+                        <span className="truncate text-stone-800 dark:text-stone-100">{pc.nome}</span>
+                        <span className="ml-auto text-[10px] text-stone-400">{pc.online ? 'online' : 'offline'}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {idAnydesk && <Conectar id={idAnydesk} grande onClick={conectar} />}
           {c.historico_qtd > 0 && (
             <button

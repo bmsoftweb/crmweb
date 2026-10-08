@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import express, { Router, Request, Response } from 'express';
 import { pool } from './db.js';
+import { chamarBmdesk } from './bmdesk.js';
 import { fecharSecao, gravarMensagem } from './chamados.js';
 import { registrarLead } from './chatbot.js';
 import { donoDoTelefone, telefoneWhatsApp } from './whatsapp.js';
@@ -314,6 +315,25 @@ export function createSuporteRouter(): Router {
       [c.id, id],
     );
     res.json({ success: true });
+  }));
+
+  /**
+   * Instalador do BMSoft Suporte (agente do MeshCentral, link de 24 h gerado pelo BMDesk) no cartão
+   * "Acesso remoto". O técnico fica sabendo pelo evento no chamado, para vincular o computador no BMDesk
+   */
+  router.post('/api/publico/suporte/chamado/:token/agente', rota(async (req, res) => {
+    const c = await doToken(req.params.token);
+    if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento foi encerrado.');
+    const { url } = await chamarBmdesk('/api/integracao/convite').catch((e) => {
+      console.error(`Suporte (site): ${e.message}`);
+      throw erro(503, 'O BMSoft Suporte está indisponível agora. Use o AnyDesk, logo abaixo.');
+    });
+    await gravarMensagem({
+      chamado_id: c.id,
+      autor: 'sistema',
+      texto: 'Cliente abriu o instalador do BMSoft Suporte: depois de instalado, vincule o computador a ele no BMDesk (Vincular cliente).',
+    });
+    res.json({ url });
   }));
 
   /** Avaliação de 1 a 5 do atendimento encerrado (entra em Avaliações, como a do WhatsApp) */

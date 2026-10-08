@@ -970,6 +970,17 @@ export const transferirChamado = (id: number, destino: { usuario_id?: number; de
 export const pausarChamado = (id: number): Promise<{ success: boolean; aviso: string | null }> => enviar('POST', `/api/chamados/${id}/pausar`);
 export const cutucarCliente = (id: number) => enviar('POST', `/api/chamados/${id}/cutucar`);
 export const pedirTelaRemota = (id: number) => enviar('POST', `/api/chamados/${id}/tela-remota`);
+/** Computador do cliente no BMDesk (vinculado à pessoa do chamado) */
+export interface ComputadorBmdesk {
+  id: string;
+  nome: string;
+  online: boolean;
+  sistema: string;
+}
+export const computadoresDoChamado = (id: number): Promise<ComputadorBmdesk[]> => get(`/api/chamados/${id}/computadores`);
+/** Endereço da tela remota do computador (abre em outra aba) */
+export const acessarComputador = (id: number, pc: ComputadorBmdesk): Promise<{ url: string }> =>
+  enviar('POST', `/api/chamados/${id}/acessar-computador`, { computador: pc.id, nome: pc.nome });
 export const enviarMensagemChamado = (id: number, texto: string, interna: boolean): Promise<{ success: boolean; aviso: string | null }> =>
   enviar('POST', `/api/chamados/${id}/mensagens`, { texto, interna });
 

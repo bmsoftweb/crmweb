@@ -79,7 +79,29 @@ const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: bool
 }) => {
   const [id, setId] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [baixando, setBaixando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  /**
+   * BMSoft Suporte (BMDesk): a página do instalador abre numa aba nova. A aba abre já no clique
+   * (depois da chamada o navegador bloquearia o pop-up) e recebe o endereço quando ele chega
+   */
+  const baixarAgente = async () => {
+    const janela = window.open('', '_blank');
+    setBaixando(true);
+    setErro(null);
+    try {
+      const { url: link } = await api(`${url}/agente`, {});
+      if (janela) {
+        janela.opener = null;
+        janela.location.href = link;
+      } else window.location.href = link;
+    } catch (err: any) {
+      janela?.close();
+      setErro(err.message);
+    } finally {
+      setBaixando(false);
+    }
+  };
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
     setEnviando(true);
@@ -99,8 +121,17 @@ const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: bool
         <MonitorSmartphone className="w-4 h-4" /> Acesso remoto
       </div>
       <p className="text-xs text-stone-600 mt-1">
-        {tecnico} pediu para ver a sua tela e ajudar. Abra o AnyDesk e informe abaixo o número que aparece em "Seu endereço".
+        {tecnico} pediu para ver a sua tela e ajudar. Baixe o BMSoft Suporte, abra o arquivo e clique em "Instalar" ou "Conectar".
       </p>
+      <button
+        type="button"
+        onClick={baixarAgente}
+        disabled={baixando}
+        className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-60"
+      >
+        {baixando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Baixar BMSoft Suporte
+      </button>
+      <p className="text-xs text-stone-500 mt-2">Prefere o AnyDesk? Abra-o e informe abaixo o número que aparece em "Seu endereço".</p>
       <div className="flex flex-wrap gap-2 mt-2">
         <a href="anydesk://" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">
           <MonitorSmartphone className="w-3.5 h-3.5" /> Abrir AnyDesk

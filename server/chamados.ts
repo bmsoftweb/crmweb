@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from './db.js';
+import { chamarBmdesk } from './bmdesk.js';
 import { podeAcessar } from './permissoes.js';
 import { enviarWhatsApp, telefoneWhatsApp } from './whatsapp.js';
 import { LEMBRETE_PARA, TIPOS_ATIVIDADE } from './schema.js';
@@ -481,6 +482,28 @@ export function createChamadosRouter(): Router {
     if (c.canal !== 'web') throw erro(400, 'A tela remota abre no chat do site: este chamado não veio pelo site.');
     await gravarMensagem({ chamado_id: c.id, usuario_id: eu(res), autor: 'equipe', texto: TELA_REMOTA });
     res.json({ success: true });
+  }));
+
+  /** Computadores do cliente no BMDesk: os vinculados à pessoa do chamado (Vincular cliente no BMDesk) */
+  router.get('/chamados/:id/computadores', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    if (!c.pessoa_id) return res.json([]);
+    res.json(await chamarBmdesk(`/api/integracao/computadores?pessoa=${c.pessoa_id}`));
+  }));
+
+  /**
+   * Tela remota direto no computador do cliente, pela conta de serviço do BMDesk. No MeshCentral o
+   * acesso aparece como essa conta: quem acessou fica registrado aqui, como evento do chamado
+   */
+  router.post('/chamados/:id/acessar-computador', rota(async (req, res) => {
+    const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    if (!c.pessoa_id) throw erro(400, 'Chamado sem cliente: ligue o chamado a uma pessoa para acessar o computador dela.');
+    const quem = res.locals.usuario.nome;
+    const params = new URLSearchParams({ pessoa: String(c.pessoa_id), id: String(req.body?.computador || ''), modo: 'desktop', usuario: quem });
+    const { url } = await chamarBmdesk(`/api/integracao/acesso?${params}`);
+    const nome = String(req.body?.nome || '').trim().slice(0, 120);
+    await evento(c.id, eu(res), `${quem} acessou o computador ${nome || 'do cliente'} pelo BMDesk.`);
+    res.json({ url });
   }));
 
   /** Cutucar: chama a atenção do cliente no chat do site (som e tremida); no máximo um a cada 10 s */
