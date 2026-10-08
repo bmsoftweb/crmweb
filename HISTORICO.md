@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.126 — 2026-10-07
+
+- Chamados (técnico): a tela remota do "Acessar computador" abre numa aba dentro do atendimento (Atendimento | computador), em vez de uma aba do navegador. Alternar entre a conversa e a tela não derruba a conexão; o × fecha a tela (pede confirmação); "Abrir em nova aba" leva a tela para o navegador em tela cheia. Funciona em crm.bmsoft.com.br (o MeshCentral libera a exibição só para esse endereço; no localhost o navegador bloqueia e vale o "Abrir em nova aba").
+
 ## 0.0.125 — 2026-10-07
 
 - Chamados (técnico): "Acessar computador" também lista os computadores online ainda sem cliente no BMDesk (o que o cliente acabou de instalar pelo widget), com sistema e IP, e o botão "Vincular e acessar": liga o computador ao cliente do chamado e já abre a tela, sem ir ao BMDesk. Só computador sem cliente pode ser vinculado por aqui (trocar de cliente continua no BMDesk). O vínculo entra na linha do tempo do chamado.
