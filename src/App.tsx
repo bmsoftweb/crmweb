@@ -518,7 +518,8 @@ export default function App() {
     ? [activeResource.label, activeResource.description]
     : TITULOS[activeTab] || ['CRM Web', ''];
 
-  const podeCriar = activeTab === 'kanban' || activeTab === 'chamados_ativos' || Boolean(activeResource?.canCreate);
+  // Chamados Ativos tem o "Novo" ao lado da pesquisa, não no cabeçalho
+  const podeCriar = activeTab === 'kanban' || Boolean(activeResource?.canCreate);
 
   return (
     <div className="h-screen overflow-hidden bg-stone-100/70 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex font-sans antialiased selection:bg-blue-600 selection:text-white">
@@ -553,7 +554,7 @@ export default function App() {
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           onRefresh={() => setRefreshToken((t) => t + 1)}
           onCreate={podeCriar ? () => setCreateToken((t) => t + 1) : undefined}
-          createLabel={activeTab === 'kanban' ? 'Novo Negócio' : activeTab === 'chamados_ativos' ? 'Novo Chamado' : activeResource ? `Novo ${activeResource.labelSingular}` : undefined}
+          createLabel={activeTab === 'kanban' ? 'Novo Negócio' : activeResource ? `Novo ${activeResource.labelSingular}` : undefined}
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onAbrirVisitas={veVisitas ? () => navegar('site_visitas') : undefined}
@@ -597,7 +598,6 @@ export default function App() {
           <main className="flex-1 flex flex-col min-h-0 w-full">
             <ChamadosAtivos
               refreshToken={refreshToken}
-              createToken={createToken}
               abrir={chamadoAbrir}
               onMudou={atualizarFilaChamados}
               onConversar={(pessoaId) => pedirConversa({ pessoaId })}

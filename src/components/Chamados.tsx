@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, Monitor, MonitorSmartphone, Pause, Search, Send, StickyNote, UserRound, Headset } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Bell, CheckCircle2, Circle, ClipboardList, Hand, History, X, Inbox, Loader2, Lock, MessageCircle, Monitor, MonitorSmartphone, Pause, Plus, Search, Send, StickyNote, UserRound, Headset } from 'lucide-react';
 import {
   acessarComputador,
   ComputadorBmdesk,
@@ -401,8 +401,6 @@ const FILTROS: [FiltroChamados, string][] = [
 
 interface AtivosProps {
   refreshToken: number;
-  /** Botão "Novo Chamado" do cabeçalho */
-  createToken: number;
   /** Chamado a abrir (vindo da fila) */
   abrir: number | null;
   onMudou: () => void;
@@ -412,7 +410,7 @@ interface AtivosProps {
   onVoltarFila: () => void;
 }
 
-export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToken, abrir, onMudou, onConversar, onToast, onVoltarFila }) => {
+export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onMudou, onConversar, onToast, onVoltarFila }) => {
   const [filtro, setFiltro] = useState<FiltroChamados>('todos');
   const [busca, setBusca] = useState('');
   const [lista, setLista] = useState<ChamadoResumo[] | null>(null);
@@ -427,11 +425,6 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
   useEffect(() => {
     if (abrir) setAberto(abrir);
   }, [abrir]);
-  // O botão "Novo Chamado" do cabeçalho (não abre ao montar a tela)
-  const inicialCreate = useRef(createToken);
-  useEffect(() => {
-    if (createToken !== inicialCreate.current) setNovo(true);
-  }, [createToken]);
 
   const carregar = useCallback(() => {
     fetchChamados(filtro, busca.trim())
@@ -474,16 +467,27 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
       {/* Lista */}
       <div className="w-80 shrink-0 flex flex-col min-h-0 border-r border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
         <div className="p-3 border-b border-stone-200 dark:border-stone-800 flex flex-col gap-2">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              onFocus={(e) => e.target.select()}
-              placeholder="Nº, título ou cliente"
-              aria-label="Buscar chamado"
-              className={`${INPUT_CLASS} w-full pl-8`}
-            />
+          <div className="flex items-stretch gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                placeholder="Nº, título ou cliente"
+                aria-label="Buscar chamado"
+                className={`${INPUT_CLASS} w-full pl-8`}
+              />
+            </div>
+            {/* Mesma altura do campo de pesquisa (items-stretch) */}
+            <button
+              type="button"
+              onClick={() => setNovo(true)}
+              title="Abrir um chamado novo"
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Novo
+            </button>
           </div>
           <div className="flex flex-wrap gap-1">
             {FILTROS.map(([id, nome]) => (
@@ -570,7 +574,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-stone-400 gap-2">
             <Inbox className="w-10 h-10" />
-            <p className="text-xs">Escolha um chamado na lista, ou abra um novo pelo botão "Novo Chamado".</p>
+            <p className="text-xs">Escolha um chamado na lista, ou abra um novo pelo botão "Novo", ao lado da pesquisa.</p>
           </div>
         )}
       </div>

@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.127 — 2026-10-07
+
+- Chamados Ativos: o botão "Novo" (abrir chamado) saiu do cabeçalho e fica ao lado da pesquisa da lista, com a mesma altura do campo.
+
 ## 0.0.126 — 2026-10-07
 
 - Chamados (técnico): a tela remota do "Acessar computador" abre numa aba dentro do atendimento (Atendimento | computador), em vez de uma aba do navegador. Alternar entre a conversa e a tela não derruba a conexão; o × fecha a tela (pede confirmação); "Abrir em nova aba" leva a tela para o navegador em tela cheia. Funciona em crm.bmsoft.com.br (o MeshCentral libera a exibição só para esse endereço; no localhost o navegador bloqueia e vale o "Abrir em nova aba").
