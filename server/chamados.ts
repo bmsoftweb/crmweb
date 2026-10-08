@@ -548,7 +548,14 @@ export function createChamadosRouter(): Router {
     );
     if (r.length) throw erro(429, 'Aguarde uns segundos antes de cutucar de novo.');
     await gravarMensagem({ chamado_id: c.id, usuario_id: eu(res), autor: 'equipe', texto: CUTUCAR });
-    res.json({ success: true });
+    // Computador do cliente com o BMSoft Suporte: o agente maximiza e traz para frente a janela do chat (o widget
+    // pisca o título no cutucão e o BMDesk procura por ele). Sem BMDesk ou fora do ar, o cutucão fica só no chat
+    let computadores = 0;
+    if (c.pessoa_id && process.env.BMDESK_URL) {
+      const r = await chamarBmdesk('/api/integracao/trazer-chat', { pessoa: c.pessoa_id }).catch(() => null);
+      computadores = Number(r?.computadores) || 0;
+    }
+    res.json({ success: true, computadores });
   }));
 
   /** Resposta ao cliente (vai pelo WhatsApp da pessoa, se tiver) ou nota interna (só a equipe vê) */

@@ -662,8 +662,16 @@ const ChamadoAberto: React.FC<{
     <>
       <button
         type="button"
-        onClick={() => acao(() => cutucarCliente(c.id), 'Cliente cutucado: tocou um som no chat dele.')}
-        title="Toca um som e faz o chat do cliente tremer, para chamar a atenção dele"
+        onClick={() =>
+          acao(
+            () => cutucarCliente(c.id),
+            (r) =>
+              r.computadores
+                ? 'Cliente cutucado: tocou um som no chat e o BMSoft Suporte vai trazer a janela do chat para frente.'
+                : 'Cliente cutucado: tocou um som no chat dele.',
+          )
+        }
+        title="Toca um som e faz o chat do cliente tremer; com o BMSoft Suporte instalado, a janela do chat também é maximizada e vem para frente"
         className={`${botao} border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40`}
       >
         <Bell className="w-3.5 h-3.5" /> Cutucar
@@ -679,11 +687,11 @@ const ChamadoAberto: React.FC<{
     </>
   );
 
-  const acao = async (fn: () => Promise<any>, ok: string) => {
+  const acao = async <T,>(fn: () => Promise<T>, ok: string | ((r: T) => string)) => {
     setErro(null);
     try {
-      await fn();
-      onToast(ok);
+      const r = await fn();
+      onToast(typeof ok === 'function' ? ok(r) : ok);
       carregar();
       onMudou();
     } catch (e: any) {

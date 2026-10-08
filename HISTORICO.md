@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.131 — 2026-10-08
+
+- Chamados (técnico): o "Cutucar" também traz o chat para frente no computador do cliente com o BMSoft Suporte instalado (Windows, vinculado ao cliente do chamado e online): o BMDesk manda o agente procurar a janela do navegador com o título que o chat pisca no cutucão, maximizar e pôr na frente. O aviso do técnico diz quando isso foi pedido. Sem BMDesk configurado ou fora do ar, o cutucão continua só no chat (som, tremida, título piscando e notificação do Windows).
+
 ## 0.0.130 — 2026-10-08
 
 - Chamados (técnico): a tela remota do "Acessar computador" volta a abrir numa aba nova do navegador (no lugar da aba dentro do atendimento), agora com o cliente e o computador no título da aba ("Cliente — Recepção"). A aba é a página /tela-remota do CRM, com a tela ocupando tudo; o endereço de acesso vai pela sessão da aba (não aparece na barra) e o F5 mantém a tela.

@@ -968,7 +968,8 @@ export const transferirChamado = (id: number, destino: { usuario_id?: number; de
 /** Chama a atenção do cliente no chat do site (som e tremida) */
 /** Pausa o atendimento: volta para a fila, sem atendente */
 export const pausarChamado = (id: number): Promise<{ success: boolean; aviso: string | null }> => enviar('POST', `/api/chamados/${id}/pausar`);
-export const cutucarCliente = (id: number) => enviar('POST', `/api/chamados/${id}/cutucar`);
+/** computadores: quantos computadores do cliente (com o BMSoft Suporte) receberam o "trazer o chat para frente" */
+export const cutucarCliente = (id: number): Promise<{ success: boolean; computadores: number }> => enviar('POST', `/api/chamados/${id}/cutucar`);
 export const pedirTelaRemota = (id: number) => enviar('POST', `/api/chamados/${id}/tela-remota`);
 /** Computador no BMDesk (MeshCentral) */
 export interface ComputadorBmdesk {
