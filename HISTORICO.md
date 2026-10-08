@@ -2,6 +2,10 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.133 — 2026-10-08
+
+- Chamados (técnico): indicador do BMSoft Suporte no cabeçalho do chamado, ao lado do "Acessar computador": verde "online" (com "1 de 3" quando há vários), cinza "instalado, offline" ou laranja "não instalado". Confere os computadores vinculados ao cliente do chamado no BMDesk e se o agente está conectado; verifica ao abrir o chamado e de novo no clique (ex.: depois de o cliente instalar e o técnico vincular). Não aparece em chamado sem cliente no cadastro.
+
 ## 0.0.132 — 2026-10-08
 
 - Suporte pelo site: a posição na fila no widget passa a ser a mesma da tela do técnico (entre os chamados abertos, por ordem de chegada); antes contava só os que esperavam sem atendente.

@@ -638,6 +638,21 @@ const ChamadoAberto: React.FC<{
       .catch((e) => setErro(e.message));
   }, [id]);
   useRecarga(carregar, [carregar, refreshToken]);
+
+  /** BMSoft Suporte nos computadores do cliente (vinculados no BMDesk): quantos e quantos online; null = verificando */
+  const [suporte, setSuporte] = useState<{ total: number; online: number } | 'erro' | null>(null);
+  const resumoSuporte = (l: ComputadorBmdesk[]) => setSuporte({ total: l.length, online: l.filter((p) => p.online).length });
+  const verificarSuporte = useCallback(() => {
+    setSuporte(null);
+    computadoresDoChamado(id)
+      .then((r) => resumoSuporte(r.doCliente))
+      .catch(() => setSuporte('erro'));
+  }, [id]);
+  // Só com cliente no cadastro: computador sem cliente não dá para dizer de quem é
+  const pessoaDoChamado = c?.pessoa_id;
+  useEffect(() => {
+    if (pessoaDoChamado) verificarSuporte();
+  }, [pessoaDoChamado, verificarSuporte]);
   useGrudarNoFim(linhaDoTempo, c ? id : null);
 
   // Mensagem nova: rola para o fim
@@ -742,6 +757,7 @@ const ChamadoAberto: React.FC<{
     setEditandoPc(null);
     try {
       const r = await computadoresDoChamado(c.id);
+      if (c.pessoa_id) resumoSuporte(r.doCliente);
       if (r.doCliente.length === 1 && r.doCliente[0].online && !r.semCliente.length) return void (await abrirComputador(r.doCliente[0], janela));
       janela?.close();
       if (!r.doCliente.length && !r.semCliente.length) {
@@ -868,6 +884,35 @@ const ChamadoAberto: React.FC<{
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {c.pessoa_id && (
+            <button
+              type="button"
+              onClick={verificarSuporte}
+              title="BMSoft Suporte (acesso remoto) nos computadores vinculados a este cliente no BMDesk. Não instalado = nenhum computador vinculado (se ele acabou de instalar, vincule pelo Acessar computador). Clique para verificar de novo"
+              className={`${botao} border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800`}
+            >
+              {suporte === null ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> BMSoft Suporte
+                </>
+              ) : (
+                <>
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      suporte === 'erro' ? 'bg-stone-300' : suporte.online ? 'bg-emerald-500' : suporte.total ? 'bg-stone-400' : 'bg-amber-500'
+                    }`}
+                  />
+                  {suporte === 'erro'
+                    ? 'BMSoft Suporte: sem resposta'
+                    : suporte.online
+                    ? `BMSoft Suporte online${suporte.total > 1 ? ` (${suporte.online} de ${suporte.total})` : ''}`
+                    : suporte.total
+                    ? 'BMSoft Suporte instalado, offline'
+                    : 'BMSoft Suporte não instalado'}
+                </>
+              )}
+            </button>
+          )}
           {(
             <div className="relative">
               <button
