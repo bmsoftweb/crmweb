@@ -551,6 +551,8 @@ class Execucao {
   private enviadas = 0;
   /** A jornada passou a conversa para a equipe (Departamento, IA sem ligação em "humano"): não é o fim do atendimento */
   private paraHumano = false;
+  /** Registrou lead/prospecção: um consultor ainda vai falar com o cliente, o fim da automação não pede avaliação */
+  private repassado = false;
 
   constructor(
     private ctx: Contexto,
@@ -708,7 +710,7 @@ class Execucao {
         if (!this.paraHumano) {
           await marcarEncerramento(this.ctx.empresaId, this.ctx.telefone, null, null, 'Atendimento encerrado pelo cliente (fim da automação)');
           // Pesquisa de satisfação do atendimento do bot/jornada (se ligada)
-          await enviarPesquisa(this.ctx.empresaId, this.ctx.telefone, 'jornada', null, this.ctx.departamento?.id ?? null);
+          if (!this.repassado) await enviarPesquisa(this.ctx.empresaId, this.ctx.telefone, 'jornada', null, this.ctx.departamento?.id ?? null);
         }
         return;
       }
@@ -765,6 +767,7 @@ class Execucao {
             interesse: campo(d.interesse, '{{interesse}}') || 'Contato pelo WhatsApp',
           });
           if (!r?.ok) await this.falha(no, `registrar lead: ${r?.erro}`);
+          else this.repassado = true;
           no = seguir();
           break;
         }
@@ -782,6 +785,7 @@ class Execucao {
             { funil_id: d.funil_id, etapa_id: d.etapa_id, assunto: 'Prospecção pelo WhatsApp', observacao: campo(d.observacao, '') },
           );
           if (!r?.ok) await this.falha(no, `registrar prospecção: ${r?.erro}`);
+          else this.repassado = true;
           no = seguir();
           break;
         }

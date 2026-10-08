@@ -117,6 +117,12 @@ function atendimentosFiltrados(empresaId: number, pesquisaId: number, f: FiltroP
     onde.push(`NOT EXISTS (SELECT 1 FROM pesquisas_satisfacao_itens i JOIN pesquisas_satisfacao ps ON ps.id = i.pesquisa_id
                             WHERE ps.empresa_id = ? AND i.pessoa_id = u.pessoa_id AND i.enviado_em >= NOW() - INTERVAL ? DAY)`);
     params.push(empresaId, f.excluir_dias);
+    // A pesquisa pós-atendimento do WhatsApp também conta: quem já foi perguntado lá não recebe outra aqui (filtrando
+    // por nota, a ideia é justamente voltar a quem avaliou)
+    if (!f.notas?.length) {
+      onde.push('NOT EXISTS (SELECT 1 FROM avaliacoes av WHERE av.empresa_id = ? AND av.pessoa_id = u.pessoa_id AND av.pedida_em >= NOW() - INTERVAL ? DAY)');
+      params.push(empresaId, f.excluir_dias);
+    }
   }
   return {
     sql: `SELECT u.* FROM (${base}) u JOIN pessoas p ON p.id = u.pessoa_id WHERE ${onde.join(' AND ')}`,
@@ -175,7 +181,9 @@ async function lerItem(itemId: number) {
 function roteiro(it: any): string {
   return `Pesquisa de satisfação sobre um atendimento: ${it.assunto ?? 'atendimento'} em ${it.data_br ?? '-'}${it.atendente_nome ? `, atendido por ${it.atendente_nome}` : ''}.
 Objetivo: ${String(it.objetivo ?? '').trim() || 'saber como o cliente avalia o atendimento e se ficou alguma pendência.'}
-Peça uma nota de 1 a 5 para o atendimento (1 = péssimo, 5 = ótimo) e um comentário. Se o cliente contar que ficou algo pendente, que falta alguma coisa ou que a empresa ficou devendo algo, entenda o que é (sem prometer prazo) e diga que a equipe vai retornar. Agradeça e encerre.`;
+Já no primeiro contato, peça tudo de uma vez: a nota de 1 a 5 para o atendimento (1 = péssimo, 5 = ótimo) e um comentário. Não faça uma pergunta por mensagem: os pontos do objetivo são sugestões do que o cliente pode comentar, não perguntas separadas.
+Com a resposta, agradeça e encerre; não peça mais nada. Só continue se o cliente contar que ficou algo pendente, que falta alguma coisa ou que a empresa ficou devendo algo: entenda o que é (sem prometer prazo), diga que a equipe vai retornar e encerre.
+Se o cliente disser que já avaliou, que não quer ou não pode responder, agradeça e encerre na hora, sem insistir.`;
 }
 
 /** Contata um item selecionado, pelo canal da pesquisa */

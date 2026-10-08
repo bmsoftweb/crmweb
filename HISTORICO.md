@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.130 — 2026-10-08
+
+- Chamados (técnico): a tela remota do "Acessar computador" volta a abrir numa aba nova do navegador (no lugar da aba dentro do atendimento), agora com o cliente e o computador no título da aba ("Cliente — Recepção"). A aba é a página /tela-remota do CRM, com a tela ocupando tudo; o endereço de acesso vai pela sessão da aba (não aparece na barra) e o F5 mantém a tela.
+- Em crm.bmsoft.com.br a tela vem embutida com o título do cliente; em outros endereços (localhost, *.vercel.app) a aba abre o MeshCentral direto — sem o erro "remoto.bmsoft.com.br se recusou a se conectar" da aba embutida.
+- Pesquisa de satisfação, menos mensagens para o cliente: no máximo uma pesquisa pós-atendimento a cada 7 dias por cliente (contando as da tela Pesquisas de satisfação); só sai se alguém da equipe escreveu no atendimento (assumir e encerrar não conta), e a pergunta usa o nome do último que escreveu; o fim da automação que registrou lead/prospecção não pede avaliação (um consultor ainda vai falar com o cliente).
+- Pesquisas de satisfação (tela): o "excluir quem recebeu pesquisa nos últimos X dias" também conta a pesquisa pós-atendimento do WhatsApp (menos quando a pesquisa filtra por nota). A conversa do Bot pede nota e comentário numa mensagem só, encerra com a resposta, aceita "já avaliei"/"não quero" sem insistir e não manda a insistência de 24 h (encerra como sem resposta).
+
 ## 0.0.129 — 2026-10-08
 
 - Chamados (técnico): a lista do "Acessar computador" mostra o apelido do computador em destaque e, embaixo, o nome, o usuário logado no Windows e o IP — para achar o computador certo quando o cliente tem vários. O lápis dá/edita o apelido ali mesmo (Enter grava, Esc cancela, vazio apaga). O apelido fica no BMDesk (descrição do computador no MeshCentral) e só pode ser dado nos computadores do cliente do chamado.

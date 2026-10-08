@@ -33,6 +33,7 @@ import { OpcaoRef } from '../types';
 import { formatDateBR, formatDateTimeBR, hojeIso } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { ConfirmDialog } from './ConfirmDialog';
+import { CHAVE_TELA_REMOTA } from './TelaRemota';
 import { AvisoErro } from './AvisoErro';
 import { Toggle } from './Toggle';
 import { BotaoTemplates } from './BotaoTemplates';
@@ -630,18 +631,6 @@ const ChamadoAberto: React.FC<{
   const [editandoPc, setEditandoPc] = useState<string | null>(null);
   const [textoApelido, setTextoApelido] = useState('');
   const [gravandoApelido, setGravandoApelido] = useState(false);
-  /**
-   * Tela remota numa aba dentro do atendimento (iframe do MeshCentral, liberado para crm.bmsoft.com.br
-   * no config dele). naTela = aba visível; voltando para o atendimento o iframe fica carregado (a conexão não cai)
-   */
-  const [tela, setTela] = useState<{ url: string; nome: string } | null>(null);
-  const [naTela, setNaTela] = useState(false);
-  const [fechandoTela, setFechandoTela] = useState(false);
-  // Outro chamado aberto neste lugar: a tela era do anterior
-  useEffect(() => {
-    setTela(null);
-    setNaTela(false);
-  }, [id]);
 
   const carregar = useCallback(() => {
     fetchChamado(id)
@@ -702,25 +691,34 @@ const ChamadoAberto: React.FC<{
     }
   };
 
-  /** Tela remota pelo BMDesk na aba "computador" dentro do atendimento */
-  const abrirComputador = async (pc: ComputadorBmdesk) => {
+  /**
+   * Tela remota pelo BMDesk numa aba nova do navegador (página /tela-remota, com o cliente no título).
+   * A aba abre já no clique (depois da chamada o navegador bloquearia o pop-up); o endereço vai pelo
+   * sessionStorage dela, não pela barra de endereço
+   */
+  const abrirComputador = async (pc: ComputadorBmdesk, janela = window.open('', '_blank')) => {
     setPcs(null);
     try {
       const { url } = await acessarComputador(c.id, pc);
-      setTela({ url, nome: pc.nome });
-      setNaTela(true);
+      if (!janela) return setErro('O navegador bloqueou a nova aba. Libere pop-ups para este endereço.');
+      const titulo = `${c.pessoa_nome || c.contato_nome || 'Cliente'} — ${pc.apelido || pc.nome}`;
+      janela.sessionStorage.setItem(CHAVE_TELA_REMOTA, JSON.stringify({ url, titulo }));
+      janela.location.href = '/tela-remota';
       carregar(); // o acesso entra na linha do tempo
     } catch (e: any) {
+      janela?.close();
       setErro(e.message);
     }
   };
   /** Computador recém-instalado (sem cliente): vincula ao cliente do chamado e já abre a tela */
   const vincularEAbrir = async (pc: ComputadorBmdesk) => {
+    const janela = window.open('', '_blank');
     setPcs(null);
     try {
       await vincularComputador(c.id, pc);
-      await abrirComputador(pc);
+      await abrirComputador(pc, janela);
     } catch (e: any) {
+      janela?.close();
       setErro(e.message);
       carregar();
     }
@@ -730,14 +728,14 @@ const ChamadoAberto: React.FC<{
    * do cliente e os sem cliente (o que ele acabou de instalar pelo widget), para vincular ali mesmo
    */
   const acessarPc = async () => {
-    // Tela já aberta neste chamado: só volta para ela
-    if (tela) return setNaTela(true);
+    const janela = window.open('', '_blank');
     setBuscandoPcs(true);
     setErro(null);
     setEditandoPc(null);
     try {
       const r = await computadoresDoChamado(c.id);
-      if (r.doCliente.length === 1 && r.doCliente[0].online && !r.semCliente.length) return void (await abrirComputador(r.doCliente[0]));
+      if (r.doCliente.length === 1 && r.doCliente[0].online && !r.semCliente.length) return void (await abrirComputador(r.doCliente[0], janela));
+      janela?.close();
       if (!r.doCliente.length && !r.semCliente.length) {
         setErro(
           c.pessoa_id
@@ -746,6 +744,7 @@ const ChamadoAberto: React.FC<{
         );
       } else setPcs(r); // chamado sem cliente: sempre a lista, para o técnico conferir o nome
     } catch (e: any) {
+      janela?.close();
       setErro(e.message);
     } finally {
       setBuscandoPcs(false);
@@ -812,10 +811,6 @@ const ChamadoAberto: React.FC<{
       <Pencil className="w-3.5 h-3.5" />
     </button>
   );
-  const abaClasse = (ativa: boolean) =>
-    `inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 cursor-pointer ${
-      ativa ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-    }`;
 
   // Conectar: pede a tela remota no chat do site (o AnyDesk do cliente abre) e o link já sobe o AnyDesk do técnico
   const conectar = podeEscrever && c.canal === 'web' ? () => void acao(() => pedirTelaRemota(c.id), 'Tela remota pedida ao cliente; abrindo o seu AnyDesk.') : undefined;
@@ -1007,47 +1002,6 @@ const ChamadoAberto: React.FC<{
         </div>
       )}
 
-      {/* Abas: o atendimento e a tela remota do computador (quando aberta) */}
-      {tela && (
-        <div className="px-3 flex items-end gap-1 border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
-          <button type="button" onClick={() => setNaTela(false)} className={abaClasse(!naTela)}>
-            <MessageCircle className="w-3.5 h-3.5" /> Atendimento
-          </button>
-          <span className={abaClasse(naTela)}>
-            <button type="button" onClick={() => setNaTela(true)} className="inline-flex items-center gap-1.5 cursor-pointer">
-              <Monitor className="w-3.5 h-3.5" /> {tela.nome}
-            </button>
-            <button type="button" onClick={() => setFechandoTela(true)} title="Fechar a tela remota" className="ml-1 p-0.5 rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer">
-              <X className="w-3 h-3" />
-            </button>
-          </span>
-          <a
-            href={tela.url}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => {
-              // Na aba nova continua a mesma tela: a de dentro fecha para não ficarem duas conexões
-              setTela(null);
-              setNaTela(false);
-            }}
-            title="Abre a tela remota numa aba do navegador (tela cheia)"
-            className="ml-auto mb-1.5 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-stone-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-          >
-            Abrir em nova aba
-          </a>
-        </div>
-      )}
-      {tela && (
-        <iframe
-          src={tela.url}
-          title={`Tela remota de ${tela.nome}`}
-          allow="clipboard-read; clipboard-write; fullscreen"
-          className={naTela ? 'flex-1 min-h-0 w-full border-0 bg-black' : 'hidden'}
-        />
-      )}
-
-      {/* Conversa: escondida (não desmontada) enquanto a aba da tela está aberta */}
-      <div className={naTela ? 'hidden' : 'contents'}>
       {/* Tarefas do chamado: clique no círculo conclui (ou reabre) */}
       {c.tarefas.length > 0 && (
         <div className="px-5 py-2 border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 max-h-40 overflow-y-auto">
@@ -1192,22 +1146,6 @@ const ChamadoAberto: React.FC<{
               ? 'Assuma o chamado para responder.'
               : `Com ${c.atendente_nome}: só consulta.`}
         </div>
-      )}
-      </div>
-
-      {fechandoTela && tela && (
-        <ConfirmDialog
-          titulo="Fechar a tela remota?"
-          mensagem={`A conexão com ${tela.nome} é encerrada. Para voltar, use Acessar computador de novo.`}
-          confirmar="Fechar"
-          tom="normal"
-          onConfirmar={() => {
-            setTela(null);
-            setNaTela(false);
-            setFechandoTela(false);
-          }}
-          onCancelar={() => setFechandoTela(false)}
-        />
       )}
 
       {dialogo === 'encerrar' && (

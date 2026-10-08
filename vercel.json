@@ -12,6 +12,10 @@
     {
       "source": "/suporte",
       "destination": "/index.html"
+    },
+    {
+      "source": "/tela-remota",
+      "destination": "/index.html"
     }
   ],
   "functions": {

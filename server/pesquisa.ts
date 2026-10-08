@@ -67,9 +67,13 @@ async function mandar(empresaId: number, telefone: string, origem: string, texto
   if (id) await enviarReservada(empresaId, id, origem, telefone, texto, undefined, undefined, await contaDaConversa(empresaId, telefone));
 }
 
+/** Intervalo mínimo entre duas pesquisas para o mesmo cliente (pós-atendimento e as da tela Pesquisas de satisfação) */
+const DIAS_ENTRE_PESQUISAS = 7;
+
 /**
- * Envia a pesquisa (se ligada). Pesquisa anterior do mesmo número ainda sem resposta é descartada.
- * atendente null = atendimento do bot/jornada (a pergunta usa o nome do bot).
+ * Envia a pesquisa (se ligada), no máximo uma a cada DIAS_ENTRE_PESQUISAS por cliente. Pesquisa anterior do mesmo
+ * número ainda sem resposta é descartada. atendente null = atendimento do bot/jornada (a pergunta usa o nome do bot);
+ * do atendente, só sai se alguém da equipe escreveu, e a pergunta usa o último que escreveu.
  */
 export async function enviarPesquisa(
   empresaId: string | number,
@@ -81,11 +85,37 @@ export async function enviarPesquisa(
   const cfg = await lerPesquisa(empresaId);
   if (!cfg.ativo) return;
   const emp = Number(empresaId);
+  if (origem === 'atendente') {
+    // Quem atendeu é o último da equipe que escreveu no atendimento (entre o encerramento anterior e este); só
+    // assumir e encerrar, sem escrever, não é atendimento para avaliar
+    const [e] = await pool.query<any[]>(
+      "SELECT id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ? AND tipo = 'encerramento' ORDER BY id DESC LIMIT 2",
+      [emp, telefone],
+    );
+    const [u] = await pool.query<any[]>(
+      `SELECT u.id, u.nome FROM whatsapp_mensagens m JOIN usuarios u ON u.id = m.usuario_id
+        WHERE m.empresa_id = ? AND m.telefone = ? AND m.id > ? AND m.direcao = 'enviada' AND m.tipo NOT IN ('evento', 'encerramento')
+        ORDER BY m.id DESC LIMIT 1`,
+      [emp, telefone, e[1]?.id ?? 0],
+    );
+    if (!u[0]) return;
+    atendente = { id: u[0].id, nome: u[0].nome };
+  }
+  const [p] = await pool.query<any[]>(`SELECT ${PESSOA_RECENTE()} AS pessoa_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`, [emp, telefone]);
+  // Uma pesquisa a cada DIAS_ENTRE_PESQUISAS por cliente, contando as da tela Pesquisas de satisfação
+  const [rec] = await pool.query<any[]>(
+    `SELECT 1 FROM avaliacoes WHERE empresa_id = ? AND telefone = ? AND pedida_em >= NOW() - INTERVAL ? DAY
+     UNION ALL
+     SELECT 1 FROM pesquisas_satisfacao_itens i JOIN pesquisas_satisfacao ps ON ps.id = i.pesquisa_id
+      WHERE ps.empresa_id = ? AND i.pessoa_id = ? AND i.enviado_em >= NOW() - INTERVAL ? DAY
+     LIMIT 1`,
+    [emp, telefone, DIAS_ENTRE_PESQUISAS, emp, p[0]?.pessoa_id ?? 0, DIAS_ENTRE_PESQUISAS],
+  );
+  if (rec.length) return;
   await pool.query(
     "UPDATE avaliacoes SET situacao = 'expirada' WHERE empresa_id = ? AND telefone = ? AND situacao IN ('aguardando_nota', 'aguardando_comentario')",
     [emp, telefone],
   );
-  const [p] = await pool.query<any[]>(`SELECT ${PESSOA_RECENTE()} AS pessoa_id FROM whatsapp_mensagens WHERE empresa_id = ? AND telefone = ?`, [emp, telefone]);
   const [a] = await pool.query<any>(
     `INSERT INTO avaliacoes (empresa_id, telefone, pessoa_id, atendente_id, departamento_id, origem, situacao, pedida_em)
      VALUES (?, ?, ?, ?, ?, ?, 'aguardando_nota', NOW())`,

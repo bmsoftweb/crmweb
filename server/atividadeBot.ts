@@ -332,7 +332,10 @@ export async function responderAtividade(nova: MensagemNova): Promise<boolean> {
   return true;
 }
 
-/** Sem resposta em 24 h: insiste uma vez; de novo sem resposta, encerra e avisa o responsável (só das 8h às 20h) */
+/**
+ * Sem resposta em 24 h: insiste uma vez; de novo sem resposta, encerra e avisa o responsável (só das 8h às 20h).
+ * Pesquisa de satisfação não insiste nem avisa: encerra como sem resposta
+ */
 async function cobrarSemResposta() {
   const [cs] = await pool.query<any[]>(
     `SELECT c.* FROM atividade_conversas c
@@ -344,6 +347,11 @@ async function cobrarSemResposta() {
   for (const conv of cs) {
     const a = await lerAtividade(conv.atividade_id);
     try {
+      if (await (await import('./pesquisasSatisfacao.js')).itemDaAtividade(a.id)) {
+        await encerrar(conv, 'sem_resposta', `Não respondeu (${HORAS_SEM_RESPOSTA} h; pesquisa de satisfação não insiste).`);
+        await verificarFim(a.id);
+        continue;
+      }
       if (conv.insistiu_em) {
         await encerrar(conv, 'sem_resposta', `Não respondeu (${HORAS_SEM_RESPOSTA * 2} h, com uma insistência).`);
         await avisarResponsavel(a, `Bot da atividade "${a.assunto}": ${conv.nome ?? 'a pessoa'} não respondeu. A atividade continua pendente.`);
