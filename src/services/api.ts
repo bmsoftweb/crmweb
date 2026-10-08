@@ -823,8 +823,8 @@ export interface ChamadoResumo {
   ultima: string | null;
   /** Só na fila */
   posicao?: number;
-  /** Senha do dia: ordem de chegada na fila (1º, 2º...), recomeça a cada dia */
-  nr_fila: number;
+  /** Posição entre os chamados abertos (na fila ou em atendimento), por ordem de chegada; encerrado: null */
+  nr_fila: number | null;
 }
 
 export interface ChamadoMensagem {

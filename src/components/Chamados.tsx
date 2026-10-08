@@ -245,7 +245,7 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
         <table className="w-full text-xs border-separate border-spacing-0">
           <thead className="sticky top-0 z-10">
             <tr>
-              <th className={`${th} text-center`} title="Senha do dia: ordem de chegada na fila">Senha</th>
+              <th className={`${th} text-center`} title="Posição na fila: ordem de chegada entre os chamados abertos (na fila ou em atendimento)">Senha</th>
               <th className={`${th} text-left`}>Origem</th>
               <th className={`${th} text-right`}>Nº</th>
               <th className={`${th} text-left w-full`}>Chamado</th>
@@ -518,7 +518,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, createToke
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400" title="Senha do dia: ordem de chegada na fila">{c.nr_fila}º</span>
+                  {c.nr_fila != null && <span className="text-sm font-bold text-blue-600 dark:text-blue-400" title="Posição na fila: ordem de chegada entre os chamados abertos">{c.nr_fila}º</span>}
                   <span className="text-[11px] font-mono text-stone-400">nº {c.numero}</span>
                   <Status s={c.status} />
                   <span className="ml-auto">

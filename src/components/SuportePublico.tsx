@@ -431,17 +431,25 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
             ? 'Atendimento cancelado.'
             : encerrado
             ? 'Atendimento encerrado.'
-            : c.posicao
-              ? `Você é o ${c.posicao}º da fila. Um atendente já vai falar com você.`
-              : c.status === 'pausado'
-                ? `Atendimento em pausa${c.atendente ? ` com ${c.atendente}` : ''}. Já voltamos a falar com você.`
-              : c.atendente
-                ? `Em atendimento com ${c.atendente}.`
-                : 'Aguardando um atendente.'}
+            : c.status === 'pausado'
+              ? `Atendimento em pausa${c.atendente ? ` com ${c.atendente}` : ''}. Já voltamos a falar com você.`
+            : c.atendente
+              ? `Em atendimento com ${c.atendente}.`
+              : 'Aguardando um atendente. Ele já vai falar com você.'}
         </div>
       </div>
 
       <div className={`flex-1 overflow-y-auto p-4 flex flex-col gap-2 ${tremer ? 'animate-tremer' : ''}`}>
+        {/* Lugar na fila em destaque, enquanto ninguém assumiu */}
+        {!encerrado && !c.atendente && c.posicao ? (
+          <div className="sticky top-0 z-10 self-center flex items-center gap-3 rounded-full bg-white border border-blue-200 shadow-sm pl-1.5 pr-4 py-1.5">
+            <span className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">{c.posicao}º</span>
+            <span className="text-xs text-stone-600 leading-tight">
+              <strong className="block text-sm text-stone-800">Seu lugar na fila</strong>
+              Um atendente já vai falar com você
+            </span>
+          </div>
+        ) : null}
         {c.mensagens.map((m, i) =>
           m.texto === CUTUCAR ? (
             <div key={m.id} className="self-center text-xs font-semibold text-amber-800 bg-amber-100 rounded-full px-3 py-1 inline-flex items-center gap-1.5">

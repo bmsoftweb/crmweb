@@ -60,8 +60,10 @@ export function createSuporteRouter(): Router {
     const [r] = await pool.query<any[]>(
       `SELECT c.id, c.empresa_id, c.numero, c.titulo, c.status, c.pessoa_id, c.atendente_id, c.departamento_id, c.criado_em, c.contato_telefone,
               u.nome AS atendente_nome,
-              (SELECT COUNT(*) FROM chamados f WHERE f.empresa_id = c.empresa_id AND f.status = 'aguardando' AND f.atendente_id IS NULL
-                  AND (f.criado_em < c.criado_em OR (f.criado_em = c.criado_em AND f.id < c.id))) + 1 AS posicao,
+              -- Posição entre os que esperam um técnico (na fila, sem atendente): assumido sai e os de trás sobem
+              (CASE WHEN c.status IN ('aguardando','pausado') AND c.atendente_id IS NULL THEN
+                (SELECT COUNT(*) FROM chamados f WHERE f.empresa_id = c.empresa_id AND f.status IN ('aguardando','pausado') AND f.atendente_id IS NULL
+                    AND (f.criado_em < c.criado_em OR (f.criado_em = c.criado_em AND f.id < c.id))) + 1 END) AS posicao,
               EXISTS (SELECT 1 FROM chamado_mensagens m WHERE m.chamado_id = c.id AND m.autor = 'sistema' AND m.texto LIKE 'Cliente avaliou%') AS avaliado
          FROM chamados c LEFT JOIN usuarios u ON u.id = c.atendente_id WHERE c.id = ?`,
       [id],
@@ -256,13 +258,13 @@ export function createSuporteRouter(): Router {
         WHERE m.chamado_id = ? AND m.autor IN ('cliente','equipe') AND m.interna = 0 ORDER BY m.id`,
       [c.id],
     );
-    const aguardando = c.status === 'aguardando' && !c.atendente_id;
     res.json({
       numero: c.numero,
       titulo: c.titulo,
       status: c.status,
       atendente: c.atendente_nome ?? null,
-      posicao: aguardando ? Number(c.posicao) : null,
+      // Só enquanto espera um técnico; assumido ou encerrado: null
+      posicao: c.posicao == null ? null : Number(c.posicao),
       avaliado: Boolean(Number(c.avaliado)),
       mensagens: msgs,
     });

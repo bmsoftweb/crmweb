@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.123 — 2026-10-07
+
+- Chamados (técnico): o número da fila passa a ser a posição do chamado entre os abertos (na fila ou em atendimento), por ordem de chegada; quando um encerra, os de trás sobem. Encerrado/cancelado fica sem número.
+- Widget de suporte: o lugar do cliente na fila conta só os que esperam um técnico (assumido sai e os de trás sobem) e aparece em destaque no chat, num círculo, até o chamado ser assumido.
+
 ## 0.0.122 — 2026-10-07
 
 - WhatsApp: o cabeçalho da conversa mostra "Encerrado" (como a lista) quando o atendimento foi encerrado e o cliente ainda não escreveu de novo, em vez de "<bot> atendendo". Nesse estado o botão "Devolver ao bot" não aparece.

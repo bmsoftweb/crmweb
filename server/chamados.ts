@@ -52,13 +52,12 @@ const rota =
   };
 
 /**
- * Senha do dia: 1, 2, 3... na ordem de chegada, recomeça a cada dia. Chamado aberto pela equipe já
- * atendendo ("Atender agora": assumido_em = criado_em) não passa pela fila e não pega senha.
+ * Número na fila: a posição do chamado entre os abertos (na fila ou em atendimento), por ordem de chegada.
+ * Quando um encerra, os de trás sobem. Encerrado/cancelado não tem número (null)
  */
-const NR_FILA = `(SELECT COUNT(*) + 1 FROM chamados o
-    WHERE o.empresa_id = c.empresa_id AND DATE(o.criado_em) = DATE(c.criado_em)
-      AND (o.criado_em < c.criado_em OR (o.criado_em = c.criado_em AND o.id < c.id))
-      AND NOT (o.assumido_em <=> o.criado_em))`;
+const NR_FILA = `(CASE WHEN c.status IN ${ENCERRADOS} THEN NULL ELSE (SELECT COUNT(*) + 1 FROM chamados o
+    WHERE o.empresa_id = c.empresa_id AND o.status NOT IN ${ENCERRADOS}
+      AND (o.criado_em < c.criado_em OR (o.criado_em = c.criado_em AND o.id < c.id))) END)`;
 
 /** Colunas da lista/fila: cliente, categoria, atendente, espera e SLA */
 const SELECT = `
@@ -77,7 +76,7 @@ const SELECT = `
     LEFT JOIN departamentos d ON d.id = c.departamento_id
     LEFT JOIN usuarios tp ON tp.id = p.tecnico_padrao_id`;
 
-const numeros = (r: any) => ({ ...r, espera_min: Number(r.espera_min), sla_vencido: Boolean(Number(r.sla_vencido)), nr_fila: Number(r.nr_fila) });
+const numeros = (r: any) => ({ ...r, espera_min: Number(r.espera_min), sla_vencido: Boolean(Number(r.sla_vencido)), nr_fila: r.nr_fila == null ? null : Number(r.nr_fila) });
 
 // ------------------------------------------------------------
 // Seções: cada vez que alguém pega o chamado (assumir, abrir já atendendo, receber por transferência) abre uma
