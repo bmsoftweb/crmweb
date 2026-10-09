@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.142 — 2026-10-09
+
+- Ordens de Serviço (Suporte › Ordens de Serviço): atendimento externo do técnico no cliente. Cliente, técnico, data e horário, tipo, chamado de origem, com quem falar, endereço (vazio = o principal do cliente), o que será feito e o que foi feito. Número sequencial por empresa; concluída sem término fica com a hora da conclusão. "Só as minhas" = as do técnico logado.
+- Ordens de Serviço: ação "Imprimir" abre a OS em A4 para o técnico levar, com espaço para o que foi feito, início/término e as assinaturas do técnico e do cliente (nome e documento). O que já estiver gravado sai preenchido, inclusive a assinatura coletada no app.
+- App do técnico (/tecnico): PWA para o celular que funciona sem sinal. Baixa as OS do técnico (abertas e as dos últimos 7 dias); iniciar atendimento (hora e localização), o que foi feito, assinatura do cliente com o dedo e encerrar. Tudo fica salvo no aparelho e vai para o escritório quando houver sinal; OS cancelada ou passada para outro técnico nesse meio-tempo é avisada, e o técnico decide descartar.
+- Tabela nova: ordens_servico (extras/criar_tabela_ordens_servico.sql). Dependência nova: dexie.
+
 ## 0.0.141 — 2026-10-09
 
 - Chamados Ativos: chamado que não é do técnico (de outro ou aguardando), ao ser aberto, ganha uma aba com "X" para fechar; as abas dos chamados dele continuam sem X.

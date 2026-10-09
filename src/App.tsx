@@ -34,7 +34,8 @@ import { BotaoNovaVersao } from './components/BotaoNovaVersao';
 import { AcaoConversaBot, ConversaBot } from './components/ConversaBot';
 import { AcaoConcluir, BotaoConcluirRapido } from './components/ConcluirAtividade';
 import { BotaoAcao } from './components/MenuAcoes';
-import { Headset, KeyRound } from 'lucide-react';
+import { Headset, KeyRound, Printer } from 'lucide-react';
+import { imprimirOS } from './utils/imprimirOS';
 import { AcaoRetornoLigacao, PesquisasSatisfacao } from './components/PesquisasSatisfacao';
 import { PainelSuporte } from './components/PainelSuporte';
 import { Prospeccao } from './components/Prospeccao';
@@ -756,6 +757,15 @@ export default function App() {
                                 </>
                               );
                             }
+                          : activeResource.name === 'ordens_servico'
+                            ? (row) => (
+                                <BotaoAcao
+                                  icone={Printer}
+                                  titulo="Imprimir"
+                                  descricao="Abre a OS numa aba para imprimir: o técnico leva, anota o que fez e o cliente assina"
+                                  onClick={() => imprimirOS(row.id as string, showToast)}
+                                />
+                              )
                           : undefined
               }
               acoesDetalhe={(recurso, row, { recarregar }) =>

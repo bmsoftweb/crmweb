@@ -32,6 +32,7 @@ import {
   ClipboardCheck,
   Radar,
   Globe,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { ResourceDef, ResourceGroup, Usuario } from '../types';
@@ -62,6 +63,7 @@ const ICONS: Record<string, LucideIcon> = {
   Send,
   Star,
   Globe,
+  Wrench,
 };
 
 const GROUP_ORDER: ResourceGroup[] = ['vendas', 'marketing', 'cadastros', 'acesso'];

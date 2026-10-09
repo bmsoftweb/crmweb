@@ -475,6 +475,11 @@ export function createCrudRouter() {
         payload.numero = n.n;
         if (!payload.proprietario_id) payload.proprietario_id = res.locals.usuario.id;
       }
+      if (resource.name === 'ordens_servico') {
+        const [[n]] = await pool.query<any>('SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM ordens_servico WHERE empresa_id = ?', [empresaId]);
+        payload.numero = n.n;
+        payload.criado_por = eu;
+      }
 
       const cols = Object.keys(payload);
       const [result] = await pool.query<any>(

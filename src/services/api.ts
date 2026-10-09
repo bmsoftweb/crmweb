@@ -185,6 +185,9 @@ export const fetchFichaNegocio = (id: Id): Promise<FichaNegocio> => get(`/api/cr
 
 export const buscarProdutos = (q: string): Promise<ProdutoBusca[]> => get(`/api/crm/produtos?q=${encodeURIComponent(q)}`);
 
+/** Ordem de serviço completa para impressão (server/os.ts) */
+export const fetchOS = (id: Id): Promise<RegistroCrud> => get(`/api/os/${encodeURIComponent(String(id))}`);
+
 export type TipoDocumento = 'propostas' | 'pedidos';
 export const fetchDocumento = (tipo: TipoDocumento, id: Id): Promise<RegistroCrud> =>
   get(`/api/crm/${tipo}/${encodeURIComponent(String(id))}`);

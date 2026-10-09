@@ -2,7 +2,7 @@ import { RegistroCrud } from '../types.js';
 import { STATUS_LABELS, formatCNPJ, formatDateBR, formatMoeda, refProposta } from './formatters.js';
 
 /** Escapa texto vindo do banco antes de entrar no HTML */
-const esc = (v: unknown) =>
+export const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const qtd = (v: unknown) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(Number(v) || 0);

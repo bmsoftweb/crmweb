@@ -1,0 +1,13 @@
+{
+  "name": "CRM Web • Ordens de Serviço",
+  "short_name": "OS Técnico",
+  "description": "Ordens de serviço do técnico, com assinatura do cliente; funciona sem sinal",
+  "start_url": "/tecnico",
+  "scope": "/tecnico",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f5f4",
+  "theme_color": "#2563eb",
+  "lang": "pt-BR",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

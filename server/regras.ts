@@ -106,6 +106,20 @@ export async function aposGravar(recurso: string, id: string | null, negociosAnt
     await db.query("UPDATE pessoas SET cod_integracao = CONCAT('CRMWEB-', id) WHERE id = ? AND cod_integracao IS NULL", [id]);
   }
 
+  // OS: sem endereço, o principal do cliente (ou o primeiro); concluída sem término, termina agora
+  if (recurso === 'ordens_servico' && id) {
+    await db.query(
+      `UPDATE ordens_servico o SET
+          o.endereco = COALESCE(NULLIF(o.endereco, ''), (
+            SELECT CONCAT_WS(', ', NULLIF(CONCAT_WS(', ', e.logradouro, e.numero), ''), e.complemento, e.bairro,
+                             CONCAT_WS('/', e.cidade, e.uf), IF(e.cep IS NULL, NULL, CONCAT('CEP ', e.cep)))
+              FROM pessoas_enderecos e WHERE e.pessoa_id = o.pessoa_id ORDER BY e.principal DESC, e.id LIMIT 1)),
+          o.fim_em = IF(o.status = 'concluida', COALESCE(o.fim_em, NOW()), o.fim_em)
+        WHERE o.id = ?`,
+      [id],
+    );
+  }
+
   // Contato: um principal só por pessoa, e ativo (sem nenhum marcado, o primeiro ativo assume)
   if (recurso === 'pessoas_contatos' && id) {
     const [rows] = await db.query<any[]>('SELECT pessoa_id, principal, ativo FROM pessoas_contatos WHERE id = ?', [id]);

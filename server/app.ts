@@ -27,6 +27,7 @@ import { createSuporteRouter } from './suporte.js';
 import { createFotosRouter } from './fotos.js';
 import { createAnexosRouter } from './anexos.js';
 import { createChamadosRouter } from './chamados.js';
+import { createOsRouter } from './os.js';
 import { createAgendaGoogleRouter, createRetornoAgendaGoogleRouter, sincronizarAgendas } from './agendaGoogle.js';
 import { createPainelSuporteRouter } from './painelSuporte.js';
 import { createProspeccaoRouter } from './prospeccao.js';
@@ -362,6 +363,7 @@ export function createApp() {
   app.use('/api', createFotosRouter());
   app.use('/api', createAnexosRouter());
   app.use('/api', createChamadosRouter());
+  app.use('/api', createOsRouter());
   app.use('/api', createImportArquivoRouter());
   app.use('/api', createEnderecosRouter());
   app.use('/api', createParticipantesRouter());
