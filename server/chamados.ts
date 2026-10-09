@@ -122,11 +122,15 @@ async function chamadoDaEmpresa(id: string | number, emp: string) {
 }
 
 /** Só quem atende o chamado (ou o administrador) mexe nele; chamado sem atendente, qualquer um */
-function conferirDono(c: any, res: Response) {
-  const u = res.locals.usuario;
-  if (c.atendente_id && Number(c.atendente_id) !== Number(res.locals.usuarioId) && u.tipo !== 'admin') {
-    throw erro(403, 'Este chamado está com outro atendente. Só ele ou um administrador pode alterá-lo.');
+/** Em atendimento com outro técnico: quem não é o atendente (administrador também) só vê o chamado */
+function soOAtendente(c: any, res: Response) {
+  if (c.atendente_id && Number(c.atendente_id) !== Number(res.locals.usuarioId)) {
+    throw erro(403, 'Este chamado está em atendimento com outro técnico: você só pode ver.');
   }
+}
+
+function conferirDono(c: any, res: Response) {
+  soOAtendente(c, res);
   if (['encerrado', 'cancelado'].includes(c.status)) throw erro(400, 'Chamado encerrado: não pode mais ser alterado.');
 }
 
@@ -504,6 +508,7 @@ export function createChamadosRouter(): Router {
   /** Apelido do computador ("Recepção", "Caixa 1"): fica no BMDesk, só nos computadores do cliente do chamado */
   router.post('/chamados/:id/apelido-computador', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    soOAtendente(c, res);
     const r = await chamarBmdesk('/api/integracao/apelido', {
       pessoa: c.pessoa_id ?? null,
       id: String(req.body?.computador || ''),
@@ -515,6 +520,7 @@ export function createChamadosRouter(): Router {
   /** Vincula ao cliente do chamado um computador ainda sem cliente; fica registrado como evento do chamado */
   router.post('/chamados/:id/vincular-computador', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    soOAtendente(c, res);
     if (!c.pessoa_id) throw erro(400, 'Chamado sem cliente: ligue o chamado a uma pessoa para vincular o computador.');
     // apelido: o nome que o cliente deu ao computador no chat (o BMDesk só aplica se o computador não tem apelido)
     await chamarBmdesk('/api/integracao/vincular', {
@@ -533,6 +539,7 @@ export function createChamadosRouter(): Router {
    */
   router.post('/chamados/:id/acessar-computador', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    soOAtendente(c, res);
     const quem = res.locals.usuario.nome;
     const params = new URLSearchParams({ id: String(req.body?.computador || ''), modo: 'desktop', usuario: quem });
     // Sem cliente no cadastro: só computador ainda sem cliente (o BMDesk confere)
@@ -583,6 +590,7 @@ export function createChamadosRouter(): Router {
    */
   router.post('/chamados/:id/tarefas', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
+    soOAtendente(c, res);
     const b = req.body || {};
     const assunto = String(b.assunto ?? '').trim().slice(0, 255);
     if (!assunto) throw erro(400, 'Informe o assunto da tarefa.');

@@ -617,9 +617,12 @@ export interface ConversaResumo {
   departamento: string | null;
   /** bot = com o bot/jornada; aguardando = esperando alguém atender; atendimento = alguém pegou; encerrado = encerrado e o cliente ainda não escreveu de novo */
   estado: 'bot' | 'aguardando' | 'atendimento' | 'encerrado' | null;
+  atendente_id: number | null;
   atendente_nome: string | null;
   atendido_em: string | null;
   aguardando_desde: string | null;
+  /** 1ª mensagem do cliente no atendimento atual (depois do último encerramento) */
+  chegou_em: string | null;
   /** Número por onde a conversa entrou: provedor (padrão) ou campanhas */
   conta: 'provedor' | 'campanhas';
   /** Técnico padrão do cliente (pessoas.tecnico_padrao_id) */

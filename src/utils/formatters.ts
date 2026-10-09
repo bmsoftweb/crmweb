@@ -55,6 +55,16 @@ export function formatDateTimeBR(dateStr: string): string {
   });
 }
 
+/** "AAAA-MM-DD HH:MM:SS" do banco → "14:21" se for hoje, senão "08/10 14:21" (hora em que o cliente chegou) */
+export function horaChegada(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const [data, hora = ''] = String(dateStr).replace('T', ' ').split(' ');
+  const [a, m, d] = data.split('-');
+  const hoje = new Date();
+  const ehHoje = Number(a) === hoje.getFullYear() && Number(m) === hoje.getMonth() + 1 && Number(d) === hoje.getDate();
+  return `${ehHoje ? '' : `${d}/${m} `}${hora.slice(0, 5)}`;
+}
+
 /** Converte o valor do MySQL para o formato aceito por <input type="date" | "datetime-local"> */
 export function toInputDate(value: any): string {
   if (!value) return '';

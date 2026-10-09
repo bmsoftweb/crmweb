@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.141 — 2026-10-09
+
+- Chamados Ativos: chamado que não é do técnico (de outro ou aguardando), ao ser aberto, ganha uma aba com "X" para fechar; as abas dos chamados dele continuam sem X.
+- Chamados: em atendimento com outro técnico, o chamado fica só para ver (sem ações nem resposta), para todos, administrador inclusive; o servidor também recusa (responder, transferir, pausar, encerrar, tela remota, computador, tarefa).
+- Conversas do WhatsApp: o mesmo esquema dos chamados. Abas para as conversas que o técnico atende, aba com "X" para as outras que abrir, e conversa em atendimento com outro técnico só para ver (administrador inclusive: não toma mais o atendimento, não transfere nem limpa a conversa de outro).
+- Hora em que o cliente chegou: nos chamados (abertura do chamado; card, abas e cabeçalho) e no WhatsApp (1ª mensagem do cliente no atendimento atual; lista e abas). "14:21" se for hoje, "08/10 14:21" se não.
+
 ## 0.0.140 — 2026-10-09
 
 - Chamados: a senha da fila fica num círculo colorido (card, abas e tabela da fila). Aguardando (ou pausado), pela espera desde a abertura: verde até 10 min, laranja de 10 a 20, vermelho acima de 20. Em atendimento (ou pendente do cliente): fundo branco.

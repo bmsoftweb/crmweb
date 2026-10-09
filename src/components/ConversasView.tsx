@@ -3,7 +3,7 @@ import { useGrudarNoFim } from '../utils/grudarNoFim';
 import { AlertCircle, ArrowLeft, ArrowRightLeft, Bot, Building2, CircleCheck, CircleSlash, Hand, Lock, LockOpen, Network, Pause, Check, CheckCheck, Clock, FileText, Hash, Loader2, MessageCircle, MessageSquarePlus, Mic, Paperclip, Play, Reply, Search, SendHorizontal, Trash2, User, UserPlus, X } from 'lucide-react';
 import { ArquivoConversa, ConversaResumo, DestinoConversa, MensagemWhatsApp, createRecord, fetchDestinosConversa, fetchMidiaMensagem, fetchNumeroConversa, mudarAtendimentoConversa, encerrarConversa, descartarConversa, limparConversa, atenderConversa, marcarMensagemPrivada, apagarMensagem, pausarConversa, transferirConversa, fetchConversa, fetchOptions, fetchConversaDaAtividade, fetchConversas, responderConversa } from '../services/api';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
-import { hojeIso } from '../utils/formatters';
+import { formatDateTimeBR, hojeIso, horaChegada } from '../utils/formatters';
 import { OpcaoRef } from '../types';
 import { SelectBusca } from './SelectBusca';
 import { AvisoErro } from './AvisoErro';
@@ -269,13 +269,35 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   /** Quantas mensagens a conversa tinha: rola para o fim só quando chegam novas */
   const qtdRef = useRef(0);
 
+  /** Conversas que eu atendo: uma aba cada, acima da conversa (como em Chamados Ativos) */
+  const [minhasAbas, setMinhasAbas] = useState<ConversaResumo[]>([]);
+  const eu = lerSessao()?.usuario.id;
   const carregarLista = useCallback(async () => {
     try {
-      setConversas(await fetchConversas(busca, minhas));
+      const [lista, minhasLista] = await Promise.all([fetchConversas(busca, minhas), fetchConversas('', true)]);
+      setConversas(lista);
+      setMinhasAbas(minhasLista.filter((c) => c.estado === 'atendimento' && Number(c.atendente_id) === Number(eu)));
     } catch (err: any) {
       setErro(err.message);
     }
-  }, [busca, minhas]);
+  }, [busca, minhas, eu]);
+
+  /** Conversas abertas que não são minhas (de outro ou aguardando): aba com X para fechar */
+  const [extras, setExtras] = useState<string[]>([]);
+  /** Último resumo visto de cada conversa: a aba continua com nome mesmo fora da lista filtrada */
+  const resumos = useRef(new Map<string, ConversaResumo>());
+  for (const c of [...(conversas ?? []), ...minhasAbas]) resumos.current.set(c.telefone, c);
+  useEffect(() => {
+    if (aberta && !minhasAbas.some((m) => m.telefone === aberta)) setExtras((ex) => (ex.includes(aberta) ? ex : [...ex, aberta]));
+  }, [aberta, minhasAbas]);
+  const fecharAba = (telefone: string) => {
+    setExtras((ex) => ex.filter((x) => x !== telefone));
+    if (aberta === telefone) setAberta(minhasAbas[0]?.telefone ?? null);
+  };
+  const abas = [
+    ...minhasAbas.map((c) => ({ telefone: c.telefone, c: c as ConversaResumo | undefined, extra: false })),
+    ...extras.filter((t) => !minhasAbas.some((m) => m.telefone === t)).map((t) => ({ telefone: t, c: resumos.current.get(t), extra: true })),
+  ];
 
   // Clique na atividade WhatsApp da ficha do negócio: abre o número do cliente
   useEffect(() => {
@@ -466,16 +488,16 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
   }
 
   const linhas = Math.min(5, texto.split('\n').length);
-  /** Em atendimento com outro usuário: só vê (o administrador pode assumir) */
+  /** Em atendimento com outro usuário: só vê (administrador também); fecha pelo X da aba */
   const travada = conversa?.estado === 'atendimento' && !conversa.eu_atendo;
   // Última mensagem da conversa foi uma campanha (o cliente ainda não respondeu): o padrão é o número das campanhas,
   // o mesmo chat em que ele recebeu; senão, o número por onde ele escreveu
   const ultimaMsg = conversa?.mensagens.filter((m) => m.tipo !== 'evento' && m.tipo !== 'encerramento').at(-1);
   const numeroPadrao = ultimaMsg?.campanha ? 'campanhas' : (conversa?.conta ?? 'provedor');
   const numeroEnvio = saiPor ?? numeroPadrao;
-  const podeMexer = Boolean(conversa) && (!travada || Boolean(conversa?.sou_admin));
-  /** Pode transferir: quem está atendendo, ou o administrador numa conversa de outro */
-  const podeTransferir = conversa?.estado === 'atendimento' && (conversa.eu_atendo || conversa.sou_admin);
+  const podeMexer = Boolean(conversa) && !travada;
+  /** Pode transferir: só quem está atendendo */
+  const podeTransferir = conversa?.estado === 'atendimento' && conversa.eu_atendo;
   /** Ação de atendimento em andamento: os botões ficam desabilitados (sem clique repetido) */
   const [ocupadoAtendimento, setOcupadoAtendimento] = useState(false);
   /** Mensagem sendo marcada como privada (ou tornada pública) */
@@ -665,6 +687,11 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                         {c.direcao === 'enviada' && 'Você: '}
                         {resumo(c)}
                       </span>
+                      {(c.estado === 'aguardando' || c.estado === 'atendimento') && c.chegou_em && (
+                        <span title={`Cliente chegou em ${formatDateTimeBR(c.chegou_em)}`} className="shrink-0 text-[10px] text-stone-500 dark:text-stone-400">
+                          chegou {horaChegada(c.chegou_em)}
+                        </span>
+                      )}
                       {c.estado === 'aguardando' && (
                         <span
                           title={`Aguardando alguém atender${c.aguardando_desde ? ` ${haQuanto(c.aguardando_desde)}` : ''}`}
@@ -735,6 +762,35 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
 
       {/* Conversa aberta */}
       <section className={`${aberta ? 'flex' : 'hidden lg:flex'} flex-1 min-w-0 flex-col min-h-0`}>
+        {abas.length > 0 && (
+          <div role="tablist" className="shrink-0 flex overflow-x-auto border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900">
+            {abas.map(({ telefone, c, extra }) => (
+              <div
+                key={telefone}
+                className={`shrink-0 max-w-[220px] flex items-start border-r border-b-2 border-r-stone-200 dark:border-r-stone-800 ${
+                  aberta === telefone
+                    ? 'bg-white dark:bg-stone-950 border-b-blue-600 dark:border-b-blue-400'
+                    : 'border-b-transparent text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-800'
+                }`}
+              >
+                <button type="button" role="tab" aria-selected={aberta === telefone} onClick={() => setAberta(telefone)} className="min-w-0 flex-1 px-3 py-1.5 text-left text-[11px] cursor-pointer">
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-mono text-stone-400 truncate">{formatarTelefoneWa(telefone)}</span>
+                    {c?.chegou_em && <span title="Cliente chegou">{horaChegada(c.chegou_em)}</span>}
+                    {!!c?.nao_vistas && <span className="text-[10px] font-bold leading-4 h-4 min-w-4 px-1 rounded-full bg-emerald-500 text-white text-center shrink-0">{c.nao_vistas > 99 ? '99+' : c.nao_vistas}</span>}
+                  </span>
+                  <span className="block font-bold text-stone-800 dark:text-stone-100 truncate">{c ? c.contato_nome || c.nome || c.nome_contato || 'Conversa' : 'Conversa'}</span>
+                </button>
+                {/* Só a aba da conversa que não é minha fecha; as minhas ficam até encerrar ou passar adiante */}
+                {extra && (
+                  <button type="button" onClick={() => fecharAba(telefone)} title="Fechar esta aba" className="mt-1 mr-1 p-0.5 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700 dark:hover:text-stone-200 cursor-pointer">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         {erro && (
           <div className="p-3">
             <AvisoErro mensagem={erro} onFechar={() => setErro(null)} />
@@ -806,20 +862,17 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                       {conversa.eu_atendo ? 'Você' : conversa.atendente?.nome} · desde {conversa.atendido_em?.slice(11, 16)}
                     </span>
                   )}
-                  {(conversa.estado !== 'atendimento' || (!conversa.eu_atendo && conversa.sou_admin)) && (
+                  {conversa.estado !== 'atendimento' && (
                     <button
                       disabled={ocupadoAtendimento}
                       onClick={() =>
-                        acaoAtendimento(
-                          () => atenderConversa(aberta),
-                          conversa.estado === 'atendimento' ? `Você assumiu o atendimento de ${conversa.atendente?.nome}.` : 'Você está atendendo: só você responde esta conversa.',
-                        )
+                        acaoAtendimento(() => atenderConversa(aberta), 'Você está atendendo: só você responde esta conversa.')
                       }
-                      title={conversa.estado === 'atendimento' ? 'Tomar o atendimento (administrador)' : 'Pegar a conversa: o bot para e só você responde'}
+                      title="Pegar a conversa: o bot para e só você responde"
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-default"
                     >
                       <Hand className="w-4 h-4" />
-                      {conversa.estado === 'atendimento' ? 'Assumir' : 'Atender'}
+                      Atender
                     </button>
                   )}
                   {/* Pela lista: ela já sabe quando a conversa foi encerrada e o cliente não escreveu de novo */}
@@ -878,7 +931,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                       Encerrar
                     </button>
                   )}
-                  {conversa.sou_admin && (
+                  {conversa.sou_admin && !travada && (
                     <button
                       onClick={() => setLimpando(true)}
                       title="Limpar a conversa: apaga todas as mensagens deste número no CRM (só administrador)"
@@ -1078,8 +1131,8 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
             {travada ? (
               <div className="shrink-0 p-3 border-t border-stone-200 dark:border-stone-800 flex items-center gap-2 text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-900">
                 <Lock className="w-4 h-4 shrink-0 text-stone-400" />
-                Em atendimento com <b>{conversa?.atendente?.nome}</b> desde {conversa?.atendido_em?.slice(11, 16)}: só ele(a) pode responder.
-                {conversa?.sou_admin && ' Como administrador, você pode assumir.'}
+                Em atendimento com <b>{conversa?.atendente?.nome}</b> desde {conversa?.atendido_em?.slice(11, 16)}: você só pode ver.
+                {abas.some((a) => a.extra && a.telefone === aberta) && ' Feche pelo X da aba.'}
               </div>
             ) : (
             <>

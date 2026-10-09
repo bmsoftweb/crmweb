@@ -70,8 +70,9 @@ async function atendenteDa(empresaId: string, telefone: string): Promise<{ id: n
 async function conferirTrava(res: Response, telefone: string, adminPode: boolean) {
   const dono = await atendenteDa(res.locals.empresaId, telefone);
   if (!dono || Number(dono.id) === Number(res.locals.usuarioId)) return dono;
-  if (adminPode && res.locals.usuario?.tipo === 'admin') return dono;
-  throw Object.assign(new Error(`Esta conversa está em atendimento com ${dono.nome}: só ele(a) pode responder ou mudar o atendimento.`), { status: 403 });
+  // Em atendimento com outro: quem não é o atendente (administrador também) só vê. adminPode ficou sem efeito
+  void adminPode;
+  throw Object.assign(new Error(`Esta conversa está em atendimento com ${dono.nome}: você só pode ver.`), { status: 403 });
 }
 
 /**
@@ -504,10 +505,14 @@ export function createConversasRouter(): Router {
                 w.privado_departamento_id, (SELECT dp.nome FROM departamentos dp WHERE dp.id = w.privado_departamento_id) AS privado_departamento,
                 wc.atendimento, wc.atendente_id, COALESCE(wc.conta, 'provedor') AS conta, ua.nome AS atendente_nome, tp.nome AS tecnico_padrao_nome, DATE_FORMAT(wc.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
                 DATE_FORMAT(COALESCE(wc.humano_desde, w.data_hora), '%Y-%m-%d %H:%i:%s') AS aguardando_desde,
+                -- Quando o cliente chegou: a 1ª mensagem dele depois do último encerramento
+                (SELECT DATE_FORMAT(MIN(r.data_hora), '%Y-%m-%d %H:%i:%s') FROM whatsapp_mensagens r
+                  WHERE r.empresa_id = w.empresa_id AND r.telefone = w.telefone AND r.direcao = 'recebida' AND r.id > COALESCE(x.ultimo_encerramento, 0)) AS chegou_em,
                 -- Pausada: o último evento é a pausa, e depois dela não começou outra espera
                 COALESCE(ev.texto LIKE 'Pausado por%' AND ev.data_hora >= COALESCE(wc.humano_desde, ev.data_hora), 0) AS pausada
            FROM (SELECT telefone, MAX(IF(tipo NOT IN ('encerramento', 'evento'), id, NULL)) AS ultima, ${PESSOA_RECENTE()} AS pessoa_id, ${CONTATO_RECENTE()} AS contato_id,
                         MAX(IF(tipo = 'evento', id, NULL)) AS ultimo_evento,
+                        MAX(IF(tipo = 'encerramento', id, NULL)) AS ultimo_encerramento,
                         SUM(direcao = 'recebida' AND vista = 0) AS nao_vistas,
                         -- Encerrado (botão, tempo ou fim da automação) e o cliente ainda não escreveu de novo (a nota da pesquisa não conta)
                         COALESCE(MAX(IF(tipo = 'encerramento', data_hora, NULL))
@@ -546,7 +551,7 @@ export function createConversasRouter(): Router {
               : comBot
                 ? 'bot'
                 : null;
-          return { ...r, estado, nao_vistas: Number(r.nao_vistas), pausada: estado === 'aguardando' && Boolean(Number(r.pausada)) };
+          return { ...r, atendente_id: atendente_id ?? null, estado, nao_vistas: Number(r.nao_vistas), pausada: estado === 'aguardando' && Boolean(Number(r.pausada)) };
         }),
       );
     } catch (err: any) {

@@ -30,7 +30,7 @@ import {
   updateRecord,
 } from '../services/api';
 import { OpcaoRef } from '../types';
-import { formatDateBR, formatDateTimeBR, hojeIso } from '../utils/formatters';
+import { formatDateBR, formatDateTimeBR, hojeIso, horaChegada } from '../utils/formatters';
 import { INPUT_CLASS, LABEL_CLASS, FIELD_CLASS, HINT_CLASS } from '../utils/formStyles';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CHAVE_TELA_REMOTA } from './TelaRemota';
@@ -443,6 +443,24 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onM
   const [meus, setMeus] = useState<ChamadoResumo[]>([]);
   /** Recarga do chamado aberto depois de assumir pelo duplo clique */
   const [recarga, setRecarga] = useState(0);
+  /** Chamados abertos que não são do técnico (de outro ou aguardando): aba com X para fechar */
+  const [extras, setExtras] = useState<number[]>([]);
+  /** Último resumo visto de cada chamado: a aba continua com nome mesmo fora da lista filtrada */
+  const resumos = useRef(new Map<number, ChamadoResumo>());
+  for (const c of [...(lista ?? []), ...meus]) resumos.current.set(c.id, c);
+
+  // Abriu um chamado que não é dele: vira aba extra (inclusive o que deixou de ser dele, ex.: encerrado)
+  useEffect(() => {
+    if (aberto && !meus.some((m) => m.id === aberto)) setExtras((ex) => (ex.includes(aberto) ? ex : [...ex, aberto]));
+  }, [aberto, meus]);
+  const fecharAba = (id: number) => {
+    setExtras((ex) => ex.filter((x) => x !== id));
+    if (aberto === id) setAberto(meus[0]?.id ?? null);
+  };
+  const abas: { c: ChamadoResumo | undefined; id: number; extra: boolean }[] = [
+    ...meus.map((c) => ({ c, id: c.id, extra: false })),
+    ...extras.filter((id) => !meus.some((m) => m.id === id)).map((id) => ({ c: resumos.current.get(id), id, extra: true })),
+  ];
 
   useEffect(() => {
     if (abrir) setAberto(abrir);
@@ -558,7 +576,15 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onM
                   {nomeChamado(c)}
                 </div>
                 <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.titulo}</div>
-                <Atendente c={c} />
+                {/* Atendente à esquerda; hora em que o cliente chegou à direita */}
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Atendente c={c} />
+                  </div>
+                  <span className="shrink-0 text-[11px] text-stone-500 dark:text-stone-400" title={`Cliente chegou (abriu o chamado) em ${formatDateTimeBR(c.criado_em)}`}>
+                    {horaChegada(c.criado_em)}
+                  </span>
+                </div>
                 {c.sla_vencido && <Sla />}
               </button>
             ))
@@ -569,28 +595,32 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onM
 
       {/* Chamado aberto */}
       <div className="flex-1 min-w-0 flex flex-col min-h-0 bg-stone-50 dark:bg-stone-950">
-        {meus.length > 0 && (
+        {abas.length > 0 && (
           <div role="tablist" className="shrink-0 flex overflow-x-auto border-b border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900">
-            {meus.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                role="tab"
-                aria-selected={aberto === c.id}
-                onClick={() => setAberto(c.id)}
-                title={c.titulo}
-                className={`shrink-0 max-w-[200px] px-3 py-1.5 text-left text-[11px] cursor-pointer border-r border-b-2 border-r-stone-200 dark:border-r-stone-800 ${
-                  aberto === c.id
+            {abas.map(({ c, id, extra }) => (
+              <div
+                key={id}
+                className={`shrink-0 max-w-[220px] flex items-start border-r border-b-2 border-r-stone-200 dark:border-r-stone-800 ${
+                  aberto === id
                     ? 'bg-white dark:bg-stone-950 border-b-blue-600 dark:border-b-blue-400'
                     : 'border-b-transparent text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-800'
                 }`}
               >
-                <span className="flex items-center gap-1.5">
-                  <SenhaFila c={c} tamanho="sm" />
-                  <span className="font-mono text-stone-400">nº {c.numero}</span>
-                </span>
-                <span className="block font-bold text-stone-800 dark:text-stone-100 truncate">{nomeChamado(c)}</span>
-              </button>
+                <button type="button" role="tab" aria-selected={aberto === id} onClick={() => setAberto(id)} title={c?.titulo} className="min-w-0 flex-1 px-3 py-1.5 text-left text-[11px] cursor-pointer">
+                  <span className="flex items-center gap-1.5">
+                    {c && <SenhaFila c={c} tamanho="sm" />}
+                    <span className="font-mono text-stone-400">nº {c?.numero ?? '…'}</span>
+                    {c && <span title="Cliente chegou (abriu o chamado)">{horaChegada(c.criado_em)}</span>}
+                  </span>
+                  <span className="block font-bold text-stone-800 dark:text-stone-100 truncate">{c ? nomeChamado(c) : 'Chamado'}</span>
+                </button>
+                {/* Só a aba de chamado que não é dele fecha; as dele ficam até encerrar ou passar adiante */}
+                {extra && (
+                  <button type="button" onClick={() => fecharAba(id)} title="Fechar esta aba" className="mt-1 mr-1 p-0.5 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700 dark:hover:text-stone-200 cursor-pointer">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -692,8 +722,10 @@ const ChamadoAberto: React.FC<{
   // Número do AnyDesk: o último que o cliente mandou neste chamado, ou o do cadastro da pessoa
   const ultimoId = [...c.mensagens].reverse().find((m) => ID_ANYDESK.test(m.texto));
   const idAnydesk = ultimoId ? ID_ANYDESK.exec(ultimoId.texto)![1] : c.anydesk_id;
-  const podeMexer = !encerrado && (!c.atendente_id || c.eu_atendo || c.sou_admin);
-  const podeEscrever = !encerrado && (c.eu_atendo || (c.sou_admin && Boolean(c.atendente_id)));
+  // Em atendimento com outro técnico: só para ver (sem ações nem resposta; fecha pelo X da aba)
+  const soVer = Boolean(c.atendente_id) && !c.eu_atendo;
+  const podeMexer = !encerrado && !soVer;
+  const podeEscrever = !encerrado && c.eu_atendo;
   const botao = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50';
   // Cutucar e Tela Remota: ao lado do "Nota interna", perto de onde se digita
   const botoesSite = podeEscrever && c.canal === 'web' && (
@@ -891,6 +923,7 @@ const ChamadoAberto: React.FC<{
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">Chamado nº {c.numero}</span>
+            <span className="text-[11px] text-stone-500 dark:text-stone-400">cliente chegou {horaChegada(c.criado_em)}</span>
             <Status s={c.status} />
             <Prioridade p={c.prioridade} />
             <Categoria c={c} />
@@ -905,6 +938,11 @@ const ChamadoAberto: React.FC<{
             {c.sla_prazo && <span>SLA até {formatDateTimeBR(c.sla_prazo)}</span>}
           </div>
         </div>
+        {soVer ? (
+          <span className="self-center inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 dark:text-stone-400">
+            <Lock className="w-3.5 h-3.5" /> Em atendimento com {c.atendente_nome || 'outro técnico'}: só para ver
+          </span>
+        ) : (
         <div className="flex flex-wrap gap-2">
           {c.pessoa_id && (
             <button
@@ -1083,6 +1121,7 @@ const ChamadoAberto: React.FC<{
             </button>
           )}
         </div>
+        )}
       </div>
 
       {erro && (
