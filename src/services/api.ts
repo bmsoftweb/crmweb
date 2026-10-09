@@ -149,14 +149,15 @@ export const getRecord = (resource: string, id: Id): Promise<RegistroCrud> =>
 export const atividadesGravadasAqui = new Set<number>();
 
 // Gravar muda a lista do recurso: os combos dele são relidos (ex.: segmento criado na Prospecção)
-export const createRecord = (resource: string, payload: RegistroCrud): Promise<{ success: boolean; id: string }> =>
+/** aviso: o que o servidor fez a mais ao gravar (ex.: campanha gerou os disparos) */
+export const createRecord = (resource: string, payload: RegistroCrud): Promise<{ success: boolean; id: string; aviso?: string | null }> =>
   enviar('POST', `/api/crud/${resource}`, payload).then((r: any) => {
     invalidateOptions(resource);
     if (resource === 'atividades') atividadesGravadasAqui.add(Number(r.id));
     return r;
   });
 
-export const updateRecord = (resource: string, id: Id, payload: RegistroCrud): Promise<{ success: boolean }> => {
+export const updateRecord = (resource: string, id: Id, payload: RegistroCrud): Promise<{ success: boolean; aviso?: string | null }> => {
   if (resource === 'atividades') atividadesGravadasAqui.add(Number(id));
   return enviar('PUT', `/api/crud/${resource}/${encodeURIComponent(String(id))}`, payload).then((r: any) => {
     invalidateOptions(resource);
@@ -806,6 +807,8 @@ export interface ChamadoResumo {
   canal: string;
   pessoa_id: number | null;
   pessoa_nome: string | null;
+  /** Quem abriu pelo site (nome da pessoa, não da empresa) */
+  contato_nome: string | null;
   categoria_nome: string | null;
   categoria_cor: string | null;
   atendente_id: number | null;
@@ -842,8 +845,6 @@ export interface ChamadoDetalhe extends ChamadoResumo {
   conclusao: string | null;
   aberto_por_nome: string | null;
   pessoa_telefone: string | null;
-  /** Quem abriu pelo site (nome da pessoa, não da empresa) */
-  contato_nome: string | null;
   /** Número do AnyDesk do cadastro da pessoa */
   anydesk_id: string | null;
   eu_atendo: boolean;

@@ -67,6 +67,10 @@ const Conectar: React.FC<{ id: string; grande?: boolean }> = ({ id, grande }) =>
   </a>
 );
 
+/** "Pessoa / Empresa" do chamado; sem cliente no cadastro, pessoa_nome já é o nome de quem abriu */
+const nomeChamado = (c: Pick<ChamadoResumo, 'pessoa_id' | 'pessoa_nome' | 'contato_nome'>, vazio = 'Sem cliente') =>
+  c.pessoa_id && c.contato_nome && c.contato_nome !== c.pessoa_nome ? `${c.contato_nome} / ${c.pessoa_nome}` : c.pessoa_nome || vazio;
+
 const PRIORIDADE: Record<string, string> = {
   urgente: 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300',
   alta: 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
@@ -340,7 +344,7 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
                     <td className={`${td} text-right font-mono text-stone-500`}>{c.numero}</td>
                     <td className={td}>
                       <div className="font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
-                        {c.pessoa_nome || 'Sem cliente'}
+                        {nomeChamado(c)}
                         {c.status === 'pausado' && <Status s="pausado" />}
                       </div>
                       <div className="text-[11px] text-stone-500 dark:text-stone-400">
@@ -530,7 +534,9 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onM
                     <Prioridade p={c.prioridade} />
                   </span>
                 </div>
-                <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate mt-1">{c.pessoa_nome || 'Sem cliente'}</div>
+                <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate mt-1">
+                  {nomeChamado(c)}
+                </div>
                 <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{c.titulo}</div>
                 <Atendente c={c} />
                 {c.sla_vencido && <Sla />}
@@ -561,7 +567,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onM
               >
                 <span className="font-bold text-blue-600 dark:text-blue-400">{c.nr_fila}º</span>
                 <span className="font-mono text-stone-400"> • nº {c.numero}</span>
-                <span className="block font-bold text-stone-800 dark:text-stone-100 truncate">{c.pessoa_nome || 'Sem cliente'}</span>
+                <span className="block font-bold text-stone-800 dark:text-stone-100 truncate">{nomeChamado(c)}</span>
               </button>
             ))}
           </div>
@@ -719,7 +725,7 @@ const ChamadoAberto: React.FC<{
     try {
       const { url } = await acessarComputador(c.id, pc);
       if (!janela) return setErro('O navegador bloqueou a nova aba. Libere pop-ups para este endereço.');
-      const titulo = `${c.pessoa_nome || c.contato_nome || 'Cliente'} — ${pc.apelido || pc.nome}`;
+      const titulo = `${nomeChamado(c, 'Cliente')} — ${pc.apelido || pc.nome}`;
       janela.sessionStorage.setItem(CHAVE_TELA_REMOTA, JSON.stringify({ url, titulo }));
       janela.location.href = '/tela-remota';
       carregar(); // o acesso entra na linha do tempo
@@ -870,7 +876,7 @@ const ChamadoAberto: React.FC<{
           </div>
           <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 mt-1">{c.titulo}</h3>
           <div className="text-[11px] text-stone-500 dark:text-stone-400 flex flex-wrap gap-x-3">
-            <span>{c.pessoa_nome || 'Sem cliente'}{c.canal === 'web' && ' • pelo site'}</span>
+            <span>{nomeChamado(c)}{c.canal === 'web' && ' • pelo site'}</span>
             <span>Atendente: {c.atendente_nome || '—'}{c.eu_atendo && ' (você)'}</span>
             {c.tecnico_padrao_nome && c.tecnico_padrao_id !== c.atendente_id && <span>Técnico padrão: {c.tecnico_padrao_nome}</span>}
             {c.departamento_nome && <span>Departamento: {c.departamento_nome}</span>}
@@ -1140,7 +1146,7 @@ const ChamadoAberto: React.FC<{
               <div className={`text-[10px] font-semibold mb-0.5 ${m.interna ? 'text-amber-700 dark:text-amber-300' : m.autor === 'cliente' ? 'text-stone-400' : 'text-blue-100'}`}>
                 {m.interna && <Lock className="w-3 h-3 inline mr-1 -mt-0.5" />}
                 {m.interna ? 'Nota interna • ' : ''}
-                {m.usuario_nome || (m.autor === 'cliente' ? c.pessoa_nome || 'Cliente' : 'Equipe')}
+                {m.usuario_nome || (m.autor === 'cliente' ? nomeChamado(c, 'Cliente') : 'Equipe')}
               </div>
               {m.texto}
               <div className={`text-[10px] mt-1 text-right ${m.autor === 'equipe' && !m.interna ? 'text-blue-100' : 'text-stone-400'}`}>{formatDateTimeBR(m.criado_em)}</div>
@@ -1264,7 +1270,7 @@ const ChamadoAberto: React.FC<{
         <AtividadeModal
           chamadoId={c.id}
           executorPadraoId={c.atendente_id}
-          contexto={`Chamado nº ${c.numero} • ${c.pessoa_nome || 'Sem cliente'}`}
+          contexto={`Chamado nº ${c.numero} • ${nomeChamado(c)}`}
           onFechar={() => setDialogo(null)}
           onGravada={() => {
             setDialogo(null);

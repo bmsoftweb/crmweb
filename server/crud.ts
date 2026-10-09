@@ -485,7 +485,8 @@ export function createCrudRouter() {
       const newId = String(result.insertId);
       await aposGravar(resource.name, newId, [], pool, Number(res.locals.usuarioId) || null);
       if (filhos) await filhos(newId);
-      res.json({ success: true, id: newId });
+      const aviso = resource.name === 'campanhas' ? await (await import('./campanhas.js')).gerarDisparosAoGravar(newId, empresaId) : null;
+      res.json({ success: true, id: newId, aviso });
     } catch (err: any) {
       res.status(400).json({ error: friendlyDbError(err, resource?.labelSingular) });
     }
@@ -528,8 +529,9 @@ export function createCrudRouter() {
 
       await aposGravar(resource.name, req.params.id, afetados, pool, Number(res.locals.usuarioId) || null);
       if (filhos) await filhos(req.params.id);
+      const aviso = resource.name === 'campanhas' ? await (await import('./campanhas.js')).gerarDisparosAoGravar(req.params.id, empresaId) : null;
       if (fotosAntes) await apagarFotosRemovidas(fotosAntes, payload.fotos);
-      res.json({ success: true });
+      res.json({ success: true, aviso });
     } catch (err: any) {
       res.status(400).json({ error: friendlyDbError(err, resource?.labelSingular) });
     }

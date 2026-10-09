@@ -131,10 +131,15 @@ export const Prospeccao: React.FC<Props> = ({ onToast, onVerLeads }) => {
   const incluir = async () => {
     const escolhidos = disponiveis.filter((l) => marcados.has(l.place_id));
     if (!escolhidos.length) return;
+    if (!segmento) {
+      setErro('Escolha o segmento dos leads (ou crie um no +) antes de incluir.');
+      document.getElementById('pr-segmento')?.focus();
+      return;
+    }
     setIncluindo(true);
     setErro(null);
     try {
-      const r = await incluirProspeccao(escolhidos, segmento || null, buscaAberta || null);
+      const r = await incluirProspeccao(escolhidos, segmento, buscaAberta || null);
       setIncluidos((s) => new Set([...s, ...escolhidos.map((l) => l.place_id)]));
       setMarcados(new Set());
       onToast(`${r.incluidos} lead(s) incluído(s) em Pessoas${r.existentes ? `; ${r.existentes} já estava(m) no CRM` : ''}.`);
@@ -374,7 +379,7 @@ export const Prospeccao: React.FC<Props> = ({ onToast, onVerLeads }) => {
             <label htmlFor="pr-segmento" className={LABEL_CLASS}>Segmento</label>
             {novoSegmento === null ? (
               <>
-                <SelectBusca id="pr-segmento" value={segmento} options={segmentos} onChange={setSegmento} vazioLabel="— Sem segmento —" className={`${INPUT_CLASS} w-56`} />
+                <SelectBusca id="pr-segmento" value={segmento} options={segmentos} onChange={setSegmento} vazioLabel="Escolha o segmento" required className={`${INPUT_CLASS} w-56`} />
                 <button type="button" onClick={() => setNovoSegmento('')} title="Novo segmento" className={`${botao} border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800`}>
                   <Plus className="w-3.5 h-3.5" />
                 </button>
@@ -385,6 +390,7 @@ export const Prospeccao: React.FC<Props> = ({ onToast, onVerLeads }) => {
                   id="pr-segmento"
                   autoFocus
                   maxLength={100}
+                  required
                   placeholder="Nome do novo segmento"
                   value={novoSegmento}
                   onChange={(e) => setNovoSegmento(e.target.value)}

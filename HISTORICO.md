@@ -2,6 +2,14 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.138 — 2026-10-09
+
+- Prospecção: o segmento passa a ser obrigatório para incluir os leads ("Escolha o segmento"; a opção "Sem segmento" saiu). A tela e o servidor conferem.
+- Campanhas: ao gravar (incluir ou alterar) a campanha, os disparos já são gerados, sem enviar (o mesmo que o "Gerar disparos"); o aviso da gravação diz quantos. Não gera sem mensagem, em canal sem envio automático, concluída ou cancelada; sem como gerar (ex.: sem critério de público) grava e avisa o motivo. O envio continua só pelo "Iniciar envio". Campanha em execução: gravar refaz os pendentes, que saem em seguida.
+- Chamados: o cliente aparece como "Pessoa / Empresa" (quem abriu / cliente do cadastro) no card da lista, nas abas, na fila, no cabeçalho, nas mensagens do cliente e no título da tela remota; sem cliente no cadastro, só o nome de quem abriu.
+- Chat do site (abrir chamado): o campo passa a ser "Celular (WhatsApp)" e só aceita celular (DDD + 9 + 8 dígitos, com ou sem 55); nome e celular continuam obrigatórios.
+- Conversas do WhatsApp: na lista, as etiquetas (Aguardando, departamento, técnico, não lidas) ficam juntas à direita.
+
 ## 0.0.137 — 2026-10-09
 
 - Chat do site (cliente): no cartão "Acesso remoto" o nome do computador passa a ser obrigatório ("Nome deste computador (OBRIGATÓRIO)"); sem ele o BMSoft Suporte não baixa (a tela e o servidor conferem).

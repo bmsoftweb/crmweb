@@ -303,6 +303,21 @@ export async function gerarDisparos(campanhaId: string | number, empresaId: stri
   }
 }
 
+/**
+ * Ao gravar a campanha (tela de cadastro): já gera os disparos, sem enviar. Pula a que ainda não tem como gerar (sem
+ * mensagem, canal sem envio, concluída ou cancelada). Devolve o aviso para a tela; a falha não desfaz a gravação
+ */
+export async function gerarDisparosAoGravar(campanhaId: string | number, empresaId: string | number): Promise<string | null> {
+  const c = await campanhaDa(campanhaId, empresaId);
+  if (['concluida', 'cancelada'].includes(c.situacao) || !CANAIS_COM_ENVIO.includes(c.canal) || !String(c.mensagem ?? '').trim()) return null;
+  try {
+    const r = await gerarDisparos(campanhaId, empresaId);
+    return `${r.gerados} disparo(s) gerado(s), sem enviar${r.sem_contato ? `; ${r.sem_contato} sem contato` : ''}.`;
+  } catch (err: any) {
+    return `Os disparos não foram gerados: ${err.message}`;
+  }
+}
+
 /** A campanha que a pessoa recebeu, para a Automação das campanhas conversar com o contexto dela */
 export interface CampanhaDaConversa {
   id: number;

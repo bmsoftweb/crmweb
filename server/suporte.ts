@@ -205,7 +205,8 @@ export function createSuporteRouter(): Router {
     const descricao = texto(b.descricao, 4000);
     if (documento.length !== 11 && documento.length !== 14) throw erro(400, 'Informe o CNPJ (ou CPF) da empresa.');
     if (nome.length < 2) throw erro(400, 'Informe o seu nome.');
-    if (telefone.length < 10) throw erro(400, 'Informe o seu WhatsApp com DDD.');
+    // Celular: DDD + 9 + 8 dígitos (com ou sem o 55 na frente)
+    if (!/^(55)?\d{2}9\d{8}$/.test(telefone)) throw erro(400, 'Informe o seu celular (WhatsApp) com DDD, ex.: 11999999999.');
     if (descricao.length < 5) throw erro(400, 'Conte o que está acontecendo.');
     const titulo = texto(b.titulo, 200) || descricao.split('\n')[0].slice(0, 80);
     let categoriaId: number | null = Number(b.categoria_id) || null;

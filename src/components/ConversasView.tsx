@@ -659,8 +659,9 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                         {dia === hojeIso() ? c.data_hora.slice(11, 16) : dataBr(dia).slice(0, 5)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                    {/* Prévia ocupa o espaço livre; as etiquetas ficam juntas à direita */}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="flex-1 min-w-0 text-[11px] text-stone-500 dark:text-stone-400 truncate">
                         {c.direcao === 'enviada' && 'Você: '}
                         {resumo(c)}
                       </span>

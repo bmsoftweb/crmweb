@@ -812,11 +812,11 @@ export const CrudView: React.FC<CrudViewProps> = ({
 
   const handleSave = async (aba: AbaRegistro, payload: RegistroCrud) => {
     if (aba.record) {
-      await updateRecord(resource.name, recordId(aba.record), payload);
-      onToast(`${resource.labelSingular} atualizado com sucesso.`);
+      const r = await updateRecord(resource.name, recordId(aba.record), payload);
+      onToast(`${resource.labelSingular} atualizado com sucesso.${r.aviso ? ` ${r.aviso}` : ''}`);
     } else {
-      await createRecord(resource.name, payload);
-      onToast(`${resource.labelSingular} incluído com sucesso.`);
+      const r = await createRecord(resource.name, payload);
+      onToast(`${resource.labelSingular} incluído com sucesso.${r.aviso ? ` ${r.aviso}` : ''}`);
     }
     invalidateOptions(resource.name);
     fecharAba(aba.key);

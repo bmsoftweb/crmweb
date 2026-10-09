@@ -489,10 +489,9 @@ async function incluir(empresaId: string, corpo: any): Promise<{ incluidos: numb
   if (!lista.length) throw erro(400, 'Escolha ao menos uma empresa.');
   if (lista.length > MAX_INCLUIR) throw erro(400, `Inclua no máximo ${MAX_INCLUIR} de cada vez.`);
   const segmentoId = Number(corpo?.segmento_id) || null;
-  if (segmentoId) {
-    const [s] = await pool.query<any[]>('SELECT id FROM segmentos WHERE id = ? AND empresa_id = ?', [segmentoId, empresaId]);
-    if (!s.length) throw erro(400, 'Segmento não encontrado.');
-  }
+  if (!segmentoId) throw erro(400, 'Escolha o segmento dos leads.');
+  const [s] = await pool.query<any[]>('SELECT id FROM segmentos WHERE id = ? AND empresa_id = ?', [segmentoId, empresaId]);
+  if (!s.length) throw erro(400, 'Segmento não encontrado.');
   // Busca de onde o lead veio (Pessoas filtra por ela); de outra empresa ou apagada, fica sem
   let buscaId = Number(corpo?.busca_id) || null;
   if (buscaId) {

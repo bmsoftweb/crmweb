@@ -275,8 +275,8 @@ const Abrir: React.FC<{
           <input id="sp-nome" autoFocus={primeiroVazio === 'sp-nome'} value={v.nome} onChange={(e) => alterar({ nome: e.target.value })} onFocus={(e) => e.target.select()} placeholder="Ex: Pedro" maxLength={120} autoComplete="name" required minLength={2} className={campo} />
         </div>
         <div>
-          <label htmlFor="sp-tel" className={rotulo}>WhatsApp</label>
-          <input id="sp-tel" autoFocus={primeiroVazio === 'sp-tel'} inputMode="tel" value={v.telefone} onChange={(e) => alterar({ telefone: soDigitos(e.target.value, 13) })} onFocus={(e) => e.target.select()} placeholder="Ex: 11999999999" required pattern="\d{10,13}" title="WhatsApp com DDD (só os números)" className={campo} />
+          <label htmlFor="sp-tel" className={rotulo}>Celular (WhatsApp)</label>
+          <input id="sp-tel" autoFocus={primeiroVazio === 'sp-tel'} inputMode="tel" value={v.telefone} onChange={(e) => alterar({ telefone: soDigitos(e.target.value, 13) })} onFocus={(e) => e.target.select()} placeholder="Ex: 11999999999" required pattern="(55)?\d{2}9\d{8}" title="Celular com DDD (só os números), ex.: 11999999999" className={campo} />
         </div>
       </div>
       {categorias.length > 0 && (
