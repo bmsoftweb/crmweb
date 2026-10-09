@@ -870,7 +870,7 @@ export const ConversasView: React.FC<Props> = ({ refreshToken, onVisto, pedido, 
                     <button
                       disabled={ocupadoAtendimento}
                       onClick={() => acaoAtendimento(() => encerrarConversa(aberta), 'Atendimento encerrado: a próxima mensagem do cliente começa um atendimento novo.')}
-                      title="Encerra esta sessão, como se o tempo de devolver ao bot tivesse passado: sai do departamento e a próxima mensagem do cliente recomeça pela automação"
+                      title="Encerra esta sessão: sai do departamento e a próxima mensagem do cliente recomeça pela automação"
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50 disabled:cursor-default"
                     >
                       <CircleCheck className="w-4 h-4" />

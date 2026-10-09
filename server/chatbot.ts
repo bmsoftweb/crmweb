@@ -96,7 +96,7 @@ export interface ConfigChatbot {
   texto_base?: string;
   /** Conversa com humano volta ao bot depois de X minutos sem mensagem de atendente */
   minutos_devolver: number;
-  /** Cliente sem responder X minutos à última mensagem do bot/técnico: aviso e encerramento (server/inatividade.ts); 0 = desligado */
+  /** Cliente sem responder X minutos à última mensagem do bot/técnico: vai para aguardando (server/inatividade.ts); 0 = desligado */
   minutos_inatividade?: number;
   /** Versão antiga (em horas): lida só para converter, ver minutosDevolver */
   horas_devolver?: number;
@@ -254,9 +254,9 @@ export async function testarChatbot(empresaId: string): Promise<string> {
 /**
  * Com quem está a conversa agora. Humano: aguardando (sem atendente) ou em atendimento (atendente_id,
  * atendido_em). Passados X minutos sem mensagem de atendente: quem estava atendendo é liberado e a
- * conversa volta a aguardar; aguardando, volta ao bot (comBot) ou continua aguardando (sem bot).
+ * conversa volta a aguardar. Aguardando não volta ao bot pelo tempo: um técnico atende ou encerra.
  */
-export async function atendimentoAtual(empresaId: string | number, telefone: string, minutosDevolver: number, comBot = true): Promise<'bot' | 'humano'> {
+export async function atendimentoAtual(empresaId: string | number, telefone: string, minutosDevolver: number): Promise<'bot' | 'humano'> {
   await pool.query('INSERT IGNORE INTO whatsapp_conversas (empresa_id, telefone) VALUES (?, ?)', [empresaId, telefone]);
   const [rows] = await pool.query<any[]>(
     `SELECT c.atendimento,
@@ -291,13 +291,8 @@ export async function atendimentoAtual(empresaId: string | number, telefone: str
       );
       const quem = ult[0]?.direcao === 'recebida' ? (c.atendente_nome ?? 'o atendente') : 'Cliente';
       await marcarEvento(empresaId, telefone, `Atendimento liberado pelo tempo: ${quem} não respondeu`, null, c.esgotou_em);
-      return 'humano';
     }
-    if (!comBot) return 'humano';
-    await encerrarAtendimento(empresaId, telefone);
-    // A linha fica no momento em que o tempo acabou (antes da mensagem que fez perceber)
-    await marcarEncerramento(empresaId, telefone, null, c.esgotou_em);
-    return 'bot';
+    return 'humano';
   }
   // Com o bot, mas um atendente respondeu (tela ou celular) depois disso: passa a ser dele
   if (Number(c.humano_recente) && !Number(c.mudou_depois)) {

@@ -168,14 +168,14 @@ export const ConfigChatbot: React.FC<Props> = ({ somenteLeitura, onToast }) => {
             <span className={HINT_CLASS}>{ajuda.modelos}</span>
           </div>
           <div className={FIELD_CLASS}>
-            <label htmlFor="bot-minutos" className={LABEL_CLASS}>Devolver ao bot depois de (minutos)</label>
+            <label htmlFor="bot-minutos" className={LABEL_CLASS}>Liberar o atendente depois de (minutos)</label>
             <NumberField id="bot-minutos" value={String(v.minutos_devolver)} onChange={(t) => alterar({ minutos_devolver: Number(t) || 0 })} scale={0} className={campo} />
-            <span className={HINT_CLASS}>Conversa com humano volta ao bot após esse tempo sem mensagem de atendente</span>
+            <span className={HINT_CLASS}>Atendente que assumiu e ficou esse tempo sem responder: a conversa volta para a fila (aguardando). Aguardando não volta ao bot sozinha: um técnico atende ou encerra</span>
           </div>
           <div className={FIELD_CLASS}>
-            <label htmlFor="bot-inatividade" className={LABEL_CLASS}>Encerrar por falta de interação após (minutos)</label>
+            <label htmlFor="bot-inatividade" className={LABEL_CLASS}>Passar para aguardando sem interação após (minutos)</label>
             <NumberField id="bot-inatividade" value={String(v.minutos_inatividade)} onChange={(t) => alterar({ minutos_inatividade: Number(t) || 0 })} scale={0} className={campo} />
-            <span className={HINT_CLASS}>Cliente sem responder ao bot ou ao técnico: o bot avisa e encerra 30 segundos depois. 0 = desligado</span>
+            <span className={HINT_CLASS}>Cliente sem responder ao bot ou ao técnico: a conversa vai para aguardando, sem mensagem ao cliente. O app nunca encerra sozinho: só alguém da equipe, pelo Encerrar. 0 = desligado</span>
           </div>
         </div>
 

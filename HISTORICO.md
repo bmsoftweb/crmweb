@@ -2,6 +2,13 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.136 — 2026-10-09
+
+- WhatsApp: o app nunca encerra um atendimento sozinho; só alguém da equipe, pelo Encerrar. Sem resposta do cliente (ao bot ou ao técnico) depois dos minutos de Configurações › Chatbot, a conversa vai para "aguardando" (o técnico que atendia é liberado), sem mensagem ao cliente; saíram o aviso "será encerrado em 30 segundos" e o encerramento. O "ok, obrigado" do cliente também só passa para aguardando.
+- Conversa aguardando atendente não volta mais ao bot pelo tempo: fica na fila até um técnico atender ou encerrar. O tempo de Configurações › Chatbot passa a se chamar "Liberar o atendente depois de" (quem assumiu e não respondeu volta a conversa para a fila).
+- Automação: o fim da automação deixa a conversa aguardando alguém da equipe encerrar (antes encerrava e mandava a pesquisa).
+- Pesquisa de satisfação: sai no Encerrar sempre que alguém da equipe escreveu no atendimento, mesmo que a conversa tenha voltado para aguardando. A resposta do cliente à pesquisa segue como antes.
+
 ## 0.0.135 — 2026-10-09
 
 - Automação do WhatsApp: nó novo "Criar tarefa" (grupo CRM). Cria uma tarefa com vencimento na hora para o departamento escolhido (ou para toda a equipe), com assunto e observação usando as variáveis coletadas (ex.: nome e empresa); o telefone do WhatsApp vai junto e, com o cliente cadastrado, a tarefa fica ligada a ele. A conversa segue para o próximo nó, e o fim da automação não pede avaliação (alguém ainda vai retornar o contato).

@@ -218,7 +218,7 @@ export function createApp() {
     }
   };
   // A função tem até 60 s: campanhas até 25 s, automáticas até 20 s; o resto fica para o minuto seguinte
-  // Inatividade em paralelo: ela espera 30 s depois de avisar, e não pode atrasar as outras
+  // Inatividade em paralelo com o resto
   app.get(
     '/api/cron/whatsapp',
     cron(async () => {

@@ -256,15 +256,15 @@ export function createConversasRouter(): Router {
       // Clique repetido (ou conversa já encerrada): não grava outra linha
       const [ok] = await pool.query<any[]>(`SELECT 1 FROM whatsapp_conversas c WHERE c.empresa_id = ? AND c.telefone = ? AND ${ENCERRAVEL}`, [emp, telefone]);
       if (!ok.length) return res.status(400).json({ error: 'Não há atendimento em andamento para encerrar.' });
-      // Quem atendia e o departamento, antes de limpar: vão para a pesquisa de satisfação
+      // O departamento, antes de limpar: vai para a pesquisa de satisfação
       const [antes] = await pool.query<any[]>(
-        'SELECT u.id, u.nome, c.departamento_id FROM whatsapp_conversas c LEFT JOIN usuarios u ON u.id = c.atendente_id WHERE c.empresa_id = ? AND c.telefone = ?',
+        'SELECT c.departamento_id FROM whatsapp_conversas c WHERE c.empresa_id = ? AND c.telefone = ?',
         [emp, telefone],
       );
       await encerrarAtendimento(emp, telefone);
       await marcarEncerramento(emp, telefone, res.locals.usuarioId);
-      // Pesquisa só se um humano atendeu (alguém tinha pegado a conversa)
-      if (antes[0]?.id) await enviarPesquisa(emp, telefone, 'atendente', { id: antes[0].id, nome: antes[0].nome }, antes[0].departamento_id ?? null);
+      // Pesquisa só se alguém da equipe escreveu no atendimento (enviarPesquisa confere), mesmo que a conversa tenha voltado a aguardar
+      await enviarPesquisa(emp, telefone, 'atendente', null, antes[0]?.departamento_id ?? null);
       res.json({ success: true });
     } catch (err: any) {
       falha(res, err);
@@ -461,7 +461,7 @@ export function createConversasRouter(): Router {
         [`${TRANSFERIDO_PARA}%`, res.locals.empresaId, res.locals.usuario.id, res.locals.usuario.id],
       );
       // Conversas minhas em que o cliente espera a minha resposta há X minutos (Configurações › Chatbot): a tela toca
-      // a campainha uma vez por mensagem. "ok, obrigado" não espera nada (o cron encerra: server/inatividade.ts)
+      // a campainha uma vez por mensagem. "ok, obrigado" não espera nada (o cron passa para aguardando: server/inatividade.ts)
       const minutos = minutosInatividade((await lerConfig(String(res.locals.empresaId), 'whatsapp', 'chatbot')) as any);
       const [e] = minutos
         ? await pool.query<any[]>(
@@ -677,7 +677,7 @@ export function createConversasRouter(): Router {
       const chatbot: any = await lerConfig(String(emp), 'whatsapp', 'chatbot');
       const conta = await contaDaConversa(emp, telefone);
       const comBot = jornadaAtende(await lerJornadaConfig(emp, conta), telefone);
-      const atendimento = await atendimentoAtual(emp, telefone, minutosDevolver(chatbot), comBot);
+      const atendimento = await atendimentoAtual(emp, telefone, minutosDevolver(chatbot));
       const [cv] = await pool.query<any[]>(
         `SELECT d.nome AS departamento, c.atendente_id, u.nome AS atendente_nome, DATE_FORMAT(c.atendido_em, '%Y-%m-%d %H:%i:%s') AS atendido_em,
                 DATE_FORMAT(c.humano_desde, '%Y-%m-%d %H:%i:%s') AS aguardando_desde, ${ENCERRAVEL} AS encerravel,

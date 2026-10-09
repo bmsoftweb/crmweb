@@ -15,7 +15,7 @@ import {
   iaComOpcoes,
   lerChatbot,
   temChave,
-  marcarEncerramento,
+  marcarEvento,
   mudarAtendimento,
   registrarLead,
   telefoneCadastro,
@@ -23,7 +23,6 @@ import {
   type Contexto,
   type OpcaoMenu,
 } from './chatbot.js';
-import { enviarPesquisa } from './pesquisa.js';
 import { TEXTO_ENCERRAMENTO as ENCERRADA_POR_INATIVIDADE } from './inatividade.js';
 
 /**
@@ -566,8 +565,6 @@ class Execucao {
   private enviadas = 0;
   /** A jornada passou a conversa para a equipe (Departamento, IA sem ligação em "humano"): não é o fim do atendimento */
   private paraHumano = false;
-  /** Registrou lead/prospecção: um consultor ainda vai falar com o cliente, o fim da automação não pede avaliação */
-  private repassado = false;
 
   constructor(
     private ctx: Contexto,
@@ -721,11 +718,10 @@ class Execucao {
       if (no === null) return; // continua parado onde está
       if (no === 'fim') {
         this.estado.no = FIM;
-        // O cliente chegou ao fim da jornada (nó Fim ou saída sem ligação): linha de encerramento na conversa
+        // Fim da jornada (nó Fim ou saída sem ligação): o app não encerra sozinho; a conversa fica aguardando alguém da equipe encerrar
         if (!this.paraHumano) {
-          await marcarEncerramento(this.ctx.empresaId, this.ctx.telefone, null, null, 'Atendimento encerrado pelo cliente (fim da automação)');
-          // Pesquisa de satisfação do atendimento do bot/jornada (se ligada)
-          if (!this.repassado) await enviarPesquisa(this.ctx.empresaId, this.ctx.telefone, 'jornada', null, this.ctx.departamento?.id ?? null);
+          await mudarAtendimento(this.ctx.empresaId, this.ctx.telefone, 'humano');
+          await marcarEvento(this.ctx.empresaId, this.ctx.telefone, 'Fim da automação: aguardando alguém da equipe encerrar', null);
         }
         return;
       }
@@ -782,7 +778,6 @@ class Execucao {
             interesse: campo(d.interesse, '{{interesse}}') || 'Contato pelo WhatsApp',
           });
           if (!r?.ok) await this.falha(no, `registrar lead: ${r?.erro}`);
-          else this.repassado = true;
           no = seguir();
           break;
         }
@@ -800,7 +795,6 @@ class Execucao {
             { funil_id: d.funil_id, etapa_id: d.etapa_id, assunto: 'Prospecção pelo WhatsApp', observacao: campo(d.observacao, '') },
           );
           if (!r?.ok) await this.falha(no, `registrar prospecção: ${r?.erro}`);
-          else this.repassado = true;
           no = seguir();
           break;
         }
@@ -819,7 +813,6 @@ class Execucao {
 WhatsApp: ${v.telefone}`.trim(),
             ],
           );
-          this.repassado = true;
           no = seguir();
           break;
         }
