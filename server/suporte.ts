@@ -297,25 +297,6 @@ export function createSuporteRouter(): Router {
   }));
 
   /**
-   * Número do AnyDesk que o cliente copiou do programa (cartão "Acesso remoto"): vai para o chamado
-   * e fica gravado na Pessoa, para o técnico conectar direto nas próximas vezes
-   */
-  router.post('/api/publico/suporte/chamado/:token/anydesk', rota(async (req, res) => {
-    const c = await doToken(req.params.token);
-    if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento foi encerrado.');
-    const id = digitos(req.body?.id, 12);
-    if (id.length < 9) throw erro(400, 'Digite o número que aparece em "Seu endereço" no AnyDesk (9 ou 10 dígitos).');
-    await gravarMensagem({ chamado_id: c.id, autor: 'cliente', texto: `[[anydesk-id:${id}]]` });
-    // Na pessoa do chamado; chamado sem pessoa: na pessoa com o CNPJ/CPF informado, se ela existir no cadastro
-    await pool.query(
-      `UPDATE pessoas p JOIN chamados c ON c.id = ? SET p.anydesk_id = ?
-        WHERE p.empresa_id = c.empresa_id AND (p.id = c.pessoa_id OR (c.pessoa_id IS NULL AND c.contato_documento <> '' AND p.cpf = c.contato_documento))`,
-      [c.id, id],
-    );
-    res.json({ success: true });
-  }));
-
-  /**
    * Instalador do BMSoft Suporte (agente do MeshCentral, link de 24 h gerado pelo BMDesk) no cartão
    * "Acesso remoto". O técnico fica sabendo pelo evento no chamado, para vincular o computador no BMDesk.
    * O link passa pelo BMDesk com o chamado e o nome que o cliente deu ao computador: o computador instalado
@@ -324,15 +305,16 @@ export function createSuporteRouter(): Router {
   router.post('/api/publico/suporte/chamado/:token/agente', rota(async (req, res) => {
     const c = await doToken(req.params.token);
     if (['encerrado', 'cancelado'].includes(c.status)) throw erro(409, 'Este atendimento foi encerrado.');
-    const nome = texto(req.body?.nome, 60) || '';
+    const nome = texto(req.body?.nome, 60).trim();
+    if (!nome) throw erro(400, 'Informe o nome deste computador (ex.: Recepção) para baixar o BMSoft Suporte.');
     const { url } = await chamarBmdesk(`/api/integracao/convite?${new URLSearchParams({ chamado: String(c.id), nome })}`).catch((e) => {
       console.error(`Suporte (site): ${e.message}`);
-      throw erro(503, 'O BMSoft Suporte está indisponível agora. Use o AnyDesk, logo abaixo.');
+      throw erro(503, 'O BMSoft Suporte está indisponível agora. Tente de novo em alguns minutos.');
     });
     await gravarMensagem({
       chamado_id: c.id,
       autor: 'sistema',
-      texto: `Cliente abriu o instalador do BMSoft Suporte${nome ? ` para o computador "${nome}"` : ''}: depois de instalado, use "Acessar computador" e "Vincular e acessar" no computador em destaque.`,
+      texto: `Cliente abriu o instalador do BMSoft Suporte para o computador "${nome}": depois de instalado, use "Acessar computador" e "Vincular e acessar" no computador em destaque.`,
     });
     res.json({ url });
   }));

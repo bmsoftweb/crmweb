@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.137 — 2026-10-09
+
+- Chat do site (cliente): no cartão "Acesso remoto" o nome do computador passa a ser obrigatório ("Nome deste computador (OBRIGATÓRIO)"); sem ele o BMSoft Suporte não baixa (a tela e o servidor conferem).
+- Acesso remoto só pelo BMSoft Suporte: saíram do cartão o "Abrir AnyDesk", o "Não tenho o AnyDesk" e o envio do número do AnyDesk (e a rota que o recebia); o chat não tenta mais abrir o AnyDesk sozinho. Na tela do técnico, o "Conectar" de quem já tinha mandado o número continua, só abrindo o AnyDesk do técnico.
+
 ## 0.0.136 — 2026-10-09
 
 - WhatsApp: o app nunca encerra um atendimento sozinho; só alguém da equipe, pelo Encerrar. Sem resposta do cliente (ao bot ou ao técnico) depois dos minutos de Configurações › Chatbot, a conversa vai para "aguardando" (o técnico que atendia é liberado), sem mensagem ao cliente; saíram o aviso "será encerrado em 30 segundos" e o encerramento. O "ok, obrigado" do cliente também só passa para aguardando.

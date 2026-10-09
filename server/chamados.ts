@@ -474,7 +474,7 @@ export function createChamadosRouter(): Router {
     res.json({ success: true, aviso });
   }));
 
-  /** Tela remota: pede ao cliente, no chat do site, para abrir o AnyDesk (o botão usa o protocolo anydesk:) */
+  /** Tela remota: mostra ao cliente, no chat do site, o cartão para baixar o BMSoft Suporte */
   router.post('/chamados/:id/tela-remota', rota(async (req, res) => {
     const c = await chamadoDaEmpresa(req.params.id, emp(res));
     conferirDono(c, res);

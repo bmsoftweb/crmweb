@@ -54,40 +54,34 @@ const avisarCliente = (dados: { nome?: string; documento?: string }) => {
   }
 };
 
-/** Pedido de tela remota do técnico (server/chamados.ts): vira o cartão com o botão do AnyDesk */
+/** Pedido de tela remota do técnico (server/chamados.ts): vira o cartão para baixar o BMSoft Suporte */
 const TELA_REMOTA = '[[anydesk]]';
 /** Cutucão do técnico (server/chamados.ts): campainha, tremida e aviso ao site (widget.js) */
 const CUTUCAR = '[[cutucar]]';
 
-/** Número do AnyDesk que o cliente enviou (server/suporte.ts) */
+/** Número do AnyDesk que o cliente enviou (chamados antigos, antes de ficar só o BMSoft Suporte) */
 const ID_ANYDESK = /^\[\[anydesk-id:(\d+)\]\]$/;
 /** "123456789" → "123 456 789" (como o AnyDesk mostra) */
 const formatarAnydesk = (id: string) => id.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
-/**
- * Cartão "Tela remota": o navegador só abre o AnyDesk (protocolo anydesk:) com um clique da pessoa.
- * Sem o AnyDesk instalado, o clique não faz nada: por isso o link para baixar. O cliente cola o
- * número do AnyDesk no campo e o técnico conecta direto (fica gravado no cadastro dele).
- */
-const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: boolean; enviado: boolean; url: string; onEnviado: () => void }> = ({
-  tecnico,
-  quando,
-  ultimo,
-  enviado,
-  url,
-  onEnviado,
-}) => {
-  const [id, setId] = useState('');
-  const [enviando, setEnviando] = useState(false);
+/** Cartão "Acesso remoto": o cliente dá nome ao computador e baixa o BMSoft Suporte (só ele; o AnyDesk saiu) */
+const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: boolean; url: string }> = ({ tecnico, quando, ultimo, url }) => {
   const [baixando, setBaixando] = useState(false);
   /** Nome que o cliente dá ao computador antes de baixar: o técnico acha o computador no chamado e vira o apelido dele */
   const [nomePc, setNomePc] = useState('');
+  const campoNomePc = useRef<HTMLInputElement>(null);
   const [erro, setErro] = useState<string | null>(null);
   /**
    * BMSoft Suporte (BMDesk): a página do instalador abre numa aba nova. A aba abre já no clique
    * (depois da chamada o navegador bloquearia o pop-up) e recebe o endereço quando ele chega
    */
   const baixarAgente = async () => {
+    // Obrigatório: confere antes de abrir a aba
+    if (!nomePc.trim()) {
+      setErro('Informe o nome deste computador (ex.: Recepção) para baixar o BMSoft Suporte.');
+      campoNomePc.current?.focus();
+      return;
+    }
     const janela = window.open('', '_blank');
     setBaixando(true);
     setErro(null);
@@ -104,19 +98,6 @@ const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: bool
       setBaixando(false);
     }
   };
-  const enviar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEnviando(true);
-    setErro(null);
-    try {
-      await api(`${url}/anydesk`, { id });
-      onEnviado();
-    } catch (err: any) {
-      setErro(err.message);
-    } finally {
-      setEnviando(false);
-    }
-  };
   return (
     <div className={`self-start max-w-[90%] rounded-2xl rounded-bl-md border px-3 py-2.5 text-sm ${ultimo ? 'bg-rose-50 border-rose-200' : 'bg-white border-stone-200'}`}>
       <div className="flex items-center gap-2 font-semibold text-rose-700">
@@ -127,13 +108,15 @@ const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: bool
       </p>
       <div className="flex gap-2 mt-2">
         <input
+          ref={campoNomePc}
+          required
           value={nomePc}
           onChange={(e) => setNomePc(e.target.value.slice(0, 60))}
           onFocus={(e) => e.target.select()}
           onKeyDown={(e) => e.key === 'Enter' && !baixando && baixarAgente()}
-          placeholder="Nome deste computador (ex.: Recepção)"
-          aria-label="Nome deste computador"
-          title="Opcional: ajuda o técnico a achar este computador (ex.: Recepção, Caixa 1, Notebook da Maria)"
+          placeholder="Nome deste computador (OBRIGATÓRIO)"
+          aria-label="Nome deste computador (obrigatório)"
+          title="Obrigatório: ajuda o técnico a achar este computador (ex.: Recepção, Caixa 1, Notebook da Maria)"
           className={`${INPUT_CLASS} flex-1 min-w-0 text-sm`}
         />
         <button
@@ -145,31 +128,6 @@ const CartaoTelaRemota: React.FC<{ tecnico: string; quando: string; ultimo: bool
           {baixando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Baixar BMSoft Suporte
         </button>
       </div>
-      <p className="text-xs text-stone-500 mt-2">Prefere o AnyDesk? Abra-o e informe abaixo o número que aparece em "Seu endereço".</p>
-      <div className="flex flex-wrap gap-2 mt-2">
-        <a href="anydesk://" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">
-          <MonitorSmartphone className="w-3.5 h-3.5" /> Abrir AnyDesk
-        </a>
-        <a href="https://anydesk.com/pt/downloads" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs font-semibold">
-          <Download className="w-3.5 h-3.5" /> Não tenho o AnyDesk
-        </a>
-      </div>
-      {!enviado && (
-        <form onSubmit={enviar} className="flex gap-2 mt-2">
-          <input
-            value={id}
-            onChange={(e) => setId(e.target.value.replace(/[^\d ]/g, '').slice(0, 15))}
-            onFocus={(e) => e.target.select()}
-            inputMode="numeric"
-            placeholder="Número do AnyDesk"
-            aria-label="Número do AnyDesk"
-            className={`${INPUT_CLASS} flex-1 min-w-0 text-sm`}
-          />
-          <button type="submit" disabled={enviando || id.replace(/\D/g, '').length < 9} className="px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
-            {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Enviar'}
-          </button>
-        </form>
-      )}
       {erro && <p className="text-xs text-rose-700 mt-1">{erro}</p>}
       <div className="text-[10px] mt-1 text-right text-stone-400">{formatDateTimeBR(quando)}</div>
     </div>
@@ -357,7 +315,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
   const qtd = useRef(0);
   /** Campo da mensagem: o foco volta para ele depois de enviar (fica desabilitado enquanto envia) */
   const campoMensagem = useRef<HTMLTextAreaElement>(null);
-  /** Maior id de mensagem já visto (null = ainda não carregou): pedido de tela remota chegando depois tenta abrir o AnyDesk */
+  /** Maior id de mensagem já visto (null = ainda não carregou): o que a equipe mandou depois avisa o site */
   const vistoAte = useRef<number | null>(null);
   const [tremer, setTremer] = useState(false);
   // O navegador só libera som depois do primeiro clique ou tecla na página
@@ -396,20 +354,6 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
     }
     if (!c) return;
     const maior = c.mensagens.reduce((m, x) => Math.max(m, x.id), 0);
-    // Pedido de tela remota que chegou agora (com o chat aberto): tenta abrir o AnyDesk uma vez.
-    // O navegador só deixa se o cliente mexeu no chat há poucos segundos; senão bloqueia e fica o cartão
-    if (vistoAte.current !== null && c.mensagens.some((m) => m.texto === TELA_REMOTA && m.id > vistoAte.current!)) {
-      // Num quadro invisível e temporário: sem o AnyDesk instalado, o erro fica nele e o chat continua na tela
-      try {
-        const q = document.createElement('iframe');
-        q.style.display = 'none';
-        q.src = 'anydesk://';
-        document.body.appendChild(q);
-        setTimeout(() => q.remove(), 3000);
-      } catch {
-        // bloqueado: o cliente usa o botão do cartão
-      }
-    }
     // O que a equipe mandou desde a última olhada: cutucão (campainha e tremida) ou resposta (som). Nos dois casos o
     // site é avisado (widget.js): abre o painel, pisca o título da aba e mostra a notificação do Windows
     const novas = vistoAte.current === null ? [] : c.mensagens.filter((m) => m.autor === 'equipe' && m.id > vistoAte.current!);
@@ -426,7 +370,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
         tocarAviso('suporte');
       }
       const de = (ultima ?? novas[novas.length - 1]).usuario_nome || 'Suporte';
-      const texto = !ultima ? 'Precisa de sua atenção no chat do suporte.' : ultima.texto === TELA_REMOTA ? 'Pediu para acessar a sua tela (AnyDesk).' : ultima.texto;
+      const texto = !ultima ? 'Precisa de sua atenção no chat do suporte.' : ultima.texto === TELA_REMOTA ? 'Pediu para acessar a sua tela.' : ultima.texto;
       try {
         window.parent.postMessage({ crmweb: cutucou ? 'cutucar' : 'mensagem', de, texto: texto.slice(0, 200) }, '*');
       } catch {
@@ -506,9 +450,7 @@ const Conversa: React.FC<{ token: string; onNovo: (aviso?: string) => void }> = 
               tecnico={m.usuario_nome || 'O técnico'}
               quando={m.criado_em}
               ultimo={i === c.mensagens.length - 1}
-              enviado={c.mensagens.some((x) => x.id > m.id && ID_ANYDESK.test(x.texto))}
               url={url}
-              onEnviado={carregar}
             />
           ) : (
           <div

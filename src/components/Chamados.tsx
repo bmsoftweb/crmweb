@@ -56,15 +56,10 @@ const CUTUCAR = '[[cutucar]]';
 const ID_ANYDESK = /^\[\[anydesk-id:(\d+)\]\]$/;
 const formatarAnydesk = (id: string) => id.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
-/**
- * Abre o AnyDesk do técnico já conectando ao cliente (protocolo anydesk:<número>).
- * onClick roda antes (pedido de tela remota no chat do cliente); o link abre em seguida,
- * ainda no clique, porque o navegador só chama o AnyDesk com um gesto do usuário.
- */
-const Conectar: React.FC<{ id: string; grande?: boolean; onClick?: () => void }> = ({ id, grande, onClick }) => (
+/** Abre o AnyDesk do técnico conectando no número que o cliente mandou antes (cadastro ou chamados antigos) */
+const Conectar: React.FC<{ id: string; grande?: boolean }> = ({ id, grande }) => (
   <a
     href={`anydesk:${id}`}
-    onClick={onClick}
     title={`Abre o seu AnyDesk conectando em ${formatarAnydesk(id)}`}
     className={`inline-flex items-center gap-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold ${grande ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-[11px]'}`}
   >
@@ -694,7 +689,7 @@ const ChamadoAberto: React.FC<{
       <button
         type="button"
         onClick={() => acao(() => pedirTelaRemota(c.id), 'Pedido de tela remota enviado ao chat do cliente.')}
-        title="Mostra no chat do site o botão para o cliente abrir o AnyDesk; ele informa o ID para você conectar"
+        title="Mostra no chat do site o cartão para o cliente baixar e instalar o BMSoft Suporte; depois use Acessar computador"
         className={`${botao} border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40`}
       >
         <MonitorSmartphone className="w-3.5 h-3.5" /> Tela Remota
@@ -837,8 +832,6 @@ const ChamadoAberto: React.FC<{
     </button>
   );
 
-  // Conectar: pede a tela remota no chat do site (o AnyDesk do cliente abre) e o link já sobe o AnyDesk do técnico
-  const conectar = podeEscrever && c.canal === 'web' ? () => void acao(() => pedirTelaRemota(c.id), 'Tela remota pedida ao cliente; abrindo o seu AnyDesk.') : undefined;
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1000,7 +993,7 @@ const ChamadoAberto: React.FC<{
               )}
             </div>
           )}
-          {idAnydesk && <Conectar id={idAnydesk} grande onClick={conectar} />}
+          {idAnydesk && <Conectar id={idAnydesk} grande />}
           {c.historico_qtd > 0 && (
             <button
               type="button"
@@ -1118,7 +1111,7 @@ const ChamadoAberto: React.FC<{
               <span className="text-stone-700 dark:text-stone-200">
                 Cliente enviou o número do AnyDesk: <strong>{formatarAnydesk(ID_ANYDESK.exec(m.texto)![1])}</strong>
               </span>
-              <Conectar id={ID_ANYDESK.exec(m.texto)![1]} onClick={conectar} />
+              <Conectar id={ID_ANYDESK.exec(m.texto)![1]} />
               <span className="text-[10px] text-stone-400">{formatDateTimeBR(m.criado_em)}</span>
             </div>
           ) : m.texto === CUTUCAR ? (
@@ -1127,7 +1120,7 @@ const ChamadoAberto: React.FC<{
             </div>
           ) : m.texto === TELA_REMOTA ? (
             <div key={m.id} className="self-end text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-full px-3 py-1 inline-flex items-center gap-1.5">
-              <MonitorSmartphone className="w-3.5 h-3.5" /> {m.usuario_nome || 'Equipe'} pediu a tela remota (AnyDesk) • {formatDateTimeBR(m.criado_em)}
+              <MonitorSmartphone className="w-3.5 h-3.5" /> {m.usuario_nome || 'Equipe'} pediu a tela remota (BMSoft Suporte) • {formatDateTimeBR(m.criado_em)}
             </div>
           ) : m.autor === 'sistema' ? (
             <div key={m.id} className="self-center text-[11px] text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-900 rounded-full px-3 py-1">
