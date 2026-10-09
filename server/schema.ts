@@ -1237,7 +1237,7 @@ export const RESOURCES: ResourceDef[] = [
         readOnly: true,
         options: [
           { value: 'aguardando', label: 'Aguardando' },
-          { value: 'em_andamento', label: 'Em andamento' },
+          { value: 'em_andamento', label: 'Em atendimento' },
           { value: 'pendente_cliente', label: 'Pendente do cliente' },
           { value: 'pausado', label: 'Pausado' },
           { value: 'encerrado', label: 'Encerrado' },

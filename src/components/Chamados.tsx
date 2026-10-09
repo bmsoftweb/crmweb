@@ -79,7 +79,7 @@ const PRIORIDADE: Record<string, string> = {
 };
 const STATUS: Record<string, [string, string]> = {
   aguardando: ['Aguardando', 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'],
-  em_andamento: ['Em andamento', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'],
+  em_andamento: ['Em atendimento', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'],
   pausado: ['Pausado', 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'],
   pendente_cliente: ['Pendente cliente', 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300'],
   encerrado: ['Encerrado', 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'],
@@ -90,6 +90,27 @@ const Etiqueta: React.FC<{ classe: string; children: React.ReactNode }> = ({ cla
   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap ${classe}`}>{children}</span>
 );
 const Prioridade: React.FC<{ p: string }> = ({ p }) => <Etiqueta classe={PRIORIDADE[p] || PRIORIDADE.normal}>{p}</Etiqueta>;
+/**
+ * Senha da fila num círculo. Esperando atendimento (aguardando ou pausado), pela espera: verde até 10 min,
+ * laranja de 10 a 20, vermelho acima de 20. Com alguém atendendo (ou esperando o cliente): fundo branco
+ */
+const SenhaFila: React.FC<{ c: Pick<ChamadoResumo, 'nr_fila' | 'status' | 'espera_min'>; tamanho?: 'sm' | 'md' }> = ({ c, tamanho = 'md' }) => {
+  if (c.nr_fila == null) return null;
+  const esperando = c.status === 'aguardando' || c.status === 'pausado';
+  const cor = !esperando
+    ? 'bg-white text-stone-700 border border-stone-300 dark:bg-stone-100 dark:text-stone-800'
+    : c.espera_min <= 10
+      ? 'bg-emerald-500 text-white'
+      : c.espera_min <= 20
+        ? 'bg-orange-500 text-white'
+        : 'bg-rose-600 text-white';
+  const titulo = esperando ? `Senha ${c.nr_fila}: aguardando há ${c.espera_min} min` : `Senha ${c.nr_fila}: em atendimento`;
+  return (
+    <span title={titulo} className={`inline-flex items-center justify-center shrink-0 rounded-full font-bold ${tamanho === 'sm' ? 'w-5 h-5 text-[10px]' : 'w-6 h-6 text-xs'} ${cor}`}>
+      {c.nr_fila}
+    </span>
+  );
+};
 const Status: React.FC<{ s: string }> = ({ s }) => <Etiqueta classe={STATUS[s]?.[1] || ''}>{STATUS[s]?.[0] || s}</Etiqueta>;
 const Categoria: React.FC<{ c: ChamadoResumo }> = ({ c }) =>
   c.categoria_nome ? (
@@ -287,7 +308,7 @@ export const ChamadosFila: React.FC<FilaProps> = ({ refreshToken, onAbrir, onMud
                 // Senha do dia do chamado; conversa do WhatsApp não tem senha
                 const posicao = (
                   <td className={`${td} text-center`}>
-                    {it.tipo === 'chamado' ? <span className="font-bold text-blue-600 dark:text-blue-400">{it.c.nr_fila}º</span> : <span className="text-stone-400">—</span>}
+                    {it.tipo === 'chamado' ? <SenhaFila c={it.c} /> : <span className="text-stone-400">—</span>}
                   </td>
                 );
                 const linha = 'bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors';
@@ -396,7 +417,7 @@ const FILTROS: [FiltroChamados, string][] = [
   ['meus', 'Meus'],
   ['todos', 'Todos abertos'],
   ['aguardando', 'Aguardando'],
-  ['andamento', 'Em andamento'],
+  ['andamento', 'Em atendimento'],
   ['encerrados', 'Encerrados'],
 ];
 
@@ -527,7 +548,7 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onM
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  {c.nr_fila != null && <span className="text-sm font-bold text-blue-600 dark:text-blue-400" title="Posição na fila: ordem de chegada entre os chamados abertos">{c.nr_fila}º</span>}
+                  <SenhaFila c={c} />
                   <span className="text-[11px] font-mono text-stone-400">nº {c.numero}</span>
                   <span className="ml-auto">
                     <Status s={c.status} />
@@ -564,8 +585,10 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onM
                     : 'border-b-transparent text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-800'
                 }`}
               >
-                <span className="font-bold text-blue-600 dark:text-blue-400">{c.nr_fila}º</span>
-                <span className="font-mono text-stone-400"> • nº {c.numero}</span>
+                <span className="flex items-center gap-1.5">
+                  <SenhaFila c={c} tamanho="sm" />
+                  <span className="font-mono text-stone-400">nº {c.numero}</span>
+                </span>
                 <span className="block font-bold text-stone-800 dark:text-stone-100 truncate">{nomeChamado(c)}</span>
               </button>
             ))}

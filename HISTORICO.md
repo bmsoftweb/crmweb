@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.140 — 2026-10-09
+
+- Chamados: a senha da fila fica num círculo colorido (card, abas e tabela da fila). Aguardando (ou pausado), pela espera desde a abertura: verde até 10 min, laranja de 10 a 20, vermelho acima de 20. Em atendimento (ou pendente do cliente): fundo branco.
+- Chamados: a situação "Em andamento" passa a se chamar "Em atendimento" (etiqueta, filtro e cadastro).
+
 ## 0.0.139 — 2026-10-09
 
 - Campanhas: opção "Encerrar" no menu de ações. A campanha passa a Concluída (com "Encerrada em") e os disparos pendentes são cancelados; os que já saíram ficam como estão e as respostas seguem normalmente.
