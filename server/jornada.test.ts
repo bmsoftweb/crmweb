@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { agoraBrasilia, comparar, dentroDoHorario, ipInterno, jornadaPublica, pegar, preencher, prepararJornada, saidasDoNo } from './jornada.js';
+import { agoraBrasilia, comparar, dentroDoHorario, descreverHorario, ipInterno, jornadaPublica, pegar, preencher, prepararJornada, saidasDoNo } from './jornada.js';
 
 const inicio = { id: 'inicio', tipo: 'inicio', x: 0, y: 0, dados: {} };
 const menu = { id: 'm1', tipo: 'menu', x: 0, y: 100, dados: { texto: 'Escolha:', opcoes: [{ id: 'o1', rotulo: 'Vendas' }, { id: 'o2', rotulo: 'Suporte' }] } };
@@ -64,6 +64,8 @@ const util = { dias: [1, 2, 3, 4, 5], das: '08:00', ate: '18:00' };
 assert.ok(dentroDoHorario(util, { dia: 1, hora: '08:00' }));
 assert.ok(!dentroDoHorario(util, { dia: 1, hora: '18:00' }));
 assert.ok(!dentroDoHorario(util, { dia: 0, hora: '10:00' }));
+assert.equal(descreverHorario(util), 'seg a sex, das 08:00 às 18:00');
+assert.equal(descreverHorario({ dias: [6, 1, 3], das: '08:00', ate: '12:00' }), 'seg, qua, sáb, das 08:00 às 12:00');
 // 25/09/2026 12:00 UTC = sexta, 09:00 em Brasília
 assert.deepStrictEqual(agoraBrasilia(new Date('2026-09-25T12:00:00Z')), { dia: 5, hora: '09:00' });
 

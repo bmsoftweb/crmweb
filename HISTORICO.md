@@ -2,6 +2,11 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.135 — 2026-10-09
+
+- Automação do WhatsApp: nó novo "Criar tarefa" (grupo CRM). Cria uma tarefa com vencimento na hora para o departamento escolhido (ou para toda a equipe), com assunto e observação usando as variáveis coletadas (ex.: nome e empresa); o telefone do WhatsApp vai junto e, com o cliente cadastrado, a tarefa fica ligada a ele. A conversa segue para o próximo nó, e o fim da automação não pede avaliação (alguém ainda vai retornar o contato).
+- Automação: depois de uma Condição de horário, a variável {{horario}} traz o horário por extenso (ex.: "seg a sex, das 08:00 às 18:00").
+
 ## 0.0.134 — 2026-10-08
 
 - Chat do site (cliente): no cartão "Acesso remoto", campo "Nome deste computador" (opcional, ex.: Recepção) ao lado do "Baixar BMSoft Suporte". O aviso no chamado traz o nome.

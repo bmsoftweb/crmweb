@@ -44,7 +44,7 @@ const MAX_ARQUIVO = 3 * 1024 * 1024;
 /** Estado da conversa depois de um nó Fim (ou saída sem ligação) */
 const FIM = '__fim';
 
-export const TIPOS_NO = ['inicio', 'mensagem', 'imagem', 'menu', 'pergunta', 'condicao', 'case', 'esperar', 'api', 'ia', 'iaex', 'lead', 'prospeccao', 'departamento', 'fim'] as const;
+export const TIPOS_NO = ['inicio', 'mensagem', 'imagem', 'menu', 'pergunta', 'condicao', 'case', 'esperar', 'api', 'ia', 'iaex', 'lead', 'prospeccao', 'tarefa', 'departamento', 'fim'] as const;
 export type TipoNo = (typeof TIPOS_NO)[number];
 
 export interface No {
@@ -269,6 +269,11 @@ function prepararDados(tipo: TipoNo, d: any, id: string, anterior: Jornada | nul
         observacao: texto(d.observacao, 1000),
       };
     }
+    case 'tarefa': {
+      const departamento_id = Number(d.departamento_id) || null;
+      if (!String(d.assunto ?? '').trim()) throw erro('informe o assunto da tarefa.');
+      return { ...base, departamento_id, assunto: texto(d.assunto, 255), observacao: texto(d.observacao, 2000) };
+    }
     case 'departamento': {
       const departamento_id = Number(d.departamento_id);
       if (!Number.isInteger(departamento_id) || departamento_id < 1) throw erro('escolha o departamento.');
@@ -414,6 +419,16 @@ export function agoraBrasilia(d = new Date()): { dia: number; hora: string } {
       .map((x) => [x.type, x.value]),
   );
   return { dia: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday), hora: `${p.hour}:${p.minute}` };
+}
+
+const NOMES_DIA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+/** "seg a sex, das 08:00 às 18:00" ({{horario}} depois de uma Condição de horário) */
+export function descreverHorario(dados: { dias: number[]; das: string; ate: string }): string {
+  const dias = [...dados.dias].sort((a, b) => a - b);
+  const seguidos = dias.length > 2 && dias.every((x, i) => !i || x === dias[i - 1] + 1);
+  const quais = seguidos ? `${NOMES_DIA[dias[0]]} a ${NOMES_DIA[dias.at(-1)!]}` : dias.map((x) => NOMES_DIA[x]).join(', ');
+  return `${quais}, das ${dados.das} às ${dados.ate}`;
 }
 
 export function dentroDoHorario(dados: { dias: number[]; das: string; ate: string }, agora = agoraBrasilia()): boolean {
@@ -789,6 +804,25 @@ class Execucao {
           no = seguir();
           break;
         }
+        case 'tarefa': {
+          const v = await this.vars();
+          // Sem executor: fica para o departamento (ou para a equipe); vence agora, aparece como pendente para quem abrir as atividades
+          await pool.query(
+            `INSERT INTO atividades (empresa_id, pessoa_id, departamento_id, assunto, tipo, data_vencimento, hora_vencimento, observacao, lembrete_para, criada_por_bot)
+             VALUES (?, ?, ?, ?, 'tarefa', CURDATE(), TIME_FORMAT(CURTIME(), '%H:%i:00'), ?, 'nenhum', 1)`,
+            [
+              this.ctx.empresaId,
+              this.ctx.dono.pessoa_id,
+              d.departamento_id,
+              preencher(d.assunto, v).trim().slice(0, 255) || 'Retornar contato do WhatsApp',
+              `${preencher(d.observacao ?? '', v).trim()}
+WhatsApp: ${v.telefone}`.trim(),
+            ],
+          );
+          this.repassado = true;
+          no = seguir();
+          break;
+        }
         case 'departamento': {
           const [dep] = await pool.query<any[]>('SELECT id, nome FROM departamentos WHERE id = ? AND empresa_id = ?', [d.departamento_id, this.ctx.empresaId]);
           await this.enviar(preencher(d.texto ?? '', await this.vars()));
@@ -814,7 +848,10 @@ class Execucao {
 
   private async condicao(no: No): Promise<boolean> {
     const d = no.dados;
-    if (d.tipo === 'horario') return dentroDoHorario(d as any);
+    if (d.tipo === 'horario') {
+      this.estado.vars.horario = descreverHorario(d as any);
+      return dentroDoHorario(d as any);
+    }
     if (d.tipo === 'cadastrado') return Boolean(this.ctx.dono.pessoa_id);
     if (d.tipo === 'negocio') {
       if (!this.ctx.dono.pessoa_id) return false;

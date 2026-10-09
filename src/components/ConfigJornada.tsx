@@ -161,7 +161,7 @@ async function paraArquivo(j: ReturnType<typeof doQuadro>, departamentos: OpcaoR
         dados.arquivo_base64 = await base64DoBlob(blob);
         delete dados.arquivo_id;
       }
-      if (n.tipo === 'departamento') dados.departamento_nome = departamentos.find((d) => d.value === String(dados.departamento_id))?.label ?? '';
+      if (n.tipo === 'departamento' || n.tipo === 'tarefa') dados.departamento_nome = departamentos.find((d) => d.value === String(dados.departamento_id))?.label ?? '';
       if (n.tipo === 'api') dados.cabecalhos = (dados.cabecalhos ?? []).map((h: any) => (h.secreto ? { nome: h.nome, valor: '', secreto: true } : h));
       return { ...n, dados };
     }),
@@ -182,7 +182,7 @@ async function doArquivo(arq: any, departamentos: OpcaoRef[]): Promise<{ nos: No
     }
     delete dados.arquivo_base64;
     delete dados.arquivo_mimetype;
-    if (n.tipo === 'departamento') {
+    if (n.tipo === 'departamento' || (n.tipo === 'tarefa' && dados.departamento_nome)) {
       const nome = String(dados.departamento_nome ?? '').trim();
       const dep = departamentos.find((d) => d.label.replace(/ \(inativo\)$/, '').trim().toLowerCase() === nome.toLowerCase());
       dados.departamento_id = dep ? Number(dep.value) : null;
@@ -747,7 +747,7 @@ const PainelNo: React.FC<PainelProps> = ({ no, somenteLeitura, departamentos, va
                   <input id={id('ate')} type="time" value={d.ate} onChange={(e) => set({ ate: e.target.value })} className={campo} />
                 </div>
               </div>
-              <span className={HINT_CLASS}>Horário de Brasília. Sim = dentro do horário.</span>
+              <span className={HINT_CLASS}>Horário de Brasília. Sim = dentro do horário. Depois deste nó, {'{{horario}}'} traz o horário por extenso (ex.: seg a sex, das 08:00 às 18:00).</span>
             </>
           )}
           {d.tipo === 'variavel' && (
@@ -853,6 +853,25 @@ const PainelNo: React.FC<PainelProps> = ({ no, somenteLeitura, departamentos, va
             Sem cadastro, a pessoa entra como lead. Já tendo negócio aberto nesse funil, usa ele; senão abre um novo para o vendedor do revezamento, com a atividade
             "Prospecção pelo WhatsApp". Vindo de uma campanha, o negócio fica ligado a ela.
           </span>
+        </>
+      )}
+
+      {tipo === 'tarefa' && (
+        <>
+          <div className={FIELD_CLASS}>
+            <label htmlFor={id('dep')} className={LABEL_CLASS}>Departamento (opcional)</label>
+            <select id={id('dep')} value={d.departamento_id ?? ''} onChange={(e) => set({ departamento_id: Number(e.target.value) || null })} className={`${campo} cursor-pointer`}>
+              <option value="">Toda a equipe</option>
+              {departamentos.map((x) => (
+                <option key={x.value} value={x.value}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {linha('assunto', 'Assunto', 'Retornar contato: {{nome}}')}
+          {textoCom('observacao', 'Observação (opcional)', 3)}
+          <span className={HINT_CLASS}>Tarefa com vencimento agora, ligada ao cliente se ele for cadastrado; o telefone do WhatsApp vai junto na observação. A conversa continua no próximo nó.</span>
         </>
       )}
 
