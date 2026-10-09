@@ -82,7 +82,6 @@ export default function App() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
 
   const [refreshToken, setRefreshToken] = useState(0);
-  const [createToken, setCreateToken] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -234,7 +233,6 @@ export default function App() {
           const n = new Notification(titulo, { body: texto, tag: `atividade-${a.id}` });
           n.onclick = () => {
             window.focus();
-            setCreateToken(0);
             setActiveTab('atividades');
             n.close();
           };
@@ -317,7 +315,6 @@ export default function App() {
 
   // Navegação normal (menu etc.) abre sem filtro herdado
   const navegar = useCallback((tab: string) => {
-    setCreateToken(0);
     setFiltroInicial(null);
     setRegistroInicial(null);
     setActiveTab(tab);
@@ -519,7 +516,6 @@ export default function App() {
     : TITULOS[activeTab] || ['CRM Web', ''];
 
   // Chamados Ativos tem o "Novo" ao lado da pesquisa, não no cabeçalho
-  const podeCriar = activeTab === 'kanban' || Boolean(activeResource?.canCreate);
 
   return (
     <div className="h-screen overflow-hidden bg-stone-100/70 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex font-sans antialiased selection:bg-blue-600 selection:text-white">
@@ -553,10 +549,6 @@ export default function App() {
           subtitle={headerSubtitle}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           onRefresh={() => setRefreshToken((t) => t + 1)}
-          onCreate={podeCriar ? () => setCreateToken((t) => t + 1) : undefined}
-          createLabel={activeTab === 'kanban' ? 'Novo Negócio' : activeResource ? `Novo ${activeResource.labelSingular}` : undefined}
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
           onAbrirVisitas={veVisitas ? () => navegar('site_visitas') : undefined}
           visitaNova={ultimaVisita > visitaVista}
           favoritos={itensFavoritos}
@@ -569,7 +561,6 @@ export default function App() {
             <Kanban
               resourceNegocios={resourceNegocios}
               refreshToken={refreshToken}
-              createToken={createToken}
               onToast={showToast}
               onConversar={pedirConversa}
             />
@@ -633,7 +624,6 @@ export default function App() {
               resource={activeResource}
               allResources={resources}
               refreshToken={refreshToken}
-              createToken={createToken}
               onToast={showToast}
               onCountChange={handleCountChange}
               onNavigate={navegar}

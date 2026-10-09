@@ -28,8 +28,6 @@ interface KanbanProps {
   /** Metadados de negócios (formulário "Editar" da ficha) */
   resourceNegocios?: ResourceDef;
   refreshToken: number;
-  /** Botão "Novo" do Header */
-  createToken: number;
   onToast: (msg: string) => void;
   /** Ficha do negócio: abre a tela Conversas (atividade WhatsApp ou a pessoa do negócio) */
   onConversar?: (de: { atividadeId?: Id; pessoaId?: Id }) => void;
@@ -44,7 +42,7 @@ const lerFunilSalvo = () => {
   }
 };
 
-export const Kanban: React.FC<KanbanProps> = ({ resourceNegocios, refreshToken, createToken, onToast, onConversar }) => {
+export const Kanban: React.FC<KanbanProps> = ({ resourceNegocios, refreshToken, onToast, onConversar }) => {
   const [funis, setFunis] = useState<Funil[] | null>(null);
   const [funilId, setFunilId] = useState<Id | null>(lerFunilSalvo);
   const [cards, setCards] = useState<CardNegocio[]>([]);
@@ -93,9 +91,6 @@ export const Kanban: React.FC<KanbanProps> = ({ resourceNegocios, refreshToken, 
     carregarCards();
   }, [carregarCards, refreshToken]);
 
-  useEffect(() => {
-    if (createToken > 0) setNovo(true);
-  }, [createToken]);
 
   const escolherFunil = (id: Id) => {
     setFunilId(id);

@@ -1,8 +1,6 @@
 import React from 'react';
-import { Menu, Plus, RefreshCw, Bell } from 'lucide-react';
+import { Menu, RefreshCw, Bell } from 'lucide-react';
 import type { ItemMenu } from '../utils/menu';
-import { ThemeMode } from '../utils/theme';
-import { ThemeToggle } from './ThemeToggle';
 
 interface HeaderProps {
   /** Empresa logada (tenant) */
@@ -11,14 +9,10 @@ interface HeaderProps {
   subtitle: string;
   onOpenMobileSidebar: () => void;
   onRefresh?: () => void;
-  onCreate?: () => void;
-  createLabel?: string;
-  theme?: ThemeMode;
-  onToggleTheme?: () => void;
   /** Sino das visitas ao site: abre Visitas do Site; pisca com visita nova ainda não vista */
   onAbrirVisitas?: () => void;
   visitaNova?: boolean;
-  /** Opções favoritas do menu: só o ícone, antes do sino */
+  /** Opções favoritas do menu: só o ícone, depois do sino */
   favoritos?: ItemMenu[];
   onAbrirFavorito?: (id: string) => void;
   activeTab?: string;
@@ -30,10 +24,6 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   onOpenMobileSidebar,
   onRefresh,
-  onCreate,
-  createLabel,
-  theme = 'light',
-  onToggleTheme,
   onAbrirVisitas,
   visitaNova,
   favoritos = [],
@@ -69,22 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Ações à direita */}
         <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          {favoritos.map(({ id, label, icone: Icone }) => (
-            <button
-              key={id}
-              id={`btn-favorito-${id}`}
-              onClick={() => onAbrirFavorito?.(id)}
-              title={label}
-              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-                activeTab === id
-                  ? 'border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300'
-                  : 'border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
-              }`}
-            >
-              <Icone className="w-4 h-4" />
-            </button>
-          ))}
-
+          {/* Campainha (visitas do site): sempre o 1º botão */}
           {onAbrirVisitas && (
             <button
               id="btn-visitas-site"
@@ -101,9 +76,22 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {onToggleTheme && (
-            <ThemeToggle theme={theme} onToggle={onToggleTheme} variant="header" />
-          )}
+          {favoritos.map(({ id, label, icone: Icone }) => (
+            <button
+              key={id}
+              id={`btn-favorito-${id}`}
+              onClick={() => onAbrirFavorito?.(id)}
+              title={label}
+              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                activeTab === id
+                  ? 'border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300'
+                  : 'border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+              }`}
+            >
+              <Icone className="w-4 h-4" />
+            </button>
+          ))}
+
 
           {onRefresh && (
             <button
@@ -113,17 +101,6 @@ export const Header: React.FC<HeaderProps> = ({
               className="p-2 rounded-xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
-            </button>
-          )}
-
-          {onCreate && (
-            <button
-              id="btn-novo-registro"
-              onClick={onCreate}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">{createLabel || 'Novo'}</span>
             </button>
           )}
         </div>

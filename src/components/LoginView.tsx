@@ -141,7 +141,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 relative bg-stone-50 dark:bg-stone-900">
         {onToggleTheme && (
           <div className="absolute top-6 right-6 z-20">
-            <ThemeToggle theme={theme} onToggle={onToggleTheme} variant="login" />
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         )}
 

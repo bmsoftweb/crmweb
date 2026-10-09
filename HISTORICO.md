@@ -2,6 +2,12 @@
 
 Mais recente primeiro. PATCH a cada envio ao GitHub; MAJOR/MINOR só quando pedido.
 
+## 0.0.139 — 2026-10-09
+
+- Campanhas: opção "Encerrar" no menu de ações. A campanha passa a Concluída (com "Encerrada em") e os disparos pendentes são cancelados; os que já saíram ficam como estão e as respostas seguem normalmente.
+- Cabeçalho: saiu o botão "Novo …" (redundante: o Funil tem o "+ Negócio" e as listas têm o "+ Novo" na barra da tela). A campainha (visitas do site) passa a ser sempre o 1º botão. O modo claro/escuro fica só na tela de login (o tema escolhido continua valendo depois de entrar).
+- Chamados: no card da lista, a situação fica à direita e a etiqueta de prioridade saiu (continua na tabela da fila e no cabeçalho do chamado).
+
 ## 0.0.138 — 2026-10-09
 
 - Prospecção: o segmento passa a ser obrigatório para incluir os leads ("Escolha o segmento"; a opção "Sem segmento" saiu). A tela e o servidor conferem.

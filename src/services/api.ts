@@ -422,6 +422,8 @@ export const gerarDisparos = (
 
 /** Liga o envio da campanha: os disparos pendentes começam a sair */
 export const iniciarEnvioCampanha = (id: Id): Promise<{ pendentes: number }> => enviar('POST', `/api/campanhas/${encodeURIComponent(String(id))}/iniciar`);
+/** Encerra a campanha: concluída, e os disparos pendentes cancelados */
+export const encerrarCampanha = (id: Id): Promise<{ cancelados: number }> => enviar('POST', `/api/campanhas/${encodeURIComponent(String(id))}/encerrar`);
 
 /** Envia a proposta ou o pedido em PDF por e-mail ou WhatsApp (o servidor gera o PDF da impressão) */
 export const enviarDocumento = (

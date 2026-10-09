@@ -51,8 +51,6 @@ interface CrudViewProps {
   allResources: ResourceDef[];
   /** Incrementado pelo Header para forçar recarga */
   refreshToken: number;
-  /** Abertura da aba de inclusão disparada pelo Header */
-  createToken: number;
   onToast: (msg: string) => void;
   onCountChange: (resourceName: string, total: number) => void;
   /** Navegação para outra tela, usada pelo atalho do painel de detalhe */
@@ -117,7 +115,6 @@ export const CrudView: React.FC<CrudViewProps> = ({
   resource,
   allResources,
   refreshToken,
-  createToken,
   onToast,
   onCountChange,
   onNavigate,
@@ -787,12 +784,6 @@ export const CrudView: React.FC<CrudViewProps> = ({
       .then(abrirAbaEdicao)
       .catch((err) => onToast(err.message || `${resource.labelSingular} não encontrado.`));
   }, [registroInicial?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Abertura da aba de inclusão solicitada pelo Header
-  useEffect(() => {
-    if (createToken > 0 && resource.canCreate) abrirAbaNovo();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [createToken]);
 
   const handleSort = (fieldName: string) => {
     if (sort === fieldName) {

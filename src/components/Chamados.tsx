@@ -529,9 +529,8 @@ export const ChamadosAtivos: React.FC<AtivosProps> = ({ refreshToken, abrir, onM
                 <div className="flex items-center gap-2">
                   {c.nr_fila != null && <span className="text-sm font-bold text-blue-600 dark:text-blue-400" title="Posição na fila: ordem de chegada entre os chamados abertos">{c.nr_fila}º</span>}
                   <span className="text-[11px] font-mono text-stone-400">nº {c.numero}</span>
-                  <Status s={c.status} />
                   <span className="ml-auto">
-                    <Prioridade p={c.prioridade} />
+                    <Status s={c.status} />
                   </span>
                 </div>
                 <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate mt-1">

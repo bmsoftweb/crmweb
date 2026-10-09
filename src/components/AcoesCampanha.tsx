@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, ListPlus, Loader2, Paperclip, Play, Send, X } from 'lucide-react';
+import { CircleStop, Eye, ListPlus, Loader2, Paperclip, Play, Send, X } from 'lucide-react';
 import { RegistroCrud } from '../types';
-import { enviarDisparoAgora, gerarDisparos, iniciarEnvioCampanha, previaCampanha, PreviaCampanha } from '../services/api';
+import { encerrarCampanha, enviarDisparoAgora, gerarDisparos, iniciarEnvioCampanha, previaCampanha, PreviaCampanha } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BotaoAcao } from './MenuAcoes';
 
@@ -24,7 +24,7 @@ interface Props {
 /** Ações da linha da campanha: pré-visualizar a mensagem com o público, gerar os disparos e iniciar o envio */
 export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast }) => {
   const [ocupado, setOcupado] = useState(false);
-  const [confirmando, setConfirmando] = useState<'gerar' | 'iniciar' | null>(null);
+  const [confirmando, setConfirmando] = useState<'gerar' | 'iniciar' | 'encerrar' | null>(null);
   const [previa, setPrevia] = useState<PreviaCampanha | null>(null);
   const [vendoAnexos, setVendoAnexos] = useState(false);
   const id = registro.id as number;
@@ -46,6 +46,7 @@ export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast 
       <BotaoAcao icone={Eye} titulo="Pré-visualizar" descricao="Mostra o tamanho do público e a mensagem pronta para as primeiras pessoas" carregando={ocupado} onClick={verPrevia} />
       <BotaoAcao icone={ListPlus} titulo="Gerar disparos" descricao="Cria uma mensagem por pessoa do público, sem enviar" onClick={() => setConfirmando('gerar')} />
       <BotaoAcao icone={Play} titulo="Iniciar envio campanha" descricao="Liga o envio dos disparos pendentes" onClick={() => setConfirmando('iniciar')} />
+      <BotaoAcao icone={CircleStop} titulo="Encerrar" descricao="Conclui a campanha: os disparos que ainda não saíram são cancelados" onClick={() => setConfirmando('encerrar')} />
       <BotaoAcao icone={Paperclip} titulo="Ver anexos" descricao="Mostra a imagem que vai com a mensagem" onClick={() => setVendoAnexos(true)} />
       {vendoAnexos &&
         noBody(
@@ -98,6 +99,21 @@ export const AcaoCampanha: React.FC<Props> = ({ registro, onRecarregar, onToast 
               const r = await iniciarEnvioCampanha(id);
               setConfirmando(null);
               onToast(`Envio iniciado: ${r.pendentes} disparo(s) pendente(s).`);
+              onRecarregar();
+            }}
+            onCancelar={() => setConfirmando(null)}
+          />,
+        )}
+      {confirmando === 'encerrar' &&
+        noBody(
+          <ConfirmDialog
+            titulo={`Encerrar a campanha "${registro.nome}"?`}
+            mensagem="A campanha passa a Concluída e não gera nem envia mais nada: os disparos pendentes são cancelados. Os que já saíram continuam como estão, e as respostas dos clientes seguem normalmente."
+            confirmar="Encerrar"
+            onConfirmar={async () => {
+              const r = await encerrarCampanha(id);
+              setConfirmando(null);
+              onToast(`Campanha encerrada${r.cancelados ? `: ${r.cancelados} disparo(s) pendente(s) cancelado(s)` : ''}.`);
               onRecarregar();
             }}
             onCancelar={() => setConfirmando(null)}

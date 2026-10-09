@@ -450,6 +450,15 @@ export async function iniciarEnvio(campanhaId: string | number, empresaId: strin
   return { pendentes: Number(pendentes) };
 }
 
+/** Encerrar: a campanha fica concluída (não gera nem envia mais) e os disparos que ainda não saíram são cancelados */
+export async function encerrarCampanha(campanhaId: string | number, empresaId: string | number) {
+  const c = await campanhaDa(campanhaId, empresaId);
+  if (c.situacao === 'concluida' || c.situacao === 'cancelada') throw new Error(`A campanha já está ${c.situacao === 'concluida' ? 'concluída' : 'cancelada'}.`);
+  const [d] = await pool.query<any>("UPDATE campanha_disparos SET situacao = 'cancelado' WHERE campanha_id = ? AND situacao = 'pendente'", [c.id]);
+  await pool.query("UPDATE campanhas SET situacao = 'concluida', encerrada_em = NOW() WHERE id = ?", [c.id]);
+  return { cancelados: Number(d.affectedRows) };
+}
+
 /**
  * Enviar agora (botão no detalhe Disparos): manda um disparo pendente ou que falhou, sem esperar o agendamento
  * nem a situação da campanha. Usa a mesma trava do envio automático do canal: os dois juntos não mandam duas vezes.
@@ -567,6 +576,15 @@ export function createCampanhasRouter() {
   router.post('/campanhas/:id/iniciar', async (req: Request, res: Response) => {
     try {
       res.json({ success: true, ...(await iniciarEnvio(req.params.id, res.locals.empresaId)) });
+    } catch (err: any) {
+      res.status(err.status || 400).json({ error: friendlyDbError(err, 'campanha') });
+    }
+  });
+
+  /** Encerrar a campanha (ver encerrarCampanha) */
+  router.post('/campanhas/:id/encerrar', async (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, ...(await encerrarCampanha(req.params.id, res.locals.empresaId)) });
     } catch (err: any) {
       res.status(err.status || 400).json({ error: friendlyDbError(err, 'campanha') });
     }
